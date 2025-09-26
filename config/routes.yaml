@@ -1,0 +1,3 @@
+# for jwt auth
+api_login_check:
+  path: /api/login
