@@ -22,7 +22,5 @@ final readonly class CreateUserDto
         #[SerializedName('email')]
         #[Assert\NotBlank(message: 'Почта должна быть указана')]
         public string $email,
-    )
-    {
-    }
+    ) {}
 }
