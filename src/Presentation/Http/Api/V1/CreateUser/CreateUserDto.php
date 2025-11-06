@@ -12,8 +12,10 @@ final readonly class CreateUserDto
     public function __construct(
         #[SerializedName('first_name')]
         public string $firstName,
+
         #[SerializedName('last_name')]
         public string $lastName,
+
         #[SerializedName('email')]
         public string $email,
     )
