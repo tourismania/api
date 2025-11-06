@@ -8,7 +8,7 @@ namespace App\Presentation\Http\Api\V1\CreateUser;
 use App\Infrastructure\Persistence\Doctrine\User\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
@@ -18,17 +18,17 @@ class CreateUserController extends AbstractController
 {
     #[Route('/api/v1/users', name: 'users_create', methods: ['POST'])]
     public function __invoke(
-        Request $request,
+        #[MapRequestPayload] CreateUserDto $dto,
         EntityManagerInterface $entityManager,
         ValidatorInterface $validator,
         UserPasswordHasherInterface $userPasswordHasher
     ): \Symfony\Component\HttpFoundation\JsonResponse
     {
-        $email = $request->getPayload()->get('email');
+        $email = $dto->email;
 
         $user = new User();
-        $user->setFirstName($request->getPayload()->get('first_name'));
-        $user->setLastName($request->getPayload()->get('last_name'));
+        $user->setFirstName($dto->firstName);
+        $user->setLastName($dto->lastName);
         $user->setEmail($email);
         $user->setLogin($email);
         $user->setUuid(Uuid::v4());
