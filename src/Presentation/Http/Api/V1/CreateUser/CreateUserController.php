@@ -3,49 +3,27 @@
 declare(strict_types=1);
 declare(ticks=1000);
 
-namespace App\Controller;
+namespace App\Presentation\Http\Api\V1\CreateUser;
 
-use App\Entity\User;
+use App\Infrastructure\Persistence\Doctrine\User\User;
 use Doctrine\ORM\EntityManagerInterface;
-use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-class UserController extends AbstractController
+class CreateUserController extends AbstractController
 {
-    /**
-     * @param Request $request
-     * @return Response
-     */
-    #[Route('/api/v1/users', name: 'users_list', methods: ['GET'])]
-    public function list(Request $request): Response
-    {
-        return $this->json([
-            'data' => [
-                ['id' => 2, 'email' => 'shadrina@yandex.ru'],
-            ],
-            'request_query_all' => $request->query->all(),
-            'request_headers' => $request->headers,
-        ]);
-    }
-
-    /**
-     * @throws \DateMalformedStringException
-     * @throws RandomException
-     */
     #[Route('/api/v1/users', name: 'users_create', methods: ['POST'])]
-    public function create(
+    public function __invoke(
         Request $request,
         EntityManagerInterface $entityManager,
         ValidatorInterface $validator,
         UserPasswordHasherInterface $userPasswordHasher
-    ): Response {
-
+    ): \Symfony\Component\HttpFoundation\JsonResponse
+    {
         $email = $request->getPayload()->get('email');
 
         $user = new User();
@@ -60,7 +38,6 @@ class UserController extends AbstractController
         $user->setUpdatedAt(new \DateTimeImmutable());
         $user->setPassword($userPasswordHasher->hashPassword($user, 'qwerty123'));
         $user->setPhone('799999999');
-
 
         $errors = $validator->validate($user);
         if (count($errors)) {

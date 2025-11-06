@@ -1,7 +1,7 @@
 controllers:
     resource:
-        path: ../../src/Controller/
-        namespace: App\Controller
+        path: ../../src/Presentation/Http/Api
+        namespace: App\Presentation\Http\Api
     type: attribute
 
 kernel:
