@@ -8,24 +8,24 @@ namespace App\Application\UseCases\CreateUser;
 use App\Domain\Entity\User;
 use App\Domain\Services\UserCreator;
 use App\Presentation\Http\Api\V1\CreateUser\CreateUserDto;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
+#[AsMessageHandler(bus: 'command.bus')]
 readonly class CreateUserCommandHandler
 {
+
     public function __construct(
         private UserCreator $userCreator
-    )
-    {
-    }
+    ){}
 
-    public function handle(CreateUserDto $createUserDto): CreateUserResult
+    public function __invoke(CreateUserCommand $command): CreateUserResult
     {
-
         $id = $this->userCreator->create(
             new User(
-                $createUserDto->lastName,
-                $createUserDto->firstName,
-                $createUserDto->email,
-                'qwerty123'
+                lastName: $command->lastName,
+                firstName:  $command->firstName,
+                email: $command->email,
+                password: 'qwerty123'
             )
         );
 
