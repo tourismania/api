@@ -3,7 +3,7 @@
 declare(strict_types=1);
 declare(ticks=1000);
 
-namespace App\Presentation\Http\Api\V1\CreateUser;
+namespace App\Presentation\Dto;
 
 use Symfony\Component\Serializer\Annotation\SerializedName;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -22,5 +22,9 @@ final readonly class CreateUserDto
         #[SerializedName('email')]
         #[Assert\NotBlank(message: 'Почта должна быть указана')]
         public string $email,
+
+        #[SerializedName('password')]
+        #[Assert\NotBlank(message: 'Пароль должен быть указан')]
+        public string $password,
     ) {}
 }

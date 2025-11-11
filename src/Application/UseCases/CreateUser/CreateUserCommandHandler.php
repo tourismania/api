@@ -24,7 +24,7 @@ readonly class CreateUserCommandHandler
                 lastName: $command->lastName,
                 firstName:  $command->firstName,
                 email: $command->email,
-                password: 'qwerty123'
+                password: $command->password
             )
         );
 

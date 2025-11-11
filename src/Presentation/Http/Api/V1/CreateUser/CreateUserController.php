@@ -6,6 +6,7 @@ declare(ticks=1000);
 namespace App\Presentation\Http\Api\V1\CreateUser;
 
 use App\Application\UseCases\CreateUser\CreateUserCommand;
+use App\Presentation\Dto\CreateUserDto;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Messenger\Exception\ExceptionInterface;
@@ -29,7 +30,7 @@ class CreateUserController
         #[MapRequestPayload] CreateUserDto $dto,
     ): JsonResponse
     {
-        $result = $this->handle(new CreateUserCommand($dto->firstName, $dto->lastName, $dto->email));
+        $result = $this->handle(new CreateUserCommand($dto->firstName, $dto->lastName, $dto->email, $dto->password));
 
         return new JsonResponse($result);
     }
