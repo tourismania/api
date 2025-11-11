@@ -35,6 +35,9 @@
             "migrations/.gitignore"
         ]
     },
+    "koco/messenger-kafka": {
+        "version": "v0.18"
+    },
     "lexik/jwt-authentication-bundle": {
         "version": "3.1",
         "recipe": {

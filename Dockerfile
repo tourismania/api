@@ -1,8 +1,4 @@
 #syntax=docker/dockerfile:1
-
-
-
-
 # Versions
 FROM dunglas/frankenphp:1-php8.4 AS frankenphp_upstream
 
@@ -33,6 +29,7 @@ RUN set -eux; \
 		apcu \
 		intl \
 		opcache \
+        rdkafka \
 		zip \
 	;
 
@@ -48,6 +45,8 @@ ENV PHP_INI_SCAN_DIR=":$PHP_INI_DIR/app.conf.d"
 ###> doctrine/doctrine-bundle ###
 RUN install-php-extensions pdo_pgsql
 ###< doctrine/doctrine-bundle ###
+
+# RUN apt-get install -y librdkafka-dev
 ###< recipes ###
 
 COPY --link ./docker/frankenphp/conf.d/10-app.ini $PHP_INI_DIR/app.conf.d/

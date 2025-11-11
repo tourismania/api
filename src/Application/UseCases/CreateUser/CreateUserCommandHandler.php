@@ -7,7 +7,6 @@ namespace App\Application\UseCases\CreateUser;
 
 use App\Domain\Entity\User;
 use App\Domain\Services\UserCreator;
-use App\Presentation\Http\Api\V1\CreateUser\CreateUserDto;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'command.bus')]

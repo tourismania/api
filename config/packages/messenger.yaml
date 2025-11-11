@@ -9,11 +9,24 @@ framework:
             # failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
 
+            # https://packagist.org/packages/koco/messenger-kafka
+            kafka_async:
+                serializer: App\Infrastructure\BrokerMessages\Kafka\Serializer
+                dsn: '%env(KAFKA_DSN)%'
+                options:
+                    flushTimeout: 10000
+                    flushRetries: 5
+                    topic:
+                        name: 'events'
+
         default_bus: command.bus
 
         buses:
+            # CQRS
             command.bus: ~
             query.bus: ~
+
+            # Broker Messages
             event.bus: ~
 
         routing:
