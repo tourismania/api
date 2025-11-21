@@ -22,6 +22,7 @@ class CreateUserCommand
     public function __construct(MessageBusInterface $messageBus){
         $this->messageBus = $messageBus;
     }
+
     public function __invoke(
         #[Argument] string $firstName,
         #[Argument] string $lastName,
