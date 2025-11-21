@@ -6,7 +6,7 @@ security:
     providers:
         app_user_provider:
             entity:
-                class: App\Entity\User
+                class: App\Infrastructure\Persistence\Doctrine\User\User
                 property: email
     firewalls:
         dev:
@@ -42,7 +42,7 @@ security:
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/profile, roles: ROLE_USER }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/v1/users, method: POST, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/users, method: POST, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api,       roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
