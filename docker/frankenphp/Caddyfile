@@ -27,7 +27,13 @@
 		}
 	}
 
-	root /app/public
+  	header {
+		 Access-Control-Allow-Origin *
+		 Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+		 Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization"
+	}
+
+    root /app/public
 	encode zstd br gzip
 
 	mercure {
@@ -48,7 +54,7 @@
 	{$CADDY_SERVER_EXTRA_DIRECTIVES}
 
 	# Disable Topics tracking if not enabled explicitly: https://github.com/jkarlin/topics
-	header ?Permissions-Policy "browsing-topics=()"
+	# header ?Permissions-Policy "browsing-topics=()"
 
 	@phpRoute {
 		not path /.well-known/mercure*

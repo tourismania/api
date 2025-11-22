@@ -22,3 +22,10 @@ services:
 
     app.infrastructure.persistence.doctrine.user.user_repository:
         class: App\Infrastructure\Persistence\Doctrine\User\UserRepository
+
+    # if we want to append payload or something else
+    ##acme_api.event.jwt_created_listener:
+    ##    class: App\Infrastructure\Auth\Jwt\EventListener\JWTCreatedListener
+    ##    arguments: [ '@request_stack' ]
+    ##    tags:
+    ##        - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_created, method: onJWTCreated }
