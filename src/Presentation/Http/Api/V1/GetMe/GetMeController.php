@@ -41,6 +41,7 @@ class GetMeController
             $getMeDto->phone,
             $getMeDto->firstName,
             $getMeDto->lastName,
+            $getMeDto->roles
         ));
 
         return new JsonResponse($result);

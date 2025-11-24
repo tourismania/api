@@ -28,7 +28,8 @@ readonly class GetMeResolver implements ValueResolverInterface
                 $user->getUserIdentifier(),
                 $user->getPhone(),
                 $user->getFirstName(),
-                $user->getLastName()
+                $user->getLastName(),
+                $user->getRoles()
             )
         ];
     }

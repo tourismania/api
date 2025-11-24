@@ -2,6 +2,7 @@
 
 namespace App\Infrastructure\Persistence\Doctrine\User;
 
+use App\Domain\Enums\RoleEnums;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
@@ -59,6 +60,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 255)]
     private ?string $login = null;
+
+    #[ORM\Column(type: 'text[]', options: ['default' => '{}'])]
+    private array $roles = [];
 
     public function getId(): ?int
     {
@@ -197,9 +201,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /**
+     * @return array|string[]
+     */
     public function getRoles(): array
     {
-        return [];
+        $roles = $this->roles;
+        // guarantee every user at least has ROLE_USER
+        $roles[] = RoleEnums::ROLE_USER->value;
+
+        return array_unique($roles);
     }
 
     public function eraseCredentials(): void
