@@ -6,17 +6,17 @@ declare(ticks=1000);
 namespace App\Domain\Factory;
 
 use App\Domain\Enums\RoleEnums;
-use App\Domain\ValueObject\RoleDescribe;
+use App\Domain\ValueObject\RightsDescribe;
 
-class RoleDescribeFactory
+class RightsDescribeFactory
 {
     /**
      * Проставляет флаги наличия определенных прав
      *
      * @param string[] $roles
-     * @return RoleDescribe
+     * @return RightsDescribe
      */
-    public function byRoles(array $roles): RoleDescribe
+    public function byRoles(array $roles): RightsDescribe
     {
         $isSuperAdmin = false;
 
@@ -24,7 +24,7 @@ class RoleDescribeFactory
             $isSuperAdmin = true;
         }
 
-        return new RoleDescribe($isSuperAdmin);
+        return new RightsDescribe($isSuperAdmin);
     }
 
 }

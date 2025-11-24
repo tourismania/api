@@ -5,14 +5,14 @@ declare(ticks=1000);
 
 namespace App\Application\UseCases\GetMe;
 
-use App\Domain\Services\RoleDescriber;
+use App\Domain\Services\RightsDescriber;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
 readonly class GetMeQueryHandler
 {
     public function __construct(
-        private RoleDescriber $roleDescriber,
+        private RightsDescriber $rightsDescriber,
     )
     {
     }
@@ -25,7 +25,7 @@ readonly class GetMeQueryHandler
             $getMeQuery->phone,
             $getMeQuery->firstName,
             $getMeQuery->lastName,
-            $this->roleDescriber->byRoles($getMeQuery->roles),
+            $this->rightsDescriber->byRoles($getMeQuery->roles),
         );
     }
 
