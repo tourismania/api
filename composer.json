@@ -71,6 +71,9 @@
         ],
         "post-update-cmd": [
             "@auto-scripts"
+        ],
+        "style": [
+            "./vendor/bin/php-cs-fixer fix src"
         ]
     },
     "conflict": {
