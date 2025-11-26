@@ -74,6 +74,9 @@
         ],
         "style": [
             "./vendor/bin/php-cs-fixer fix src"
+        ],
+        "check-style": [
+            "./vendor/bin/php-cs-fixer fix src --dry-run"
         ]
     },
     "conflict": {
