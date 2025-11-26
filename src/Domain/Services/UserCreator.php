@@ -20,7 +20,8 @@ readonly class UserCreator
         private UserRepositoryInterface $userRepository,
         private UserPasswordHasherInterface $userPasswordHasher,
         private MessageBusInterface $messageBus,
-    ){}
+    ) {
+    }
 
     /**
      * @throws ExceptionInterface
@@ -35,5 +36,4 @@ readonly class UserCreator
 
         return $id;
     }
-
 }

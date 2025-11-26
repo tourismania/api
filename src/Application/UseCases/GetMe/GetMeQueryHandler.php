@@ -13,8 +13,7 @@ readonly class GetMeQueryHandler
 {
     public function __construct(
         private RightsDescriber $rightsDescriber,
-    )
-    {
+    ) {
     }
 
     public function __invoke(GetMeQuery $getMeQuery): GetMeResult
@@ -28,5 +27,4 @@ readonly class GetMeQueryHandler
             $this->rightsDescriber->byRoles($getMeQuery->roles),
         );
     }
-
 }

@@ -11,19 +11,15 @@ use App\Domain\ValueObject\RightsDescribe;
 readonly class RightsDescriber
 {
     public function __construct(
-        private RightsDescribeFactory $rightsDescribeFactory
-    )
-    {
+        private RightsDescribeFactory $rightsDescribeFactory,
+    ) {
     }
 
     /**
      * @param string[] $roles
-     *
-     * @return RightsDescribe
      */
     public function byRoles(array $roles): RightsDescribe
     {
         return $this->rightsDescribeFactory->byRoles($roles);
     }
-
 }

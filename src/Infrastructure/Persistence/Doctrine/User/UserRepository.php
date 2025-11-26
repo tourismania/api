@@ -3,7 +3,6 @@
 namespace App\Infrastructure\Persistence\Doctrine\User;
 
 use App\Domain\Repository\UserRepositoryInterface;
-use DateMalformedStringException;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
@@ -19,12 +18,7 @@ class UserRepository extends ServiceEntityRepository implements UserRepositoryIn
     }
 
     /**
-     * @param \App\Domain\Entity\User $user
-     * @param string $hashPassword
-     *
-     * @return int
-     *
-     * @throws DateMalformedStringException
+     * @throws \DateMalformedStringException
      * @throws \Random\RandomException
      */
     public function store(\App\Domain\Entity\User $user, string $hashPassword): int

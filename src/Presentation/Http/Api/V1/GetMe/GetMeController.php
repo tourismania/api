@@ -23,7 +23,7 @@ class GetMeController
 
     public function __construct(
         #[Autowire(service: 'query.bus')] MessageBusInterface $messageBus, // из-за использвания $messageBus в трейтах, используем прямое назначение в конструкторе
-    ){
+    ) {
         $this->messageBus = $messageBus;
     }
 
@@ -32,9 +32,8 @@ class GetMeController
      */
     #[Route('/api/v1/me', name: 'me', methods: ['GET'])]
     public function __invoke(
-        #[MapRequestPayload(resolver: GetMeResolver::class)] GetMeDto $getMeDto
-    ): JsonResponse
-    {
+        #[MapRequestPayload(resolver: GetMeResolver::class)] GetMeDto $getMeDto,
+    ): JsonResponse {
         $result = $this->handle(new GetMeQuery(
             $getMeDto->id,
             $getMeDto->email,
@@ -46,5 +45,4 @@ class GetMeController
 
         return new JsonResponse($result);
     }
-
 }

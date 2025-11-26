@@ -12,11 +12,12 @@ use Symfony\Component\Messenger\Attribute\AsMessage;
 readonly class UserRegistered implements EncodeInterface
 {
     public function __construct(public int $id)
-    {}
+    {
+    }
 
     public function getKey(): string
     {
-        return (string)$this->id;
+        return (string) $this->id;
     }
 
     public function getEventCode(): string

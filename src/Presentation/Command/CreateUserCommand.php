@@ -19,7 +19,8 @@ class CreateUserCommand
 {
     use HandleTrait;
 
-    public function __construct(MessageBusInterface $messageBus){
+    public function __construct(MessageBusInterface $messageBus)
+    {
         $this->messageBus = $messageBus;
     }
 
@@ -28,9 +29,8 @@ class CreateUserCommand
         #[Argument] string $lastName,
         #[Argument] string $email,
         #[Argument] string $password,
-        OutputInterface $output
-    ): int
-    {
+        OutputInterface $output,
+    ): int {
         // TODO: валидация аргументов
         $dto = new CreateUserDto($firstName, $lastName, $email, $password);
 

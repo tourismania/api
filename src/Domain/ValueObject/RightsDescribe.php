@@ -9,5 +9,6 @@ readonly class RightsDescribe
 {
     public function __construct(
         public bool $isSuperAdmin,
-    ) {}
+    ) {
+    }
 }

@@ -12,17 +12,17 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler(bus: 'command.bus')]
 readonly class CreateUserCommandHandler
 {
-
     public function __construct(
-        private UserCreator $userCreator
-    ){}
+        private UserCreator $userCreator,
+    ) {
+    }
 
     public function __invoke(CreateUserCommand $command): CreateUserResult
     {
         $id = $this->userCreator->create(
             new User(
                 lastName: $command->lastName,
-                firstName:  $command->firstName,
+                firstName: $command->firstName,
                 email: $command->email,
                 password: $command->password
             )

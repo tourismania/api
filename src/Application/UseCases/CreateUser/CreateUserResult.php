@@ -8,9 +8,7 @@ namespace App\Application\UseCases\CreateUser;
 readonly class CreateUserResult
 {
     public function __construct(
-        public int $id
-    )
-    {}
-
-
+        public int $id,
+    ) {
+    }
 }

@@ -26,5 +26,6 @@ final readonly class CreateUserDto
         #[SerializedName('password')]
         #[Assert\NotBlank(message: 'Пароль должен быть указан')]
         public string $password,
-    ) {}
+    ) {
+    }
 }

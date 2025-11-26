@@ -13,8 +13,9 @@ readonly class User implements PasswordAuthenticatedUserInterface
         public string $lastName,
         public string $firstName,
         public string $email,
-        public string $password
-    ){}
+        public string $password,
+    ) {
+    }
 
     public function getPassword(): ?string
     {

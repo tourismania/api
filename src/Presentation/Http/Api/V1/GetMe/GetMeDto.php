@@ -8,11 +8,6 @@ namespace App\Presentation\Http\Api\V1\GetMe;
 readonly class GetMeDto
 {
     /**
-     * @param int $id
-     * @param string $email
-     * @param string $phone
-     * @param string $firstName
-     * @param string $lastName
      * @param string[] $roles
      */
     public function __construct(
@@ -22,6 +17,6 @@ readonly class GetMeDto
         public string $firstName,
         public string $lastName,
         public array $roles,
-    ){}
-
+    ) {
+    }
 }

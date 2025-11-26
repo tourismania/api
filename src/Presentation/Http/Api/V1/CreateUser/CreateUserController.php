@@ -18,7 +18,8 @@ class CreateUserController
 {
     use HandleTrait;
 
-    public function __construct(MessageBusInterface $messageBus){
+    public function __construct(MessageBusInterface $messageBus)
+    {
         $this->messageBus = $messageBus;
     }
 
@@ -28,11 +29,9 @@ class CreateUserController
     #[Route('/api/v1/users', name: 'users_create', methods: ['POST'])]
     public function __invoke(
         #[MapRequestPayload] CreateUserDto $dto,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $result = $this->handle(new CreateUserCommand($dto->firstName, $dto->lastName, $dto->email, $dto->password));
 
         return new JsonResponse($result);
     }
-
 }

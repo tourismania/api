@@ -14,8 +14,9 @@ use Symfony\Component\HttpKernel\ControllerMetadata\ArgumentMetadata;
 readonly class GetMeResolver implements ValueResolverInterface
 {
     public function __construct(
-        private Security $security
-    ){}
+        private Security $security,
+    ) {
+    }
 
     public function resolve(Request $request, ArgumentMetadata $argument): iterable
     {
@@ -30,7 +31,7 @@ readonly class GetMeResolver implements ValueResolverInterface
                 $user->getFirstName(),
                 $user->getLastName(),
                 $user->getRoles()
-            )
+            ),
         ];
     }
 }

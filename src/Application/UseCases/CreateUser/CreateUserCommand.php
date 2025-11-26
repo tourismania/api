@@ -11,6 +11,7 @@ readonly class CreateUserCommand
         public string $firstName,
         public string $lastName,
         public string $email,
-        public string $password
-    ){}
+        public string $password,
+    ) {
+    }
 }

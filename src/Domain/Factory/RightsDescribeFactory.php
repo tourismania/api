@@ -11,10 +11,9 @@ use App\Domain\ValueObject\RightsDescribe;
 class RightsDescribeFactory
 {
     /**
-     * Проставляет флаги наличия определенных прав
+     * Проставляет флаги наличия определенных прав.
      *
      * @param string[] $roles
-     * @return RightsDescribe
      */
     public function byRoles(array $roles): RightsDescribe
     {
@@ -26,5 +25,4 @@ class RightsDescribeFactory
 
         return new RightsDescribe($isSuperAdmin);
     }
-
 }

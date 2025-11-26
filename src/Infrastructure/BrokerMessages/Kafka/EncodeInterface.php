@@ -10,5 +10,4 @@ interface EncodeInterface
     public function getKey(): string;
 
     public function getEventCode(): string;
-
 }
