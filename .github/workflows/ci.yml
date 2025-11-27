@@ -3,15 +3,22 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: Build App
+name: Pull Request
 
-on: [push]
+on:
+  push:
+    branches:
+      - *
+    branches-ignore:
+      - main
+  pull_request:
+    types: [ opened, synchronize, reopened ]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  build-lint-analyze-test:
     runs-on: ubuntu-latest
 
     services:
@@ -26,5 +33,5 @@ jobs:
     - name: Build Docker image        # Шаг сборки Docker образа, согласно вашему Dockerfile
       run: docker build --target frankenphp_dev -t php-symfony -f Dockerfile .
 
-    - name: Run linters and static analysis inside container  # Запускаем линтеры и статический анализ по коду внутри контейнера
+    - name: Run linters  # Запускаем линтеры
       run: docker run --rm php-symfony /bin/bash -c "vendor/bin/php-cs-fixer fix ./src --dry-run --diff"
