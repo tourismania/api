@@ -35,4 +35,4 @@ jobs:
       run: docker run --rm php-symfony /bin/bash -c "composer analyze"
 
     - name: Run test  # Запускаем тесты
-      run: docker run --rm php-symfony /bin/bash -c "composer tests"
+      run: docker run --env-file ./.env.test --rm php-symfony /bin/bash -c "composer tests"
