@@ -27,4 +27,4 @@ jobs:
       run: docker build -t myapp-test -f Dockerfile .
 
     - name: Run linters and static analysis inside container  # Запускаем линтеры и статический анализ по коду внутри контейнера
-      run: docker run --rm myapp-test /bin/sh -c "vendor/bin/php-cs-fixer fix --dry-run --diff"
+      run: docker run --rm myapp-test /bin/bash -c "vendor/bin/php-cs-fixer fix --dry-run --diff"
