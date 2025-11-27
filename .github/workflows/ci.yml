@@ -10,10 +10,15 @@ on: [push]
 permissions:
   contents: read
 
-
 jobs:
-  symfony-tests:
+  build:
     runs-on: ubuntu-latest
+
+    services:
+      docker: # Определяем сервис Docker для сборки и запуска контейнера
+        image: docker:latest  # Используем образ Docker
+        options: --privileged  # Разрешаем привилегированный доступ (нужно для Docker внутри Actions)
+
     container:
       image: dunglas/frankenphp:1-php8.4
 
@@ -21,5 +26,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Composer dependencies
-      run: composer install --no-ansi --no-dev --no-interaction --no-progress --optimize-autoloader
+    - name: Build Docker image        # Шаг сборки Docker образа, согласно вашему Dockerfile
+      run: docker build -t myapp-test -f Dockerfile .
+
+    - name: Run linters and static analysis inside container  # Запускаем линтеры и статический анализ по коду внутри контейнера
+      run: docker run --rm myapp-test /bin/sh -c "vendor/bin/php-cs-fixer fix --dry-run --diff"
