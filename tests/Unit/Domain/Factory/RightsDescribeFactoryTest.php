@@ -17,7 +17,7 @@ class RightsDescribeFactoryTest extends KernelTestCase
     {
         $factory = new RightsDescribeFactory();
 
-        /** @var array<positive-int, array{roles: array, right_describe: RightsDescribe}> $asserts */
+        /** @var array<positive-int, array{roles: string[], right_describe: RightsDescribe}> $asserts */
         $asserts = [
             [
                 'roles' => [],
