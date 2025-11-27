@@ -81,9 +81,13 @@
         "analyze": [
             "vendor/bin/phpstan analyse"
         ],
+        "tests": [
+            "php bin/phpunit"
+        ],
         "checks": [
             "@check-style",
-            "@analyze"
+            "@analyze",
+            "@tests"
         ]
     },
     "conflict": {
