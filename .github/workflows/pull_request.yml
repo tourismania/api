@@ -7,8 +7,6 @@ name: Pull Request
 
 on:
   push:
-    branches:
-      - '*'
     branches-ignore:
       - 'main'
   pull_request:
