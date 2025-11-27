@@ -28,11 +28,11 @@ readonly class GetMeResolver implements ValueResolverInterface
         $user = $this->security->getUser();
 
         if (null === $user) {
-            throw new NotFoundHttpException("User not found!");
+            throw new NotFoundHttpException('User not found!');
         }
 
-        if ($user->getId() === null) {
-            throw new \RuntimeException("User founded with id = 0; WTF?!??!");
+        if (null === $user->getId()) {
+            throw new \RuntimeException('User founded with id = 0; WTF?!??!');
         }
 
         return [

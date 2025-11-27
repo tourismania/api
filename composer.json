@@ -77,6 +77,13 @@
         ],
         "check-style": [
             "./vendor/bin/php-cs-fixer fix src --dry-run"
+        ],
+        "analyze": [
+            "vendor/bin/phpstan analyse"
+        ],
+        "checks": [
+            "@check-style",
+            "@analyze"
         ]
     },
     "conflict": {

@@ -117,7 +117,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * @param string $email
      * @return $this
      */
     public function setEmail(string $email): static

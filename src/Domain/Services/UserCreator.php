@@ -32,8 +32,8 @@ readonly class UserCreator
 
         $id = $this->userRepository->store($user, $hashPassword);
 
-        if ($id === null) {
-            throw new \RuntimeException("User save error!");
+        if (null === $id) {
+            throw new \RuntimeException('User save error!');
         }
 
         $this->messageBus->dispatch(new UserRegistered($id));
