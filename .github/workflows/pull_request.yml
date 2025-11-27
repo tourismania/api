@@ -30,3 +30,6 @@ jobs:
 
     - name: Run linters  # Запускаем линтеры
       run: docker run --rm php-symfony /bin/bash -c "vendor/bin/php-cs-fixer fix ./src --dry-run --diff"
+
+    - name: Run analyze  # Запускаем анализ кода
+      run: docker run --rm php-symfony /bin/bash -c "vendor/bin/phpstan analyse src"
