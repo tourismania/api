@@ -68,6 +68,7 @@ ENV FRANKENPHP_WORKER_CONFIG=watch
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
 RUN set -eux; \
+    chmod +x bin/console; \
 	install-php-extensions \
 		xdebug \
 	;
