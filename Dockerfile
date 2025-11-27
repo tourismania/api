@@ -70,6 +70,7 @@ RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 RUN set -eux; \
 	install-php-extensions \
 		xdebug; \
+    composer run-script post-install-cmd; \
 	chmod +x bin/console;
 
 COPY --link ./docker/frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
