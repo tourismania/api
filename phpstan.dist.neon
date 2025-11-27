@@ -2,6 +2,6 @@ parameters:
     level: 10
     paths:
         - src/
-        - tests/Feature
+        - tests/Application
         - tests/Integration
         - tests/Unit
