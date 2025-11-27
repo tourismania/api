@@ -10,6 +10,7 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Controller\ValueResolverInterface;
 use Symfony\Component\HttpKernel\ControllerMetadata\ArgumentMetadata;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 readonly class GetMeResolver implements ValueResolverInterface
 {
@@ -23,16 +24,24 @@ readonly class GetMeResolver implements ValueResolverInterface
      */
     public function resolve(Request $request, ArgumentMetadata $argument): iterable
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $this->security->getUser();
+
+        if (null === $user) {
+            throw new NotFoundHttpException("User not found!");
+        }
+
+        if ($user->getId() === null) {
+            throw new \RuntimeException("User founded with id = 0; WTF?!??!");
+        }
 
         return [
             new GetMeDto(
                 $user->getId(),
                 $user->getUserIdentifier(),
-                $user->getPhone(),
-                $user->getFirstName(),
-                $user->getLastName(),
+                $user->getPhone() ?? '',
+                $user->getFirstName() ?? '',
+                $user->getLastName() ?? '',
                 $user->getRoles()
             ),
         ];

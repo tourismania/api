@@ -21,7 +21,7 @@ class UserRepository extends ServiceEntityRepository implements UserRepositoryIn
      * @throws \DateMalformedStringException
      * @throws \Random\RandomException
      */
-    public function store(\App\Domain\Entity\User $user, string $hashPassword): int
+    public function store(\App\Domain\Entity\User $user, string $hashPassword): ?int
     {
         $userModel = new User();
 

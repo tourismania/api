@@ -9,5 +9,5 @@ use App\Domain\Entity\User;
 
 interface UserRepositoryInterface
 {
-    public function store(User $user, string $hashPassword): int;
+    public function store(User $user, string $hashPassword): ?int;
 }

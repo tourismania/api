@@ -116,6 +116,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->email;
     }
 
+    /**
+     * @param string $email
+     * @return $this
+     */
     public function setEmail(string $email): static
     {
         $this->email = $email;
@@ -231,9 +235,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function getUserIdentifier(): string
     {
-        return $this->getEmail();
+        $email = $this->getEmail();
+
+        \Webmozart\Assert\Assert::notEmpty($email, 'Почта должна быть указана!');
+
+        return $email;
     }
 
     public function getLogin(): ?string

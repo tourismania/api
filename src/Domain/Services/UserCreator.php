@@ -28,9 +28,13 @@ readonly class UserCreator
      */
     public function create(User $user): int
     {
-        $hashPassword = $this->userPasswordHasher->hashPassword($user, $user->getPassword());
+        $hashPassword = $this->userPasswordHasher->hashPassword($user, $user->getPassword() ?? '');
 
         $id = $this->userRepository->store($user, $hashPassword);
+
+        if ($id === null) {
+            throw new \RuntimeException("User save error!");
+        }
 
         $this->messageBus->dispatch(new UserRegistered($id));
 
