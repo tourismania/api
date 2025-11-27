@@ -10,12 +10,17 @@ use Symfony\Component\Messenger\Transport\Serialization\SerializerInterface;
 
 final class Serializer implements SerializerInterface
 {
+    /**
+     * @param array<string, mixed> $encodedEnvelope
+     */
     public function decode(array $encodedEnvelope): Envelope
     {
         return new Envelope((object) $encodedEnvelope);
     }
 
     /**
+     * @return array<string, mixed>
+     *
      * @throws \JsonException
      */
     public function encode(Envelope $envelope): array

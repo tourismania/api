@@ -6,7 +6,6 @@ declare(ticks=1000);
 namespace App\Presentation\Http\Api\V1\GetMe;
 
 use App\Application\UseCases\GetMe\GetMeQuery;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
@@ -18,8 +17,6 @@ use Symfony\Component\Routing\Attribute\Route;
 class GetMeController
 {
     use HandleTrait;
-
-    private Security $security;
 
     public function __construct(
         #[Autowire(service: 'query.bus')] MessageBusInterface $messageBus, // из-за использвания $messageBus в трейтах, используем прямое назначение в конструкторе
