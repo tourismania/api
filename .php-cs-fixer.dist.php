@@ -5,6 +5,7 @@ $finder = (new PhpCsFixer\Finder())
     ->exclude('var')
 ;
 
+
 return (new PhpCsFixer\Config())
     ->setRules([
         '@Symfony' => true,
