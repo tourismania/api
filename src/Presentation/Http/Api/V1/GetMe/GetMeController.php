@@ -19,8 +19,6 @@ class GetMeController
 {
     use HandleTrait;
 
-    private Security $security;
-
     public function __construct(
         #[Autowire(service: 'query.bus')] MessageBusInterface $messageBus, // из-за использвания $messageBus в трейтах, используем прямое назначение в конструкторе
     ) {

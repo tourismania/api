@@ -5,18 +5,24 @@ declare(ticks=1000);
 
 namespace App\Infrastructure\BrokerMessages\Kafka;
 
+use JsonException;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Transport\Serialization\SerializerInterface;
 
 final class Serializer implements SerializerInterface
 {
+    /**
+     * @param array<string, mixed> $encodedEnvelope
+     * @return Envelope
+     */
     public function decode(array $encodedEnvelope): Envelope
     {
         return new Envelope((object) $encodedEnvelope);
     }
 
     /**
-     * @throws \JsonException
+     * @throws JsonException
+     * @return array<string, mixed>
      */
     public function encode(Envelope $envelope): array
     {

@@ -21,6 +21,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    /** @phpstan-ignore property.unusedType */
     private ?int $id = null;
 
     #[ORM\Column(type: UuidType::NAME)]
@@ -54,12 +55,19 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTime $birthday = null;
 
+
+    /**
+     * @var array<string, mixed> $extraInformation
+     */
     #[ORM\Column]
     private array $extraInformation = [];
 
     #[ORM\Column(length: 255)]
     private ?string $login = null;
 
+    /**
+     * @var array<positive-int, string> $roles
+     */
     #[ORM\Column(type: 'text[]', options: ['default' => '{}'])]
     private array $roles = [];
 
@@ -188,11 +196,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getExtraInformation(): array
     {
         return $this->extraInformation;
     }
 
+    /**
+     * @param array<string, mixed> $extraInformation
+     * @return $this
+     */
     public function setExtraInformation(array $extraInformation): static
     {
         $this->extraInformation = $extraInformation;
@@ -201,7 +216,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * @return array|string[]
+     * @return string[]
      */
     public function getRoles(): array
     {
