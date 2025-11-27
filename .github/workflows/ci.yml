@@ -24,7 +24,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Build Docker image        # Шаг сборки Docker образа, согласно вашему Dockerfile
-      run: docker build -t myapp-test -f Dockerfile .
+      run: docker build --target frankenphp_dev -t php-symfony -f Dockerfile .
 
     - name: Run linters and static analysis inside container  # Запускаем линтеры и статический анализ по коду внутри контейнера
-      run: docker run --rm myapp-test /bin/bash -c "vendor/bin/php-cs-fixer fix --dry-run --diff"
+      run: docker run --rm php-symfony /bin/bash -c "vendor/bin/php-cs-fixer fix --dry-run --diff"
