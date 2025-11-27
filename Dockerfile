@@ -68,10 +68,9 @@ ENV FRANKENPHP_WORKER_CONFIG=watch
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
 RUN set -eux; \
-    chmod +x bin/console; \
 	install-php-extensions \
-		xdebug \
-	;
+		xdebug; \
+	chmod +x bin/console;
 
 COPY --link ./docker/frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
 
