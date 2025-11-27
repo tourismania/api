@@ -8,9 +8,9 @@ name: Pull Request
 on:
   push:
     branches:
-      - *
+      - '*'
     branches-ignore:
-      - main
+      - 'main'
   pull_request:
     types: [ opened, synchronize, reopened ]
 
