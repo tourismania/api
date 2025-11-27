@@ -6,7 +6,6 @@ declare(ticks=1000);
 namespace App\Presentation\Http\Api\V1\GetMe;
 
 use App\Application\UseCases\GetMe\GetMeQuery;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;

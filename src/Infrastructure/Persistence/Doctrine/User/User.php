@@ -55,7 +55,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTime $birthday = null;
 
-
     /**
      * @var array<string, mixed> $extraInformation
      */
@@ -206,6 +205,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     /**
      * @param array<string, mixed> $extraInformation
+     *
      * @return $this
      */
     public function setExtraInformation(array $extraInformation): static

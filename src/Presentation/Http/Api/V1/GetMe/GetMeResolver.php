@@ -19,8 +19,6 @@ readonly class GetMeResolver implements ValueResolverInterface
     }
 
     /**
-     * @param Request $request
-     * @param ArgumentMetadata $argument
      * @return array<GetMeDto>
      */
     public function resolve(Request $request, ArgumentMetadata $argument): iterable
