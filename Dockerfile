@@ -67,16 +67,16 @@ ENV FRANKENPHP_WORKER_CONFIG=watch
 
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
-# prevent the reinstallation of vendors at every changes in the source code
-# нужно для CI выполнить composer install
-COPY --link composer.* symfony.* ./
 RUN set -eux; \
 	install-php-extensions \
-		xdebug; \
-    composer install --prefer-dist --no-progress --no-autoloader; \
-	chmod +x bin/console;
+		xdebug \
+	;
 
 COPY --link ./docker/frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
+
+COPY --link . ./
+RUN set -eux; \
+	composer install --prefer-dist --no-progress --no-interaction;
 
 CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
 
