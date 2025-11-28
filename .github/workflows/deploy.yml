@@ -17,5 +17,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
+            cd ${{ secrets.SSH_PATH_TO_APP }}
             ls -la
-
+            
