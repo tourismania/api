@@ -20,7 +20,6 @@ jobs:
             cp .env.production .env.production.local
             sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env.production.local
             sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env.production.local
-            composer dump-env prod
             cd ../infra-docker/
             make deploy-api-tag TAG=${{ github.ref_name }}
 
