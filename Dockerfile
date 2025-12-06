@@ -83,7 +83,7 @@ CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
 # Prod FrankenPHP image
 FROM frankenphp_base AS frankenphp_prod
 
-ENV APP_ENV=prod
+ENV APP_ENV=production
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
