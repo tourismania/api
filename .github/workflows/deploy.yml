@@ -3,7 +3,6 @@ name: Deploy
 on:
   workflow_dispatch:
 
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,5 +20,6 @@ jobs:
             cp .env.production .env.production.local
             sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env.production.local
             sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env.production.local
-# make deploy-api-tag TAG=${{ github.ref_name }}
+            cd ../infra-docker/
+            make make deploy-api-tag TAG=${{ github.ref_name }}
 
