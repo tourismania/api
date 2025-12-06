@@ -26,3 +26,7 @@ phpstan.neon
 /phpunit.xml
 /.phpunit.cache/
 ###< phpunit/phpunit ###
+
+###> extra ###
+*.bak
+###< phpunit/phpunit ###
