@@ -19,7 +19,7 @@ jobs:
           script: |
             cd ${{ secrets.SSH_PATH_TO_APP }}/api/
             cp .env.production .env.production.local
-            sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}}/' .env
-            sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}}/' .env
+            sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}}/' .env.production.local
+            sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}}/' .env.production.local
 # make deploy-api-tag TAG=${{ github.ref_name }}
 
