@@ -1,9 +1,8 @@
 name: Deploy
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+
 
 jobs:
   deploy:
@@ -20,5 +19,5 @@ jobs:
           script: |
             cd ${{ secrets.SSH_PATH_TO_APP }}/infra-docker/
             ls -la
-            make ${{ github.ref }}
+            make ${{ github.ref_name }}
             
