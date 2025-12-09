@@ -7,22 +7,16 @@ namespace App\Presentation\Http\Api\V1\GetMe;
 
 use App\Infrastructure\Persistence\Doctrine\User\User;
 use Symfony\Bundle\SecurityBundle\Security;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Controller\ValueResolverInterface;
-use Symfony\Component\HttpKernel\ControllerMetadata\ArgumentMetadata;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-readonly class GetMeResolver implements ValueResolverInterface
+readonly class GetMeResolver
 {
     public function __construct(
         private Security $security,
     ) {
     }
 
-    /**
-     * @return array<GetMeDto>
-     */
-    public function resolve(Request $request, ArgumentMetadata $argument): iterable
+    public function resolve(): GetMeDto
     {
         /** @var User|null $user */
         $user = $this->security->getUser();
@@ -35,15 +29,13 @@ readonly class GetMeResolver implements ValueResolverInterface
             throw new \RuntimeException('User founded with id = 0; WTF?!??!');
         }
 
-        return [
-            new GetMeDto(
-                $user->getId(),
-                $user->getUserIdentifier(),
-                $user->getPhone() ?? '',
-                $user->getFirstName() ?? '',
-                $user->getLastName() ?? '',
-                $user->getRoles()
-            ),
-        ];
+        return new GetMeDto(
+            $user->getId(),
+            $user->getUserIdentifier(),
+            $user->getPhone() ?? '',
+            $user->getFirstName() ?? '',
+            $user->getLastName() ?? '',
+            $user->getRoles()
+        );
     }
 }
