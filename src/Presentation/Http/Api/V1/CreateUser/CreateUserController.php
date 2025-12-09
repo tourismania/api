@@ -30,7 +30,7 @@ class CreateUserController
      */
     #[Route('/api/v1/users', name: 'users_create', methods: ['POST'])]
     #[OA\Tag(name: 'Users')]
-    #[Security(name: "Bearer")]
+    #[Security(name: 'Bearer')]
     public function __invoke(
         #[MapRequestPayload] CreateUserDto $dto,
     ): JsonResponse {

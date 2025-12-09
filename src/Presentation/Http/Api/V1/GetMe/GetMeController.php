@@ -10,7 +10,6 @@ use Nelmio\ApiDocBundle\Attribute\Security;
 use OpenApi\Attributes as OA;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Messenger\Exception\ExceptionInterface;
 use Symfony\Component\Messenger\HandleTrait;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -24,7 +23,7 @@ class GetMeController
 
     public function __construct(
         #[Autowire(service: 'query.bus')] MessageBusInterface $messageBus, // из-за использвания $messageBus в трейтах, используем прямое назначение в конструкторе
-        GetMeResolver $getMeResolver
+        GetMeResolver $getMeResolver,
     ) {
         $this->messageBus = $messageBus;
         $this->getMeResolver = $getMeResolver;
@@ -35,9 +34,9 @@ class GetMeController
      */
     #[Route('/api/v1/me', name: 'me', methods: ['GET'])]
     #[OA\Tag(name: 'Profile')]
-    #[Security(name: "Bearer")]
-    public function __invoke(): JsonResponse {
-
+    #[Security(name: 'Bearer')]
+    public function __invoke(): JsonResponse
+    {
         $getMeDto = $this->getMeResolver->resolve();
 
         $result = $this->handle(new GetMeQuery(

@@ -7,9 +7,6 @@ namespace App\Presentation\Http\Api\V1\GetMe;
 
 use App\Infrastructure\Persistence\Doctrine\User\User;
 use Symfony\Bundle\SecurityBundle\Security;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Controller\ValueResolverInterface;
-use Symfony\Component\HttpKernel\ControllerMetadata\ArgumentMetadata;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 readonly class GetMeResolver
@@ -19,9 +16,6 @@ readonly class GetMeResolver
     ) {
     }
 
-    /**
-     * @return GetMeDto
-     */
     public function resolve(): GetMeDto
     {
         /** @var User|null $user */
