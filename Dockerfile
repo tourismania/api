@@ -58,28 +58,6 @@ ENTRYPOINT ["docker-entrypoint"]
 HEALTHCHECK --start-period=60s CMD curl -f http://localhost:2019/metrics || exit 1
 CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile" ]
 
-# Dev FrankenPHP image
-FROM frankenphp_base AS frankenphp_dev
-
-ENV APP_ENV=dev
-ENV XDEBUG_MODE=off
-ENV FRANKENPHP_WORKER_CONFIG=watch
-
-RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
-
-RUN set -eux; \
-	install-php-extensions \
-		xdebug \
-	;
-
-COPY --link ./docker/frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
-
-COPY --link . ./
-RUN set -eux; \
-	composer install --prefer-dist --no-progress --no-interaction;
-
-CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
-
 # Prod FrankenPHP image
 FROM frankenphp_base AS frankenphp_prod
 
@@ -104,3 +82,25 @@ RUN set -eux; \
 	composer dump-env prod; \
 	composer run-script --no-dev post-install-cmd; \
 	chmod +x bin/console; sync;
+
+# Dev FrankenPHP image
+FROM frankenphp_base AS frankenphp_dev
+
+ENV APP_ENV=dev
+ENV XDEBUG_MODE=off
+ENV FRANKENPHP_WORKER_CONFIG=watch
+
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+RUN set -eux; \
+	install-php-extensions \
+		xdebug \
+	;
+
+COPY --link ./docker/frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
+
+COPY --link . ./
+RUN set -eux; \
+	composer install --prefer-dist --no-progress --no-interaction;
+
+CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
