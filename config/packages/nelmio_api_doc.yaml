@@ -1,0 +1,76 @@
+nelmio_api_doc:
+    operation_id_generation: always_prepend  # рекомендуемый вариант
+
+    documentation:
+        servers:
+            - url: /
+              description: API
+        info:
+            title: Tourismania REST API
+            version: '%env(APP_VERSION)%'
+        components:
+            securitySchemes:
+                Bearer:
+                    type: http
+                    scheme: bearer
+                    bearerFormat: JWT
+
+        tags:
+            - name: Auth
+              description: Авторизация
+            - name: Profile
+              description: Информация об авторизованном пользователе
+            - name: Users
+              description: Управление пользователями
+
+        paths:
+            /api/login:
+                post:
+                    summary: Авторизация пользователя
+                    description: Логин через JSON с username и password, возвращает JWT токен
+                    operationId: 0001_api_login
+                    tags:
+                        - Auth
+                    requestBody:
+                        required: true
+                        content:
+                            application/json:
+                                schema:
+                                    type: object
+                                    required:
+                                        - username
+                                        - password
+                                    properties:
+                                        username:
+                                            type: string
+                                            format: email
+                                            example: test@test.test
+                                        password:
+                                            type: string
+                                            format: password
+                                            example: qwerty123
+                                examples:
+                                    loginRequest:
+                                        summary: Пример запроса логина
+                                        value:
+                                            username: test@test.test
+                                            password: qwerty123
+                    responses:
+                        '200':
+                            description: Успешная авторизация
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        properties:
+                                            token:
+                                                type: string
+                                                example: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...
+                        '401':
+                            description: Неверные учетные данные
+
+
+
+    areas: # to filter documented areas
+        path_patterns:
+            - ^/api(?!/doc$) # Accepts routes under /api except /api/doc
