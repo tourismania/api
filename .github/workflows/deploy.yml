@@ -17,10 +17,10 @@ jobs:
           port: 22
           script: |
             cd ${{ secrets.SSH_PATH_TO_APP }}/api/
-            cp .env.production .env.production.local
-            sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env.production.local
-            sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env.production.local
-            sed -i.bak 's/^APP_VERSION=.*/APP_VERSION=${{ github.ref_name }}/' .env.production.local
+            cp .env.prod .env.prod.local
+            sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env.prod.local
+            sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env.prod.local
+            sed -i.bak 's/^APP_VERSION=.*/APP_VERSION=${{ github.ref_name }}/' .env.prod.local
             cd ../infra-docker/
             make deploy-api-tag TAG=${{ github.ref_name }}
 
