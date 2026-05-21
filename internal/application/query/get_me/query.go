@@ -1,14 +1,10 @@
 // Package getme contains the "current user profile" read-side use case.
 package getme
 
-// Query carries everything we already know about the authenticated user
-// (resolved from JWT claims at the presentation boundary). The handler
-// then enriches it with derived data — e.g. RightsDescribe.
+import "github.com/google/uuid"
+
+// Query carries only the immutable identity token provided by the JWT.
+// All mutable profile data is fetched from the DB inside the handler.
 type Query struct {
-	ID        int
-	Email     string
-	Phone     string
-	FirstName string
-	LastName  string
-	Roles     []string
+	Uuid uuid.UUID
 }

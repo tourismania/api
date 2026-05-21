@@ -39,9 +39,9 @@ func NewHandler(
 //	@Summary      Issue a JWT
 //	@Description  Exchanges username/password for an RS256-signed JWT.
 //	@Tags         Auth
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      LoginRequest  true  "Credentials"
+//	@Accept       JSON
+//	@Produce      JSON
+//	@Param        body      LoginRequest  true  "Credentials"
 //	@Success      200   {object}  LoginResponse
 //	@Failure      400   {object}  httpx.ErrorBody
 //	@Failure      401   {object}  httpx.ErrorBody
@@ -57,7 +57,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.queries.GetUserByEmail(r.Context(), req.Username)
+	user, err := h.queries.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
@@ -72,7 +72,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.jwt.Issue(int(user.ID), user.Login, user.Email, user.Roles)
+	token, err := h.jwt.Issue(user.Uuid)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "could not issue token")
 		return

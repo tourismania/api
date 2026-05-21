@@ -1,52 +1,44 @@
 package getmehttp
 
 import (
+	"api/internal/presentation/http/middleware"
 	"context"
 	"errors"
 
-	"api/internal/presentation/http/middleware"
+	"github.com/google/uuid"
 )
 
-// ErrNoAuthClaims means the request didn't traverse JWT middleware. This
-// is a 500-tier programmer error, not a 401 — the route is misconfigured.
+// ErrNoAuthClaims means the request didn't traverse JWT middleware.
 var ErrNoAuthClaims = errors.New("no auth claims on context")
 
-// ErrUserMissingID covers the analogous Symfony path: a token without an
-// identifier reaches us, which we report as a server-side problem
-// because the issuer is supposed to enforce that.
+// ErrUserMissingID covers the case where a token without an identifier
+// reaches us — a server-side problem because the issuer must enforce it.
 var ErrUserMissingID = errors.New("token has no user id")
 
+var ErrIncorrectUuid = errors.New("token has incorrect user uuid")
+
 // Resolver reads the authenticated principal off the request context.
-// Kept as a separate type (rather than inline in the handler) for parity
-// with the PHP GetMeResolver and so it can be unit-tested in isolation.
 type Resolver struct{}
 
 // NewResolver constructs the resolver.
 func NewResolver() *Resolver { return &Resolver{} }
 
-// Resolve returns the DTO for the authenticated user, or an error
-// describing why it can't.
+// Resolve returns only the immutable identity from the JWT claims.
+// All mutable data (phone, name, roles) is fetched from the DB by the use-case.
 func (r *Resolver) Resolve(ctx context.Context) (*GetMeDto, error) {
 	claims, ok := middleware.ClaimsFromContext(ctx)
 	if !ok || claims == nil {
 		return nil, ErrNoAuthClaims
 	}
-	if claims.UID == 0 {
+	if len(claims.Subject) == 0 {
 		return nil, ErrUserMissingID
 	}
-	return &GetMeDto{
-		ID:        claims.UID,
-		Email:     emailOrUsername(claims.Email, claims.Username),
-		FirstName: "",
-		LastName:  "",
-		Phone:     "",
-		Roles:     append([]string(nil), claims.Roles...),
-	}, nil
-}
 
-func emailOrUsername(email, username string) string {
-	if email != "" {
-		return email
+	// Парсинг строки в UUID
+	uuidParsed, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return nil, ErrIncorrectUuid
 	}
-	return username
+
+	return &GetMeDto{Uuid: uuidParsed}, nil
 }

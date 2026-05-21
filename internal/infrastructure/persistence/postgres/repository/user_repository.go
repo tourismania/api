@@ -17,6 +17,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Compile-time check: UserRepository must satisfy the UserFinder port
+// expected by the get_me use-case. Declared here to avoid an import
+// cycle (application ← infrastructure is not allowed).
+var _ interface {
+	FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error)
+} = (*UserRepository)(nil)
+
 const (
 	defaultPhone    = "799999999"
 	birthdayYear    = 1994
@@ -81,11 +88,37 @@ func (r *UserRepository) Store(
 	return &out, nil
 }
 
+// FindByID fetches a user record by primary key. Satisfies the UserFinder
+// port defined in the get_me application package.
+func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error) {
+	u, err := r.queries.GetUserByUuid(ctx, uuid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("user %d not found", uuid.String())
+		}
+		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+	return &entity.UserRecord{
+		Email:     u.Email,
+		Phone:     derefStr(u.Phone),
+		FirstName: derefStr(u.FirstName),
+		LastName:  derefStr(u.LastName),
+		Roles:     u.Roles,
+	}, nil
+}
+
 func nullable(s string) *string {
 	if s == "" {
 		return nil
 	}
 	return &s
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // randomBirthday picks a deterministic year (1994) and a random valid
@@ -94,7 +127,7 @@ func nullable(s string) *string {
 func randomBirthday() time.Time {
 	// Days-in-month table (non-leap). Pick month first, then day.
 	monthDays := [...]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
-	month := rand.IntN(12)            //nolint:gosec // non-cryptographic
+	month := rand.IntN(12)             //nolint:gosec // non-cryptographic
 	day := rand.IntN(monthDays[month]) //nolint:gosec
 	return time.Date(birthdayYear, time.Month(month+1), day+1, 0, 0, 0, 0, time.UTC)
 }

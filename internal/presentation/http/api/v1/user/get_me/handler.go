@@ -8,8 +8,7 @@ import (
 	"api/internal/presentation/http/httpx"
 )
 
-// Handler renders the authenticated user as a JSON document. It is
-// thin — the heavy lifting (rights derivation) lives in the use-case.
+// Handler renders the authenticated user as a JSON document.
 type Handler struct {
 	useCase  getme.UseCase
 	resolver *Resolver
@@ -46,21 +45,14 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.useCase.Handle(r.Context(), getme.Query{
-		ID:        dto.ID,
-		Email:     dto.Email,
-		Phone:     dto.Phone,
-		FirstName: dto.FirstName,
-		LastName:  dto.LastName,
-		Roles:     dto.Roles,
-	})
+	res, err := h.useCase.Handle(r.Context(), getme.Query{Uuid: dto.Uuid})
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, GetMeResponse{
-		ID:        res.ID,
+		UUID:      res.Uuid,
 		Email:     res.Email,
 		Phone:     res.Phone,
 		FirstName: res.FirstName,

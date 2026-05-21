@@ -1,27 +1,23 @@
 // Package getmehttp is the HTTP boundary for the GetMe query.
 package getmehttp
 
+import "github.com/google/uuid"
+
 // GetMeDto is the transport view of the authenticated user, populated by
-// the resolver from JWT claims.
+// the resolver from JWT claims. Only the immutable identity is carried
+// here; mutable data comes from the DB inside the use-case.
 type GetMeDto struct {
-	ID        int
-	Email     string
-	Phone     string
-	FirstName string
-	LastName  string
-	Roles     []string
+	Uuid uuid.UUID
 }
 
-// GetMeResponse is what we serialise back to the client. Rights is
-// flattened explicitly to keep the wire payload stable even if the
-// underlying Value Object grows new fields.
+// GetMeResponse is what we serialise back to the client.
 type GetMeResponse struct {
-	ID        int    `json:"id"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone,omitempty"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Rights    Rights `json:"rights"`
+	UUID      uuid.UUID `json:"uid"`
+	Email     string    `json:"email"`
+	Phone     string    `json:"phone,omitempty"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Rights    Rights    `json:"rights"`
 }
 
 // Rights is the public projection of valueobject.RightsDescribe.

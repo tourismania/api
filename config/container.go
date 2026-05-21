@@ -6,7 +6,7 @@ package config
 
 import (
 	"api/internal/presentation/http/api/v1/user/create"
-	getmehttp2 "api/internal/presentation/http/api/v1/user/get_me"
+	getmehttp "api/internal/presentation/http/api/v1/user/get_me"
 	"context"
 	"fmt"
 
@@ -42,7 +42,7 @@ type Container struct {
 
 	LoginHandler      *loginhttp.Handler
 	CreateUserHandler *createuserhttp.Handler
-	GetMeHandler      *getmehttp2.Handler
+	GetMeHandler      *getmehttp.Handler
 }
 
 // Build constructs the Container.
@@ -82,7 +82,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 
 	// Application handlers.
 	createUserApp := createusercmd.NewHandler(userCreator)
-	getMeApp := getmeq.NewHandler(rightsDescriber)
+	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -90,7 +90,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// HTTP handlers.
 	loginH := loginhttp.NewHandler(queries, hasher, jwtSvc, validate)
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
-	getMeH := getmehttp2.NewHandler(getMeApp, getmehttp2.NewResolver())
+	getMeH := getmehttp.NewHandler(getMeApp, getmehttp.NewResolver())
 
 	return &Container{
 		Cfg:               cfg,

@@ -10,16 +10,13 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
-// Claims mirrors lexik/jwt-bundle's default payload so PHP-issued tokens
-// remain forward-compatible. Username typically carries the user's
-// email; Roles is the role list copied from the user record.
+// Claims Only immutable identifiers are embedded;
+// mutable profile data (roles, phone, name) is fetched from the DB on
+// each request so stale tokens can never carry outdated permissions.
 type Claims struct {
-	UID      int      `json:"uid,omitempty"`
-	Username string   `json:"username"`
-	Email    string   `json:"email,omitempty"`
-	Roles    []string `json:"roles"`
 	jwt.RegisteredClaims
 }
 
@@ -66,19 +63,16 @@ func NewService(privateKeyPath, publicKeyPath, passphrase string, ttl time.Durat
 }
 
 // Issue signs a token for the given user.
-func (s *Service) Issue(uid int, username, email string, roles []string) (string, error) {
+func (s *Service) Issue(uuid uuid.UUID) (string, error) {
 	if s.privateKey == nil {
 		return "", errors.New("jwt: private key not configured")
 	}
 	now := time.Now()
 	claims := Claims{
-		UID:      uid,
-		Username: username,
-		Email:    email,
-		Roles:    roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
+			Subject:   uuid.String(),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

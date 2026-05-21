@@ -26,9 +26,8 @@ internal/
   application/    # Use cases (command/query, command/query bus)
   infrastructure/ # Реализации интерфейсов домена (postgres, kafka, jwt, bcrypt)
   presentation/   # HTTP, CLI, DTO
-  app/            # Composition root (DI)
 migrations/       # SQL up/down миграции
-config/           # config.go + JWT-ключи
+config/           # config.go + JWT-ключи + container
 tests/            # unit / integration / application
 ```
 
@@ -83,6 +82,12 @@ make migrate-new
 
 ```bash
 migrate -path=./migrations -database "postgres://root:qwerty123@localhost:5432/tourismania?sslmode=disable" up
+```
+
+## Авторизация
+
+```bash
+make jwt-keys # генерация ключей
 ```
 
 ## Тесты

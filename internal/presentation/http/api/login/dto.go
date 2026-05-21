@@ -1,9 +1,9 @@
 // Package loginhttp is the HTTP boundary for the password-grant login.
 package loginhttp
 
-// LoginRequest mirrors lexik_jwt's check_path body: {"username","password"}.
+// LoginRequest check_path body: {"email","password"}.
 type LoginRequest struct {
-	Username string `json:"username" validate:"required"`
+	Email    string `json:"email" validate:"required"`
 	Password string `json:"password" validate:"required"`
 }
 
