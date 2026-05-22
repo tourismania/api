@@ -5,14 +5,22 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/server"
-  cmd = "go build -o ./tmp/server ./cmd/server"
+  # Добавляем -gcflags: отключаем оптимизации и инлайнинг — без этого
+  # точки остановки "прыгают" или вообще не срабатывают
+  cmd = "go build -gcflags='all=-N -l' -o ./tmp/server ./cmd/server"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", "docker", "docs", "config/jwt"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = ""
+  # full_bin заменяет простой запуск бинарника на запуск через dlv:
+  # --headless       — dlv не открывает свой UI, ждёт подключения IDE
+  # --listen=:2345   — порт, на который подключается GoLand
+  # --api-version=2  — GoLand требует именно v2
+  # --accept-multiclient — можно переподключаться после каждого rebuild
+  # --continue       — сервер стартует сразу, не ждёт первого attach
+  full_bin = "dlv exec --headless --listen=:2345 --api-version=2 --accept-multiclient --continue ./tmp/server"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html"]
   kill_delay = "0s"

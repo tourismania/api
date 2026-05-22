@@ -60,7 +60,7 @@ func run() error {
 		Addr:              cfg.Server.Address,
 		Handler:           routes.Build(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
+		ReadTimeout:       150000 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

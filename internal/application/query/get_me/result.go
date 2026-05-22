@@ -10,7 +10,7 @@ import (
 // Rights is a domain Value Object; the HTTP layer is responsible for
 // projecting it into a transport DTO.
 type Result struct {
-	Uuid      uuid.UUID `json:"uid"`
+	Uuid      uuid.UUID `json:"uuid"`
 	Email     string
 	Phone     string
 	FirstName string

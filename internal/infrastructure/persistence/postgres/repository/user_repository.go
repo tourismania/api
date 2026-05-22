@@ -88,17 +88,18 @@ func (r *UserRepository) Store(
 	return &out, nil
 }
 
-// FindByID fetches a user record by primary key. Satisfies the UserFinder
+// FindByUuid fetches a user record by primary key. Satisfies the UserFinder
 // port defined in the get_me application package.
 func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error) {
 	u, err := r.queries.GetUserByUuid(ctx, uuid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("user %d not found", uuid.String())
+			return nil, fmt.Errorf("user %s not found", uuid.String())
 		}
-		return nil, fmt.Errorf("find user by id: %w", err)
+		return nil, fmt.Errorf("find user by uuid: %w", err)
 	}
 	return &entity.UserRecord{
+		Uuid:      u.Uuid,
 		Email:     u.Email,
 		Phone:     derefStr(u.Phone),
 		FirstName: derefStr(u.FirstName),

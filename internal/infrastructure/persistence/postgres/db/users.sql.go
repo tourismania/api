@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,34 +55,19 @@ const getUserByEmailSQL = `SELECT id, uuid, first_name, last_name, email, login,
 FROM "users"
 WHERE email = $1`
 
-// scanRow scans a full user row into u. The uuid column is received as a
-// plain string so we are independent of pgx type-map quirks; uuid.Parse
-// then produces the canonical [16]byte value.
-func scanRow(row interface {
-	Scan(...any) error
-}, u *User) error {
-	var uuidStr string
-	err := row.Scan(
-		&u.ID, &uuidStr, &u.FirstName, &u.LastName, &u.Email, &u.Login,
-		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Password, &u.IsActive,
-		&u.Birthday, &u.ExtraInformation, &u.Roles,
-	)
-	if err != nil {
-		return err
-	}
-	parsed, err := uuid.Parse(uuidStr)
-	if err != nil {
-		return fmt.Errorf("parse uuid %q: %w", uuidStr, err)
-	}
-	u.Uuid = parsed
-	return nil
-}
-
 // GetUserByEmail fetches a single row by unique email.
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmailSQL, email)
 	var u User
-	return u, scanRow(row, &u)
+	err := row.Scan(
+		&u.ID, &u.Uuid, &u.FirstName, &u.LastName, &u.Email, &u.Login,
+		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Password, &u.IsActive,
+		&u.Birthday, &u.ExtraInformation, &u.Roles,
+	)
+	if err != nil {
+		return u, err
+	}
+	return u, nil
 }
 
 const getUserByUuidSQL = `SELECT id, uuid, first_name, last_name, email, login,
@@ -96,5 +80,14 @@ WHERE uuid = $1`
 func (q *Queries) GetUserByUuid(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByUuidSQL, id)
 	var u User
-	return u, scanRow(row, &u)
+
+	err := row.Scan(
+		&u.ID, &u.Uuid, &u.FirstName, &u.LastName, &u.Email, &u.Login,
+		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Password, &u.IsActive,
+		&u.Birthday, &u.ExtraInformation, &u.Roles,
+	)
+	if err != nil {
+		return u, err
+	}
+	return u, nil
 }

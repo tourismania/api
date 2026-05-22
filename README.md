@@ -70,6 +70,73 @@ go run ./cmd/cli create-user "Ada" "Lovelace" ada@example.com secret
 | GET   | /api/doc         | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
 
+## Отладка (Debugger)
+
+### HTTP-запросы (Remote Delve через Docker)
+
+`dlv` уже установлен в dev-образе, порт `2345` проброшен в `docker-compose.override.yml`.
+
+**1. В проекте уже настроен режим отладки в `.air.toml`** — в секции `[build]`:
+
+```toml
+[build]
+  # -gcflags отключает оптимизации и инлайнинг, иначе точки остановки прыгают
+  cmd      = "go build -gcflags='all=-N -l' -o ./tmp/server ./cmd/server"
+  bin      = "./tmp/server"
+  # full_bin: air запускает бинарник через dlv вместо прямого вызова
+  full_bin = "dlv exec --headless --listen=:2345 --api-version=2 --accept-multiclient --continue ./tmp/server"
+```
+
+**2. Поднимаем контейнер с приложением**
+
+**3. Подключиться из GoLand:**
+
+`Run → Edit Configurations → + → Go Remote`
+
+| Поле | Значение |
+|------|----------|
+| Host | `localhost` |
+| Port | `2345` |
+| On disconnect | `Leave it running` |
+
+Нажать **Debug** — GoLand подключается к dlv. Точки остановки в хендлерах срабатывают при каждом запросе. При изменении кода air пересобирает бинарник; нужно переподключиться из GoLand (кнопка Debug снова).
+
+> **Точка в `main.go`** выполняется один раз при старте. Чтобы поймать её, убери флаг `--continue` из `full_bin` — dlv будет ждать attach до запуска процесса.
+
+---
+
+### CLI-команды (локальный dlv)
+
+CLI (`cmd/cli`) запускается локально, без Docker.
+
+**Через GoLand (рекомендуется):**
+
+`Run → Edit Configurations → + → Go Build`
+
+| Поле | Значение |
+|------|----------|
+| Run kind | `File` |
+| Files | `cmd/cli/main.go` |
+| Program arguments | `create-user "Ada" "Lovelace" ada@example.com secret` |
+
+Поставить точку остановки → нажать **Debug**.
+
+**Через терминал:**
+
+```bash
+# dlv сам компилирует с нужными флагами и запускает
+dlv debug ./cmd/cli -- create-user "Ada" "Lovelace" ada@example.com secret
+```
+
+Внутри интерактивной сессии dlv:
+
+```
+(dlv) break internal/presentation/cli/create_user.go:25
+(dlv) continue
+```
+
+---
+
 ## Миграции
 
 Использовать команды описанные в `Makefile`

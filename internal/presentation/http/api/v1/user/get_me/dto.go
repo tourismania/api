@@ -12,7 +12,7 @@ type GetMeDto struct {
 
 // GetMeResponse is what we serialise back to the client.
 type GetMeResponse struct {
-	UUID      uuid.UUID `json:"uid"`
+	Uuid      uuid.UUID `json:"uuid"`
 	Email     string    `json:"email"`
 	Phone     string    `json:"phone,omitempty"`
 	FirstName string    `json:"first_name"`

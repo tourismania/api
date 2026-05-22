@@ -52,7 +52,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, GetMeResponse{
-		UUID:      res.Uuid,
+		Uuid:      res.Uuid,
 		Email:     res.Email,
 		Phone:     res.Phone,
 		FirstName: res.FirstName,
