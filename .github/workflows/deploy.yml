@@ -25,6 +25,7 @@ jobs:
             cp .env.example .env
             sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env
             sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env
+            sed -i.bak 's/^DATABASE_HOST=.*/DATABASE_HOST=${{ secrets.DATABASE_HOST }}/' .env
             sed -i.bak 's/^APP_VERSION=.*/APP_VERSION=${{ github.ref_name }}/' .env
             sed -i.bak 's/^APP_SECRET=.*/APP_ENV=production/' .env
             sed -i.bak 's/^CORS_ALLOWED_ORIGINS=.*/CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}/' .env
