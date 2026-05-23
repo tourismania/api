@@ -53,11 +53,13 @@ RUN apk add --no-cache make
 COPY go.mod go.sum* ./
 RUN go mod download
 
-# Сгенерируем swag-документацию
-RUN make swag
-
 # Копируем исходники после загрузки зависимостей, чтобы не инвалидировать кэш.
 COPY . .
+
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
+# Сгенерируем swagger-документацию
+RUN make swag
 
 # Собираем статически слинкованные бинарники (CGO_ENABLED=0), чтобы они
 # запускались в минимальном alpine без libc.
