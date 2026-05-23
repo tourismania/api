@@ -35,29 +35,29 @@ tests/            # unit / integration / application
 
 ## Быстрый старт
 
-### Через docker-compose (не тестировался)
+### Через docker-compose
 
 ```bash
 cp .env.example .env
 
 # Сгенерировать JWT-ключи (если ещё не сделано):
-openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:2048
-openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
+make jwt-keys
 
-docker-compose up -d database kafka
-# Применить миграции:
-docker run --rm -v "$(pwd)/migrations:/migrations" --network host \
-  migrate/migrate -path=/migrations \
-  -database "postgres://root:qwerty123@localhost:5432/tourismania?sslmode=disable" up
-
-docker-compose up app
+# Поднять всё одной командой.
+# Миграции запускаются автоматически внутри app-контейнера (entrypoint.sh)
+# до старта сервера. Если они упали — контейнер рестартует.
+docker compose up
 ```
 
 ## CLI
 
 ```bash
+# локально
 go run ./cmd/cli create-user "Ada" "Lovelace" ada@example.com secret
 # → User successfully generated! id=1
+
+# production
+docker compose exec tourismania_app /app/cli create-user "first_name" "last_name" email@example.com password
 ```
 
 ## Endpoints

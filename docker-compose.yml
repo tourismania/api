@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runner
     image: tourismania-api:latest
     container_name: tourismania_app
     depends_on:
@@ -16,6 +17,7 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
   database:
     image: postgres:17-alpine
     container_name: tourismania_database
@@ -33,6 +35,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── Kafka (KRaft mode) ───────────────────────────────────────────────────────
   kafka:
     image: bitnami/kafka:3.7
     container_name: tourismania_kafka

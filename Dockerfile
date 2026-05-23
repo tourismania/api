@@ -91,15 +91,29 @@ WORKDIR /app
 # Копируем артефакты из builder; chown сразу задаёт владельца без лишнего слоя.
 COPY --from=builder --chown=app:app /out/server      /app/server
 COPY --from=builder --chown=app:app /out/cli         /app/cli
-# SQL-миграции — читаются сервером при старте для обновления схемы БД.
+
+COPY --from=dev    --chown=app:app /go/bin/migrate  /app/migrate
+# SQL-миграции — запускаются entrypoint.sh перед стартом сервера.
 COPY --from=builder --chown=app:app /src/migrations  /app/migrations
+
 # Конфигурационные файлы (YAML/TOML/env-шаблоны) для разных окружений.
 COPY --from=builder --chown=app:app /src/config      /app/config
+
 # Документацию (swagger)
-COPY --from=builder --chown=app:app /src/docs      /app/docs
+COPY --from=builder --chown=app:app /src/docs        /app/docs
+
+# Entrypoint-скрипт: запускает миграции, затем передаёт управление серверу.
+# chmod выполняется от root (до USER app), поэтому всегда успешен.
+COPY --chown=app:app docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Документируем порт HTTP-сервера (фактически открывается в docker-compose/k8s).
 EXPOSE 8080
 # Переключаемся на непривилегированного пользователя перед запуском.
 USER app
-ENTRYPOINT ["/app/server"]
+
+# Абсолютный путь — надёжнее в exec-форме, не зависит от WORKDIR.
+# CMD передаётся в entrypoint как $@ — скрипт делает `exec "$@"`,
+# заменяя себя сервером (PID 1 = /app/server).
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/app/server"]
