@@ -132,7 +132,7 @@ tests/
 - **Test framework:** `go test` (стандартная библиотека)
 - **Assertion library:** `github.com/stretchr/testify`
 - **Mocking:** интерфейсы + ручные моки или `gomock`
-- **Coverage tool:** `go test -cover`
+- **Coverage tool:** `go test -cover` 
 
 ### Test Organization
 
