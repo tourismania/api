@@ -45,10 +45,16 @@ FROM golang:1.26-alpine AS builder
 # Рабочая директория внутри builder-контейнера
 WORKDIR /src
 
+# Поставим make для унификации команд
+RUN apk add --no-cache make
+
 # Копируем только манифесты зависимостей — это позволяет Docker
 # переиспользовать кэш слоя при изменениях в коде (но не в go.mod/go.sum).
 COPY go.mod go.sum* ./
 RUN go mod download
+
+# Сгенерируем swag-документацию
+RUN make swag
 
 # Копируем исходники после загрузки зависимостей, чтобы не инвалидировать кэш.
 COPY . .
@@ -87,6 +93,8 @@ COPY --from=builder --chown=app:app /out/cli         /app/cli
 COPY --from=builder --chown=app:app /src/migrations  /app/migrations
 # Конфигурационные файлы (YAML/TOML/env-шаблоны) для разных окружений.
 COPY --from=builder --chown=app:app /src/config      /app/config
+# Документацию (swagger)
+COPY --from=builder --chown=app:app /src/docs      /app/docs
 
 # Документируем порт HTTP-сервера (фактически открывается в docker-compose/k8s).
 EXPOSE 8080

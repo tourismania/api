@@ -35,8 +35,8 @@ func (rt Routes) Build() http.Handler {
 	r.Use(middleware.Logger)
 
 	// Swagger UI is public — keep it out of /api/v1.
-	r.Get("/api/doc/*", httpSwagger.Handler(
-		httpSwagger.URL("/api/doc/swagger.json"),
+	r.Get("/api/docs/*", httpSwagger.Handler(
+		httpSwagger.URL("/api/docs/doc.json"),
 	))
 
 	// Public auth endpoint.
@@ -52,7 +52,7 @@ func (rt Routes) Build() http.Handler {
 	// Liveness/readiness.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok123"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	return r

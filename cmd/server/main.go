@@ -3,9 +3,10 @@
 //	@title                      Tourismania API
 //	@version                    1.0.2
 //	@description                REST API for user management with JWT auth and Kafka events.
-//	@securityDefinitions.apikey BearerAuth
+//	@securityDefinitions.apikey Bearer
 //	@in                         header
 //	@name                       Authorization
+//	@description                Type 'Bearer ' followed by a space and then your token.
 package main
 
 import (
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"api/config"
+	_ "api/docs"
 	apihttp "api/internal/presentation/http"
 )
 
@@ -60,7 +62,7 @@ func run() error {
 		Addr:              cfg.Server.Address,
 		Handler:           routes.Build(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       150000 * time.Second,
+		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

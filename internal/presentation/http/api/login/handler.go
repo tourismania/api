@@ -39,9 +39,9 @@ func NewHandler(
 //	@Summary      Issue a JWT
 //	@Description  Exchanges username/password for an RS256-signed JWT.
 //	@Tags         Auth
-//	@Accept       JSON
-//	@Produce      JSON
-//	@Param        body      LoginRequest  true  "Credentials"
+//	@Accept       json
+//	@Produce      json
+//	@Param        message body LoginRequest  true  "Credentials"
 //	@Success      200   {object}  LoginResponse
 //	@Failure      400   {object}  httpx.ErrorBody
 //	@Failure      401   {object}  httpx.ErrorBody

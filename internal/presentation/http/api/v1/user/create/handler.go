@@ -35,7 +35,7 @@ func NewHandler(uc createuser.UseCase, v *validator.Validate) *Handler {
 //	@Failure      400   {object}  httpx.ErrorBody
 //	@Failure      401   {object}  httpx.ErrorBody
 //	@Failure      500   {object}  httpx.ErrorBody
-//	@Security     BearerAuth
+//	@Security     Bearer
 //	@Router       /api/v1/users [post]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateUserRequest
