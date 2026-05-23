@@ -12,21 +12,37 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-// Routes wires every endpoint to its handler. Keep this as the only
-// file that knows the URL → handler mapping — easy to audit.
-type Routes struct {
+// Server holds every HTTP-layer dependency and builds the final handler.
+// It is the single place that knows the URL → handler mapping — easy to audit.
+type Server struct {
 	Login      *loginhttp.Handler
 	CreateUser *createuserhttp.Handler
 	GetMe      *getmehttp.Handler
 	JWT        *auth.Service
+
+	// CORSAllowedOrigins is forwarded to the CORS middleware.
+	// Empty slice disables CORS headers entirely.
+	CORSAllowedOrigins []string
 }
 
 // Build returns a *chi.Mux with all endpoints attached.
-func (rt Routes) Build() http.Handler {
+func (s Server) Build() http.Handler {
 	r := chi.NewRouter()
+
+	// CORS must be first so preflight OPTIONS never hits auth middleware.
+	if len(s.CORSAllowedOrigins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   s.CORSAllowedOrigins,
+			AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-Id"},
+			AllowCredentials: true,
+			MaxAge:           86400,
+		}))
+	}
 
 	// Recommended chi middlewares.
 	r.Use(middleware.RequestID)
@@ -40,13 +56,13 @@ func (rt Routes) Build() http.Handler {
 	))
 
 	// Public auth endpoint.
-	r.Post("/api/login", rt.Login.Handle)
+	r.Post("/api/login", s.Login.Handle)
 
 	// Versioned, JWT-guarded API surface.
 	r.Route("/api/v1", func(api chi.Router) {
-		api.Use(custommw.JWT(rt.JWT))
-		api.Post("/users", rt.CreateUser.Handle)
-		api.Get("/users/me", rt.GetMe.Handle)
+		api.Use(custommw.JWT(s.JWT))
+		api.Post("/users", s.CreateUser.Handle)
+		api.Get("/users/me", s.GetMe.Handle)
 	})
 
 	// Liveness/readiness.

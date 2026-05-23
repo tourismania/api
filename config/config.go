@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -29,6 +30,11 @@ type AppConfig struct {
 // ServerConfig describes the HTTP server.
 type ServerConfig struct {
 	Address string
+
+	// CORSAllowedOrigins is the whitelist of origins that may call the API.
+	// Loaded from CORS_ALLOWED_ORIGINS (comma-separated).
+	// Use "*" to allow any origin (development only).
+	CORSAllowedOrigins []string
 }
 
 // DatabaseConfig describes PostgreSQL connection.
@@ -92,7 +98,8 @@ func Load() (*Config, error) {
 			Version: getEnv("APP_VERSION", "0.0.0"),
 		},
 		Server: ServerConfig{
-			Address: getEnv("SERVER_NAME", ":8080"),
+			Address:            getEnv("SERVER_NAME", ":8080"),
+			CORSAllowedOrigins: splitCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DATABASE_HOST", "localhost"),
@@ -135,6 +142,21 @@ func getEnv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// splitCSV splits a comma-separated string into trimmed, non-empty tokens.
+func splitCSV(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func atoiDefault(key string, def int) (int, error) {

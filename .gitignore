@@ -35,8 +35,3 @@ Thumbs.db
 # Air (hot reload)
 tmp/
 .air.toml.bak
-
-# Swagger generated docs
-docs/docs.go
-docs/swagger.json
-docs/swagger.yaml

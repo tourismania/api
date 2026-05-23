@@ -18,7 +18,7 @@ sqlc: ## Regenerate sqlc code
 	sqlc generate
 
 swag: ## Generate OpenAPI docs into ./docs
-	swag init -g cmd/server/main.go -o docs
+	swag init -g cmd/server/main.go -o docs/swagger
 
 jwt-keys: ## Generate RSA keypair for JWT (RS256)
 	openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:2048

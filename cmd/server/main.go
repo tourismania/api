@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"api/config"
-	_ "api/docs"
+	_ "api/docs/swagger"
 	apihttp "api/internal/presentation/http"
 )
 
@@ -51,16 +51,17 @@ func run() error {
 	}
 	defer container.Close()
 
-	routes := apihttp.Routes{
-		Login:      container.LoginHandler,
-		CreateUser: container.CreateUserHandler,
-		GetMe:      container.GetMeHandler,
-		JWT:        container.JWT,
+	httpServer := apihttp.Server{
+		Login:              container.LoginHandler,
+		CreateUser:         container.CreateUserHandler,
+		GetMe:              container.GetMeHandler,
+		JWT:                container.JWT,
+		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.Server.Address,
-		Handler:           routes.Build(),
+		Handler:           httpServer.Build(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
