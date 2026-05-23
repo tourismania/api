@@ -30,7 +30,7 @@ func NewHandler(uc getme.UseCase, resolver *Resolver) *Handler {
 //	@Failure      404  {object}  httpx.ErrorBody
 //	@Failure      500  {object}  httpx.ErrorBody
 //	@Security     Bearer
-//	@Router       /api/v1/me [get]
+//	@Router       /api/v1/users/me [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	dto, err := h.resolver.Resolve(r.Context())
 	if err != nil {
