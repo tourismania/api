@@ -18,32 +18,42 @@ Endpoint доступен если передается корректный JWT
 
 ```
 migrations/postgres/
-  006_create_aviation_schema.up.sql
-  006_create_aviation_schema.down.sql
+  006_enable_unaccent.up.sql
+  006_enable_unaccent.down.sql
+  007_enable_pg_trgm.up.sql
+  007_enable_pg_trgm.down.sql
+  008_create_countries.up.sql
+  008_create_countries.down.sql
+  009_create_cities.up.sql
+  009_create_cities.down.sql
+  010_create_airports.up.sql
+  010_create_airports.down.sql
 
 internal/
   domain/
     entity/
-      airport.go                                   # Airport + City + Country entities
+      airport.go                                    # Airport + City + Country entities
     valueobject/
-      location.go                                  # Location (lat, lon, elevation)
+      location.go                                   # Location (lat, lon, elevation)
     repository/
-      airport_repository.go                        # AirportRepository interface
+      airport_repository.go                         # AirportRepository interface
 
   application/
     query/
       search_airports/
-        query.go                                   # SearchAirportsQuery
-        result.go                                  # SearchAirportsResult + AirportResult
-        handler.go                                 # Handler + UseCase interface
+        query.go                                    # SearchAirportsQuery
+        result.go                                   # SearchAirportsResult + AirportResult
+        handler.go                                  # Handler + UseCase interface
 
   infrastructure/
     persistence/
       postgres/
+        model/
+          airport.go                                # DB-модели Airport, City, Country
         queries/
-          airports.sql                             # sqlc-запрос SearchAirports
+          airports.sql                              # sqlc-запрос SearchAirports
         repository/
-          airport_repository.go                   # Реализация AirportRepository
+          airport_repository.go                     # Реализация AirportRepository
 
   presentation/
     http/
@@ -51,90 +61,115 @@ internal/
         v1/
           airport/
             search/
-              handler.go                           # HTTP handler
-              dto.go                               # Request params + Response types
-      middleware/
-        rate_limit.go                              # Per-IP rate limiter (60 req/min)
+              handler.go                            # HTTP handler
+              dto.go                                # Request params + Response types
       httpx/
-        error.go                                   # Расширение: WriteStructuredError
+        error.go                                    # Расширение: WriteStructuredError
 
 tests/
   unit/
-    airport_search_params_test.go                 # Валидация параметров запроса
+    airport_search_params_test.go                   # Валидация параметров запроса
   integration/
-    airport_repository_test.go                    # Репозиторий против реального Postgres
+    airport_repository_test.go                      # Репозиторий против реального Postgres
   application/
-    airports_search_http_test.go                  # E2E HTTP-тест
+    airports_search_http_test.go                    # E2E HTTP-тест
 ```
 
 **Изменяемые файлы:**
 ```
-config/config.go          # + RateLimitConfig
-config/container.go       # + AirportRepo, SearchAirportsApp, AirportsHandler
-internal/presentation/http/router.go  # + GET /api/v1/airports
+config/config.go                           # + RateLimitConfig
+config/container.go                        # Restructure: Http{} и App{} вложенные группы
+internal/presentation/http/router.go       # + GET /api/v1/airports
+CLAUDE.md                                  # + правило миграций
+go.mod / go.sum                            # + github.com/go-chi/httprate
 ```
 
 ---
 
-## 3. База данных
+## 3. Правило миграций (добавить в CLAUDE.md)
 
-### 3.1 Миграция `006_create_aviation_schema.up.sql`
+Добавить в раздел **General Rules** в `CLAUDE.md`:
 
+```
+- Принцип миграций: 1 действие = 1 миграция. Каждая миграция содержит одно
+  логическое изменение схемы: создание одной таблицы, добавление одного индекса,
+  включение одного расширения. Не объединять несвязанные изменения в одном файле.
+```
+
+---
+
+## 4. База данных
+
+Таблицы создаются в схеме по умолчанию (`public`), без отдельной схемы `aviation`. Это соответствует существующей структуре проекта (таблица `users` находится в `public`).
+
+### Миграции (006–014)
+
+Каждый файл выполняет **одно** действие согласно правилу выше.
+
+**006** — расширение `unaccent`:
 ```sql
--- Расширения для регистронезависимого поиска с диакритикой и trigram-индексов
+-- 006_enable_unaccent.up.sql
 CREATE EXTENSION IF NOT EXISTS unaccent;
+
+-- 006_enable_unaccent.down.sql
+DROP EXTENSION IF EXISTS unaccent;
+```
+
+**007** — расширение `pg_trgm`:
+```sql
+-- 007_enable_pg_trgm.up.sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE TABLE aviation.countries (
-    iso2        char(2)      PRIMARY KEY,
-    name        varchar(100) NOT NULL
+-- 007_enable_pg_trgm.down.sql
+DROP EXTENSION IF EXISTS pg_trgm;
+```
+
+**008** — таблица `countries`:
+```sql
+-- 008_create_countries.up.sql
+CREATE TABLE countries (
+    iso2 char(2)       PRIMARY KEY,
+    name varchar(100)  NOT NULL
 );
 
-CREATE TABLE aviation.cities (
-    id           serial       PRIMARY KEY,
+-- 008_create_countries.down.sql
+DROP TABLE IF EXISTS countries;
+```
+
+**009** — таблица `cities`:
+```sql
+-- 009_create_cities.up.sql
+CREATE TABLE cities (
+    id           serial      PRIMARY KEY,
     name         varchar(100) NOT NULL,
     state        varchar(100),
     timezone     varchar(50),
-    country_iso2 char(2)      NOT NULL REFERENCES aviation.countries(iso2)
+    country_iso2 char(2)     NOT NULL REFERENCES countries(iso2)
 );
 
-CREATE TABLE aviation.airports (
-    icao         char(4)       PRIMARY KEY,
-    iata         char(3)       UNIQUE,           -- nullable: малые аэропорты без IATA
-    name         varchar(200)  NOT NULL,
-    location     float8[],                        -- [longitude, latitude]
-    elevation_ft int,
-    city_id      int           NOT NULL REFERENCES aviation.cities(id)
-);
-
--- =================== Индексы ===================
-
--- Trigram-индексы для подстрочного ILIKE.
--- Без них поиск делает seq scan по 29k строкам.
-CREATE INDEX airports_name_trgm_idx
-    ON aviation.airports USING gin (lower(unaccent(name)) gin_trgm_ops);
-
-CREATE INDEX cities_name_trgm_idx
-    ON aviation.cities USING gin (lower(unaccent(name)) gin_trgm_ops);
-
--- Upper-регистровые btree-индексы для точного совпадения IATA/ICAO.
-CREATE INDEX airports_iata_upper_idx ON aviation.airports (upper(iata));
-CREATE INDEX airports_icao_upper_idx ON aviation.airports (upper(icao));
+-- 009_create_cities.down.sql
+DROP TABLE IF EXISTS cities;
 ```
 
-### 3.2 Миграция `006_create_aviation_schema.down.sql`
-
+**010** — таблица `airports`:
 ```sql
-DROP EXTENSION IF EXISTS pg_trgm;
-DROP EXTENSION IF EXISTS unaccent;
-DROP TABLE IF EXISTS countries;
-DROP TABLE IF EXISTS cities;
+-- 010_create_airports.up.sql
+CREATE TABLE airports (
+    icao         char(4)      PRIMARY KEY,
+    iata         char(3)      UNIQUE,          -- nullable: малые аэропорты без IATA
+    name         varchar(200) NOT NULL,
+    location     float8[],                     -- [longitude, latitude], индекс от 1
+    elevation_ft int,
+    city_id      int          NOT NULL REFERENCES cities(id)
+);
+
+-- 010_create_airports.down.sql
 DROP TABLE IF EXISTS airports;
 ```
 
 ---
 
-## 4. sqlc-запрос
+## 5. sqlc-запрос
 
 **Файл:** `internal/infrastructure/persistence/postgres/queries/airports.sql`
 
@@ -161,12 +196,12 @@ WITH q AS (
               OR lower(unaccent(c.name)) LIKE lower(unaccent(@search_prefix::text)) THEN 3
             ELSE 4
         END                     AS rank
-    FROM aviation.airports a
-    JOIN aviation.cities    c  ON c.id       = a.city_id
-    JOIN aviation.countries co ON co.iso2    = c.country_iso2
+    FROM airports a
+    JOIN cities    c  ON c.id   = a.city_id
+    JOIN countries co ON co.iso2 = c.country_iso2
     WHERE (
-        upper(a.iata)                    = upper(@search::text)
-        OR upper(a.icao)                 = upper(@search::text)
+        upper(a.iata)               = upper(@search::text)
+        OR upper(a.icao)            = upper(@search::text)
         OR lower(unaccent(a.name))  LIKE lower(unaccent(@search_like::text))
         OR lower(unaccent(c.name))  LIKE lower(unaccent(@search_like::text))
     )
@@ -179,15 +214,15 @@ LIMIT @limit_val::int
 OFFSET @offset_val::int;
 ```
 
-> **Примечание:** PostgreSQL индексирует массивы начиная с 1. В ТЗ `location[0]` и `location[1]` используют 0-based нотацию — адаптируем на `location[1]` (lon) и `location[2]` (lat).
+> **Примечание по индексации массива:** PostgreSQL индексирует массивы начиная с 1. Поле `location[1]` — долгота (lon), `location[2]` — широта (lat).
 
-> **Особенность sqlc:** Из-за оконной функции `COUNT(*) OVER()` sqlc может сгенерировать неточную модель. После `make sqlc` **обязательно** проверить `db/airports.sql.go` и при необходимости скорректировать типы вручную (только в рамках типа для `total_count int64`, остальное генерируется корректно). Файл в `db/` вручную не редактировать — выполнить `make sqlc` заново после правки запроса.
+> **Особенность sqlc:** Из-за оконной функции `COUNT(*) OVER()` и CASE-выражения sqlc может сгенерировать неточные типы для `total_count` и `rank`. После `make sqlc` проверить `db/airports.sql.go` — при несоответствии добавить `overrides` в `sqlc.yaml`. Файлы в `db/` вручную не редактировать.
 
 ---
 
-## 5. Доменный слой
+## 6. Доменный слой
 
-### 5.1 Value Object — `internal/domain/valueobject/location.go`
+### 6.1 Value Object — `internal/domain/valueobject/location.go`
 
 ```go
 package valueobject
@@ -200,7 +235,7 @@ type Location struct {
 }
 ```
 
-### 5.2 Entities — `internal/domain/entity/airport.go`
+### 6.2 Entities — `internal/domain/entity/airport.go`
 
 ```go
 package entity
@@ -222,7 +257,7 @@ type City struct {
 }
 
 // Airport is the core aggregate for the search feature.
-// iata может быть nil у малых аэропортов без IATA-кода.
+// IATA может быть nil у малых аэропортов без IATA-кода.
 type Airport struct {
     ICAO     string
     IATA     *string
@@ -233,7 +268,7 @@ type Airport struct {
 }
 ```
 
-### 5.3 Repository interface — `internal/domain/repository/airport_repository.go`
+### 6.3 Repository interface — `internal/domain/repository/airport_repository.go`
 
 ```go
 package repository
@@ -264,13 +299,11 @@ type AirportRepository interface {
 }
 ```
 
-> **Важно:** домен не знает о `pgx`, `sqlc` или схеме `aviation` — он работает исключительно с этим интерфейсом.
-
 ---
 
-## 6. Application слой
+## 7. Application слой
 
-### 6.1 `internal/application/query/search_airports/query.go`
+### 7.1 `internal/application/query/search_airports/query.go`
 
 ```go
 package searchairports
@@ -284,7 +317,7 @@ type Query struct {
 }
 ```
 
-### 6.2 `internal/application/query/search_airports/result.go`
+### 7.2 `internal/application/query/search_airports/result.go`
 
 ```go
 package searchairports
@@ -327,7 +360,7 @@ type Result struct {
 }
 ```
 
-### 6.3 `internal/application/query/search_airports/handler.go`
+### 7.3 `internal/application/query/search_airports/handler.go`
 
 ```go
 package searchairports
@@ -402,15 +435,52 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 
 ---
 
-## 7. Infrastructure слой
+## 8. Infrastructure слой
 
-### `internal/infrastructure/persistence/postgres/repository/airport_repository.go`
+### 8.1 DB-модели — `internal/infrastructure/persistence/postgres/model/airport.go`
+
+Модели отражают строки БД (≠ доменные entity), аналогично существующей `model/user.go`.
+
+```go
+// Package model contains PostgreSQL row representations.
+// These are NOT domain entities — they mirror the exact DB column layout.
+package model
+
+// Country is the DB row for the countries table.
+type Country struct {
+    ISO2 string // char(2) PRIMARY KEY
+    Name string // varchar(100) NOT NULL
+}
+
+// City is the DB row for the cities table.
+type City struct {
+    ID          int     // serial PRIMARY KEY
+    Name        string  // varchar(100) NOT NULL
+    State       *string // varchar(100) nullable
+    Timezone    string  // varchar(50)
+    CountryISO2 string  // char(2) FK -> countries.iso2
+}
+
+// Airport is the DB row for the airports table.
+type Airport struct {
+    ICAO        string   // char(4) PRIMARY KEY
+    IATA        *string  // char(3) UNIQUE nullable
+    Name        string   // varchar(200) NOT NULL
+    Location    []float64 // float8[] — [longitude, latitude]
+    ElevationFt *int     // int nullable
+    CityID      int      // int FK -> cities.id
+}
+```
+
+> Модели используются только внутри `infrastructure/persistence` для явного документирования структуры таблиц. В репозитории маппинг происходит из `db.SearchAirportsRow` (sqlc) → `entity.Airport` (домен) напрямую, без промежуточного model — если модель не нужна как промежуточный шаг, её роль сугубо документационная.
+
+### 8.2 Repository — `internal/infrastructure/persistence/postgres/repository/airport_repository.go`
 
 Ответственности:
 1. Принимает `repository.AirportFilter`.
-2. Формирует параметры sqlc-запроса `SearchAirports` (нормализация строк: `search_like = "%" + search + "%"`, `search_prefix = search + "%"`).
-3. Маппит строки sqlc-модели в `[]entity.Airport` и возвращает `AirportSearchResult`.
-4. Обрабатывает `pgx.ErrNoRows` → возвращает пустой результат (не ошибку).
+2. Формирует параметры sqlc-запроса: `search_like = "%" + search + "%"`, `search_prefix = search + "%"`.
+3. Маппит строки `db.SearchAirportsRow` → `entity.Airport`.
+4. При `pgx.ErrNoRows` возвращает пустой результат, не ошибку.
 
 ```go
 // Compile-time interface check
@@ -432,7 +502,7 @@ func (r *AirportRepository) Search(ctx context.Context, f repository.AirportFilt
         Search:        f.Search,
         SearchLike:    searchLike,
         SearchPrefix:  searchPrefix,
-        CountryFilter: f.Country,    // *string, nil = no filter
+        CountryFilter: f.Country,       // *string, nil = no filter
         LimitVal:      int32(f.Limit),
         OffsetVal:     int32(f.Offset),
     })
@@ -454,25 +524,23 @@ func (r *AirportRepository) Search(ctx context.Context, f repository.AirportFilt
 }
 ```
 
-**Маппинг** `mapRowToAirport` извлекает из `db.SearchAirportsRow`:
-- `row.Iata` → `*string` (sqlc генерирует как `pgtype.Text` для nullable UNIQUE — конвертируем через `.String` + nil-check)
-- `row.Lon`, `row.Lat` → `float64`
-- `row.ElevationFt` → `*int` (nullable int)
-- остальные поля — прямой маппинг
+**Маппинг** `mapRowToAirport` из `db.SearchAirportsRow`:
+- `row.Iata` — sqlc генерирует `pgtype.Text` для nullable UNIQUE; конвертируем: если `.Valid` → `&row.Iata.String`, иначе `nil`
+- `row.Lon`, `row.Lat` → `float64` (прямой cast или через `pgtype.Float8`)
+- `row.ElevationFt` — nullable int; аналогично через `.Valid`
 
-> Точные названия полей генерируемой структуры `db.SearchAirportsRow` уточняются после `make sqlc`. При несоответствии типов — добавить `overrides` в `sqlc.yaml`.
+> Точные имена полей `db.SearchAirportsRow` уточняются после `make sqlc`. При несоответствии типов — добавить `overrides` в `sqlc.yaml`.
 
 ---
 
-## 8. Presentation слой
+## 9. Presentation слой
 
-### 8.1 DTO — `internal/presentation/http/api/v1/airport/search/dto.go`
+### 9.1 DTO — `internal/presentation/http/api/v1/airport/search/dto.go`
 
 ```go
 package searchairporthttp
 
 // SearchParams содержит query-параметры запроса.
-// Валидация — go-playground/validator; бизнес-правила — в хендлере.
 type SearchParams struct {
     Search  string `schema:"search"  validate:"required"`
     Limit   int    `schema:"limit"   validate:"omitempty,min=1,max=100"`
@@ -527,26 +595,22 @@ type SearchResponse struct {
 }
 ```
 
-### 8.2 HTTP Handler — `internal/presentation/http/api/v1/airport/search/handler.go`
+### 9.2 HTTP Handler — `internal/presentation/http/api/v1/airport/search/handler.go`
 
 **Логика хендлера:**
 
-1. Декодировать query-параметры через `schema.NewDecoder()` (или вручную через `r.URL.Query()`).
-2. Нормализовать `search`:
-   - `strings.TrimSpace()`
-   - Свернуть множественные пробелы: `regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")`
-   - Если длина после trim < 2 → вернуть `400` с `httpx.WriteStructuredError(w, 400, "INVALID_SEARCH", "Parameter 'search' must be at least 2 characters long", "search")`.
-3. Нормализовать `country` → `strings.ToUpper()`.
-4. Применить дефолты: `limit = 20`, `offset = 0`.
-5. Провалидировать через `validator`.
-6. Вызвать `useCase.Handle(r.Context(), query)`.
-7. Установить заголовок `Cache-Control: public, max-age=3600`.
-8. Вернуть `200` с `SearchResponse`.
+1. Декодировать query-параметры через `r.URL.Query()`.
+2. Нормализовать `search`: `strings.TrimSpace()` → свернуть пробелы → проверить длину ≥ 2.
+3. Если длина < 2 → `httpx.WriteStructuredError(w, 400, "INVALID_SEARCH", "Parameter 'search' must be at least 2 characters long", "search")`.
+4. Нормализовать `country` → `strings.ToUpper()`; если пусто → `nil`.
+5. Применить дефолты: `limit = 20`, `offset = 0`.
+6. Провалидировать диапазоны через `validator`.
+7. Вызвать `useCase.Handle(r.Context(), query)`.
+8. Установить заголовок `Cache-Control: public, max-age=3600`.
+9. Вернуть `200` с `SearchResponse`.
 
-**Swag-аннотации (шаблон):**
+**Swag-аннотации:**
 ```go
-// Handle is the http.HandlerFunc.
-//
 //	@Summary      Search airports
 //	@Description  Full-text search over airports and cities with ranking and pagination.
 //	@Tags         Airports
@@ -559,21 +623,17 @@ type SearchResponse struct {
 //	@Failure      400     {object}  httpx.StructuredErrorBody
 //	@Failure      429     {object}  httpx.StructuredErrorBody
 //	@Failure      500     {object}  httpx.StructuredErrorBody
+//	@Security     Bearer
 //	@Router       /api/v1/airports [get]
 ```
 
-### 8.3 Расширение httpx — `internal/presentation/http/httpx/error.go`
+### 9.3 Расширение httpx — `internal/presentation/http/httpx/error.go`
 
-ТЗ требует формата ошибок:
-```json
-{"error": {"code": "INVALID_SEARCH", "message": "...", "field": "search"}}
-```
-
-Это отличается от существующего `ErrorBody`. Добавить в пакет `httpx` новую функцию:
+ТЗ требует формата ошибок, отличающегося от существующего `ErrorBody`. Добавить отдельный файл в пакет `httpx`:
 
 ```go
-// StructuredErrorBody is the error envelope used by public endpoints
-// that return machine-readable error codes (e.g. airport search).
+// StructuredErrorBody is the error envelope for public endpoints
+// that require machine-readable error codes.
 type StructuredErrorBody struct {
     Error StructuredError `json:"error"`
 }
@@ -595,104 +655,158 @@ func WriteStructuredError(w http.ResponseWriter, status int, code, message, fiel
 
 ---
 
-## 9. Rate Limiting Middleware
+## 10. Rate Limiting Middleware
 
-**Файл:** `internal/presentation/http/middleware/rate_limit.go`
+**Почему `go-chi/httprate`, а не кастомная реализация:**
+Для chi-приложений `go-chi/httprate` является идиоматическим выбором. Он battle-tested, поддерживает per-key (IP) лимит из коробки, не требует ручного управления `sync.Map` и TTL, и выражается в одну строку. Кастомная реализация на `golang.org/x/time/rate` избыточна.
 
-**Зависимость:** `golang.org/x/time/rate` (уже является транзитивной зависимостью Go-экосистемы; если нет — `go get golang.org/x/time/rate`).
+**Установка:**
+```bash
+go get github.com/go-chi/httprate
+```
 
-**Подход:** per-IP sliding window с `sync.Map` для хранения limiter'ов.
+**Использование в router.go:**
+```go
+import "github.com/go-chi/httprate"
+
+// В Server.Build():
+r.Group(func(pub chi.Router) {
+    pub.Use(s.JWT)  // endpoint за JWT
+    pub.Use(httprate.LimitByIP(60, time.Minute))
+    pub.Get("/api/v1/airports", s.Airports.Handle)
+})
+```
+
+**При превышении лимита** `go-chi/httprate` автоматически возвращает `429`. Чтобы дополнить тело ответа структурированной ошибкой — передать кастомный `LimitHandler`:
 
 ```go
-// RateLimit returns a middleware that limits each IP to `rps` requests per second
-// over a burst of `burst` requests. Превышение → 429 с заголовком Retry-After.
-func RateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler
+httprate.NewRateLimiter(60, time.Minute, httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Retry-After", "60")
+    httpx.WriteStructuredError(w, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests", "")
+}))
 ```
 
-**Параметры для конфигурации:** 60 req/min → `rps = rate.Every(time.Second), burst = 60` (или `rate.Limit(1.0), burst = 60`).
-
-Конфигурация подтягивается через `RateLimitConfig` в `config.go`:
+**Конфигурация** — добавить в `config.go`:
 ```go
-type RateLimitConfig struct {
-    RequestsPerMinute int // default: 60
-    Burst             int // default: 60
-}
-```
-Переменные окружения: `RATE_LIMIT_RPM`, `RATE_LIMIT_BURST`.
-
-**Заголовок при 429:**
-```
-Retry-After: 60
-```
-Тело ошибки: `httpx.WriteStructuredError(w, 429, "RATE_LIMITED", "Too many requests", "")`.
-
-> **Область применения:** middleware применяется **только** к маршруту `/api/v1/airports` (или к группе публичных API-эндпоинтов). Не вешать глобально, чтобы не задеть авторизованные маршруты с другими лимитами.
-
----
-
-## 10. Изменения в `config/config.go`
-
-Добавить структуру и загрузку:
-
-```go
-// RateLimitConfig controls per-IP request throttling.
+// RateLimitConfig controls per-IP request throttling for public endpoints.
 type RateLimitConfig struct {
     RequestsPerMinute int // RATE_LIMIT_RPM, default 60
-    Burst             int // RATE_LIMIT_BURST, default 60
 }
 ```
 
-В `Load()` дополнить поле `Config.RateLimit RateLimitConfig` и читать `RATE_LIMIT_RPM` / `RATE_LIMIT_BURST`.
+Переменная окружения: `RATE_LIMIT_RPM=60`. Добавить в `.env.example`.
 
-Добавить в `.env.example`:
-```env
-RATE_LIMIT_RPM=60
-RATE_LIMIT_BURST=60
-```
+> **Область применения:** rate limiter навешивается только на маршрут `/api/v1/airports`. Глобально не применять — у авторизованных маршрутов другая семантика лимитирования.
 
 ---
 
-## 11. Изменения в `config/container.go`
+## 11. Изменения в `config/config.go`
 
-Добавить в `Container`:
 ```go
-AirportRepo        *pgrepo.AirportRepository
-SearchAirportsApp  *searchairports.Handler
-AirportsHandler    *searchairporthttp.Handler
+// RateLimitConfig controls per-IP request throttling for public endpoints.
+type RateLimitConfig struct {
+    RequestsPerMinute int // RATE_LIMIT_RPM, default 60
+}
 ```
 
-В `Build()` добавить после создания `userRepo`:
-```go
-airportRepo       := pgrepo.NewAirportRepository(queries)
-searchAirportsApp := searchairports.NewHandler(airportRepo)
-airportsH         := searchairporthttp.NewHandler(searchAirportsApp, validate)
-```
+В `Load()` добавить поле `Config.RateLimit RateLimitConfig` и читать `RATE_LIMIT_RPM` (дефолт: 60).
 
 ---
 
-## 12. Изменения в `internal/presentation/http/router.go`
+## 12. Изменения в `config/container.go`
 
-Добавить в `Server`:
+Текущая структура `Container` держит все хендлеры на верхнем уровне вместе с инфраструктурой. Необходимо сгруппировать по слоям:
+
 ```go
-Airports    *searchairporthttp.Handler
-RateLimiter func(http.Handler) http.Handler  // построен из конфига в Build()
+// Container holds every wired collaborator the entrypoints need.
+type Container struct {
+    Cfg *Config
+
+    // Infrastructure
+    Pool    *pgxpool.Pool
+    Queries *db.Queries
+    Kafka   *kafka.Producer
+    JWT     *auth.Service
+
+    // App — application layer use-case handlers.
+    App struct {
+        CreateUser     *createusercmd.Handler
+        GetMe          *getmeq.Handler
+        SearchAirports *searchairports.Handler
+    }
+
+    // Http — presentation layer HTTP handlers.
+    Http struct {
+        Login        *loginhttp.Handler
+        CreateUser   *createuserhttp.Handler
+        GetMe        *getmehttp.Handler
+        Airports     *searchairporthttp.Handler
+    }
+
+    Validate *validator.Validate
+}
 ```
 
-В методе `Build()` добавить публичный маршрут **вне** JWT-группы:
+В `Build()` обновить присвоения:
+```go
+// Application
+c.App.CreateUser     = createusercmd.NewHandler(userCreator)
+c.App.GetMe          = getmeq.NewHandler(userRepo, rightsDescriber)
+c.App.SearchAirports = searchairports.NewHandler(airportRepo)
+
+// HTTP
+c.Http.Login      = loginhttp.NewHandler(queries, hasher, jwtSvc, validate)
+c.Http.CreateUser = createuserhttp.NewHandler(c.App.CreateUser, validate)
+c.Http.GetMe      = getmehttp.NewHandler(c.App.GetMe, getmehttp.NewResolver())
+c.Http.Airports   = searchairporthttp.NewHandler(c.App.SearchAirports, validate)
+```
+
+> Обратить внимание: все вызывающие места (`cmd/server/main.go`, `cmd/cli/main.go`), которые используют `c.LoginHandler`, `c.GetMeHandler` и т.д., необходимо обновить на `c.Http.Login`, `c.Http.GetMe` и т.д.
+
+---
+
+## 13. Изменения в `internal/presentation/http/router.go`
+
+Обновить `Server` с учётом новой структуры `Container.Http`:
 
 ```go
-// Публичные API-эндпоинты с rate limiting.
-r.Group(func(pub chi.Router) {
-    pub.Use(s.RateLimiter)
-    pub.Get("/api/v1/airports", s.Airports.Handle)
+type Server struct {
+    Login      *loginhttp.Handler
+    CreateUser *createuserhttp.Handler
+    GetMe      *getmehttp.Handler
+    Airports   *searchairporthttp.Handler
+    JWT        *auth.Service
+    RateLimit  int // requests per minute, from config
+
+    CORSAllowedOrigins []string
+}
+```
+
+В `Build()` добавить к JWT-группе:
+```go
+r.Route("/api/v1", func(api chi.Router) {
+    api.Use(custommw.JWT(s.JWT))
+    api.Post("/users", s.CreateUser.Handle)
+    api.Get("/users/me", s.GetMe.Handle)
+
+    // Airports search — публичный в продуктовом смысле, но за JWT на MVP.
+    api.With(
+        httprate.NewRateLimiter(s.RateLimit, time.Minute,
+            httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+                w.Header().Set("Retry-After", "60")
+                httpx.WriteStructuredError(w, http.StatusTooManyRequests,
+                    "RATE_LIMITED", "Too many requests", "")
+            }),
+        ).Handler,
+    ).Get("/airports", s.Airports.Handle)
 })
 ```
 
 ---
 
-## 13. Тесты
+## 14. Тесты
 
-### 13.1 Unit-тесты — `tests/unit/airport_search_params_test.go`
+### 14.1 Unit-тесты — `tests/unit/airport_search_params_test.go`
 
 | Тест | Описание |
 |------|----------|
@@ -704,9 +818,9 @@ r.Group(func(pub chi.Router) {
 | `TestDefaultOffset` | При отсутствии offset → 0 |
 | `TestCountryUppercase` | `ru` → `RU` |
 
-### 13.2 Integration-тесты — `tests/integration/airport_repository_test.go`
+### 14.2 Integration-тесты — `tests/integration/airport_repository_test.go`
 
-Требуют запущенного Postgres с миграциями.
+Требуют запущенного Postgres с миграциями и seed-данными.
 
 | Тест | Seed-данные | Проверка |
 |------|-------------|----------|
@@ -715,9 +829,9 @@ r.Group(func(pub chi.Router) {
 | `TestAirportRepository_Search_ByICAO_ExactFirst` | UUEE | UUEE первым |
 | `TestAirportRepository_Search_CountryFilter` | SVO (RU), JFK (US) | Фильтр `RU` — только SVO |
 | `TestAirportRepository_Search_Pagination` | 4 московских аэропорта | `offset=2, limit=2` → 2 записи, `TotalCount=4` |
-| `TestAirportRepository_Search_Unaccent` | ZRH с именем `Zürich Airport` | Запрос `Zurich` находит аэропорт |
+| `TestAirportRepository_Search_Unaccent` | ZRH `Zürich Airport` | Запрос `Zurich` находит аэропорт |
 
-### 13.3 Application (E2E) тесты — `tests/application/airports_search_http_test.go`
+### 14.3 Application (E2E) тесты — `tests/application/airports_search_http_test.go`
 
 Паттерн: поднять `Server.Build()` с тестовой БД, выполнить HTTP-запрос через `httptest`.
 
@@ -734,35 +848,36 @@ r.Group(func(pub chi.Router) {
 
 ---
 
-## 14. Порядок реализации
-
-Рекомендуемый порядок для чистого прохождения CI на каждом шаге:
+## 15. Порядок реализации
 
 ```
-1. Миграция + make sqlc (БД + автогенерация)
-2. domain/valueobject/location.go
-3. domain/entity/airport.go
-4. domain/repository/airport_repository.go
-5. application/query/search_airports/ (query, result, handler)
-6. infrastructure/persistence/postgres/repository/airport_repository.go
-7. httpx/error.go (WriteStructuredError)
-8. presentation/http/api/v1/airport/search/ (dto, handler)
-9. middleware/rate_limit.go
-10. config/config.go (+RateLimitConfig)
-11. config/container.go (wiring)
-12. presentation/http/router.go (новый маршрут)
-13. Тесты (unit → integration → application)
-14. make swag (генерация swagger)
-15. README.md (добавить endpoint в раздел Endpoints)
-16. .env.example (RATE_LIMIT_RPM, RATE_LIMIT_BURST)
+1.  Миграции 006–010 + make sqlc
+2.  domain/valueobject/location.go
+3.  domain/entity/airport.go
+4.  domain/repository/airport_repository.go
+5.  infrastructure/persistence/postgres/model/airport.go
+6.  infrastructure/persistence/postgres/repository/airport_repository.go
+7.  application/query/search_airports/ (query, result, handler)
+8.  httpx/error.go (WriteStructuredError)
+9.  presentation/http/api/v1/airport/search/ (dto, handler)
+10. go get github.com/go-chi/httprate
+11. config/config.go (+RateLimitConfig)
+12. config/container.go (реструктуризация Http{} / App{})
+13. presentation/http/router.go (новый маршрут + rate limiter)
+14. Обновить cmd/server/main.go и cmd/cli/main.go (новые пути к хендлерам)
+15. Тесты (unit → integration → application)
+16. make swag
+17. README.md (+endpoint)
+18. .env.example (+RATE_LIMIT_RPM)
+19. CLAUDE.md (+правило миграций)
 ```
 
 ---
 
-## 15. Acceptance Criteria (из ТЗ → с указанием тест-кейса)
+## 16. Acceptance Criteria
 
-| # | Критерий | Покрывается тестом |
-|---|----------|--------------------|
+| # | Критерий | Тест-кейс |
+|---|----------|-----------|
 | 1 | `?search=Moscow` → SVO, DME, VKO, ZIA в первых строках | `TestSearchAirports_Moscow` |
 | 2 | `?search=SVO` → Шереметьево первым | `TestSearchAirports_IATA_SVO` |
 | 3 | `?search=UUEE` → Шереметьево первым | `TestSearchAirports_ICAO_UUEE` |
@@ -770,20 +885,23 @@ r.Group(func(pub chi.Router) {
 | 5 | `?search=a` → `400 INVALID_SEARCH` | `TestSearchAirports_TooShort` |
 | 6 | `?search=Zurich` находит Zürich Airport | `TestSearchAirports_Unaccent` |
 | 7 | `?search=Moscow&limit=2&offset=2` → 2 записи, `meta.total=4` | `TestSearchAirports_Pagination` |
-| 8 | p95 ≤ 100 мс при 100 RPS | Нагрузочный тест (вне scope unit/int) |
+| 8 | p95 ≤ 100 мс при 100 RPS | Нагрузочный тест (вне scope) |
 
 ---
 
-## 16. Нефункциональные требования (Checklist)
+## 17. Нефункциональные требования (Checklist)
 
 - [ ] Заголовок `Cache-Control: public, max-age=3600` устанавливается в хендлере
-- [ ] Rate limit middleware: 60 req/min на IP, `429 RATE_LIMITED`, `Retry-After: 60`
-- [ ] CORS: наследуется из глобального middleware `router.go` (уже настроен)
-- [ ] Логирование в хендлере: `search`, `limit`, `offset`, `duration`, `count` (через `slog.InfoContext`). Без PII
-- [ ] Публичный endpoint: **не** оборачивать в `custommw.JWT`
-- [ ] `make sqlc` не падает после добавления `airports.sql`
+- [ ] Rate limit: `go-chi/httprate`, 60 req/min на IP, `429 RATE_LIMITED`, `Retry-After: 60`
+- [ ] CORS: наследуется из глобального middleware `router.go`
+- [ ] Логирование: `search`, `limit`, `offset`, `duration`, `count` через `slog.InfoContext`. Без PII
+- [ ] Endpoint за JWT (`custommw.JWT`)
+- [ ] `make sqlc` не падает
 - [ ] `golangci-lint run` чист
 - [ ] `go build ./...` проходит
-- [ ] `go test ./...` проходит (unit без БД, integration с БД)
+- [ ] `go test ./...` проходит
 - [ ] `README.md` обновлён: раздел **Endpoints**
-- [ ] `.env.example` обновлён: `RATE_LIMIT_RPM`, `RATE_LIMIT_BURST`
+- [ ] `.env.example` обновлён: `RATE_LIMIT_RPM`
+- [ ] `CLAUDE.md` обновлён: правило миграций
+- [ ] `config/container.go` реструктурирован: `Http{}`, `App{}`
+- [ ] Все вызывающие места обновлены под новую структуру `Container`

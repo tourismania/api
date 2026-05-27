@@ -38,6 +38,6 @@ func run() error {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
-	root.AddCommand(clicmd.NewCreateUserCommand(container.CreateUserApp))
+	root.AddCommand(clicmd.NewCreateUserCommand(container.App.CreateUser))
 	return root.Execute()
 }

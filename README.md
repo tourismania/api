@@ -63,10 +63,11 @@ docker compose exec tourismania_app /app/cli create-user "first_name" "last_name
 ## Endpoints
 
 | Метод | Путь             | Доступ | Описание                         |
-| ----- |------------------| ------ | -------------------------------- |
+| ----- |------------------|--------| -------------------------------- |
 | POST  | /api/login       | public | Логин, возвращает JWT            |
 | POST  | /api/v1/users    | JWT    | Создание пользователя            |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
+| GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
 | GET   | /api/doc         | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
 
