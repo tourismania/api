@@ -11,12 +11,16 @@ import (
 	"fmt"
 
 	createusercmd "api/internal/application/command/create_user"
+	syncairportscmd "api/internal/application/command/sync_airports"
 	getmeq "api/internal/application/query/get_me"
 	searchairports "api/internal/application/query/search_airports"
 	"api/internal/domain/factory"
 	"api/internal/domain/service"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
+	"api/internal/infrastructure/geo/mwgg"
+	"api/internal/infrastructure/geo/static"
+	"api/internal/infrastructure/geo/wikidata"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -44,6 +48,7 @@ type Container struct {
 		CreateUser     *createusercmd.Handler
 		GetMe          *getmeq.Handler
 		SearchAirports *searchairports.Handler
+		SyncAirports   *syncairportscmd.Handler
 	}
 
 	// Http groups presentation-layer HTTP handlers.
@@ -94,6 +99,15 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	airportRepo := pgrepo.NewAirportRepository(queries)
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 
+	// Geo sync wiring.
+	geoSyncRepo := pgrepo.NewGeoSyncRepository(pool)
+	syncAirportsApp := syncairportscmd.NewHandler(
+		geoSyncRepo,
+		mwgg.New(),
+		wikidata.New(),
+		static.CountryNames{},
+	)
+
 	// Application handlers.
 	createUserApp := createusercmd.NewHandler(userCreator)
 	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
@@ -119,6 +133,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.CreateUser = createUserApp
 	c.App.GetMe = getMeApp
 	c.App.SearchAirports = searchAirportsApp
+	c.App.SyncAirports = syncAirportsApp
 
 	c.Http.Login = loginH
 	c.Http.CreateUser = createUserH
