@@ -5,6 +5,7 @@ package wikidata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,6 +17,11 @@ import (
 const (
 	sparqlEndpoint = "https://query.wikidata.org/sparql"
 	pageSize       = 10_000
+
+	// maxRetries is the total number of attempts (1 initial + 3 retries).
+	maxRetries = 4
+	// baseDelay is the wait before the first retry; subsequent waits double.
+	baseDelay = 3 * time.Second
 )
 
 // sparqlResult mirrors the Wikidata JSON response for SPARQL queries.
@@ -26,6 +32,12 @@ type sparqlResult struct {
 		} `json:"bindings"`
 	} `json:"results"`
 }
+
+// transientError marks a failure that warrants a retry (5xx, 429, network).
+type transientError struct{ cause error }
+
+func (e *transientError) Error() string { return e.cause.Error() }
+func (e *transientError) Unwrap() error { return e.cause }
 
 // Client queries Wikidata for Russian airport and city names.
 type Client struct {
@@ -99,10 +111,46 @@ func (c *Client) fetchPaged(ctx context.Context, queryTmpl, keyVar, valVar strin
 	return out, nil
 }
 
-// sparql executes a single SPARQL query and returns the raw bindings.
-func (c *Client) sparql(ctx context.Context, query string) ([]map[string]struct{ Value string `json:"value"` }, error) {
+// sparql executes a SPARQL query with exponential-backoff retry on transient
+// errors (5xx, 429, network failures). Backoff: 3s → 6s → 12s.
+func (c *Client) sparql(ctx context.Context, query string) ([]map[string]struct {
+	Value string `json:"value"`
+}, error) {
 	params := url.Values{"query": {query}, "format": {"json"}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sparqlEndpoint+"?"+params.Encode(), nil)
+	reqURL := sparqlEndpoint + "?" + params.Encode()
+
+	var lastErr error
+	for attempt := range maxRetries {
+		if attempt > 0 {
+			delay := baseDelay * time.Duration(1<<(attempt-1)) // 3s, 6s, 12s
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		bindings, err := c.doSparql(ctx, reqURL)
+		if err == nil {
+			return bindings, nil
+		}
+		lastErr = err
+
+		var t *transientError
+		if !errors.As(err, &t) {
+			return nil, err // permanent error — stop immediately
+		}
+	}
+
+	return nil, fmt.Errorf("sparql: all %d attempts failed: %w", maxRetries, lastErr)
+}
+
+// doSparql performs a single HTTP round-trip and returns bindings or an error.
+// Transient errors are wrapped in *transientError so the caller can retry.
+func (c *Client) doSparql(ctx context.Context, reqURL string) ([]map[string]struct {
+	Value string `json:"value"`
+}, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build sparql request: %w", err)
 	}
@@ -111,11 +159,17 @@ func (c *Client) sparql(ctx context.Context, query string) ([]map[string]struct{
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sparql http: %w", err)
+		return nil, &transientError{cause: fmt.Errorf("sparql http: %w", err)}
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		// success — fall through to decode
+	case resp.StatusCode == http.StatusTooManyRequests,
+		resp.StatusCode >= http.StatusInternalServerError:
+		return nil, &transientError{cause: fmt.Errorf("sparql status %d", resp.StatusCode)}
+	default:
 		return nil, fmt.Errorf("sparql status %d", resp.StatusCode)
 	}
 
