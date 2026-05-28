@@ -8,9 +8,10 @@ import (
 
 // AirportFilter carries the normalised search parameters.
 type AirportFilter struct {
-	Search string // trimmed and space-collapsed
-	Limit  int
-	Offset int
+	Search  string  // trimmed and space-collapsed
+	Country *string // nil = no country filter; ISO-2 code otherwise
+	Limit   int
+	Offset  int
 }
 
 // AirportSearchResult carries a page of airports plus the total count.
