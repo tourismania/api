@@ -7,5 +7,5 @@ CREATE TABLE cities (
 );
 
 CREATE INDEX cities_name_trgm_idx
-    ON cities USING gin (lower(unaccent(name)) gin_trgm_ops);
+    ON cities USING gin (lower(name) gin_trgm_ops);
 

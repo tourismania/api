@@ -8,7 +8,7 @@ CREATE TABLE airports (
 );
 
 CREATE INDEX airports_name_trgm_idx
-    ON airports USING gin (lower(unaccent(name)) gin_trgm_ops);
+    ON airports USING gin (lower(name) gin_trgm_ops);
 
 CREATE INDEX airports_iata_upper_idx ON airports (upper(iata));
 

@@ -11,16 +11,16 @@ import (
 
 // AirportRecord is the raw record fetched from the external source.
 type AirportRecord struct {
-	ICAO      string
-	IATA      string
-	Name      string
-	City      string
-	State     string
+	ICAO        string
+	IATA        string
+	Name        string
+	City        string
+	State       string
 	CountryISO2 string
-	Elevation int
-	Lat       float64
-	Lon       float64
-	TZ        string
+	Elevation   int
+	Lat         float64
+	Lon         float64
+	TZ          string
 }
 
 // AirportSource fetches the master list of airports from an external provider.
@@ -49,21 +49,27 @@ type UseCase interface {
 
 // Handler orchestrates the sync-airports use-case.
 type Handler struct {
-	repo        domainrepo.GeoSyncRepository
-	source      AirportSource
+	airportRepo  domainrepo.AirportRepository
+	countryRepo  domainrepo.CountryRepository
+	cityRepo     domainrepo.CityRepository
+	source       AirportSource
 	translations TranslationSource
-	countries   CountryNameSource
+	countries    CountryNameSource
 }
 
 // NewHandler wires the sync handler.
 func NewHandler(
-	repo domainrepo.GeoSyncRepository,
+	airportRepo domainrepo.AirportRepository,
+	countryRepo domainrepo.CountryRepository,
+	cityRepo domainrepo.CityRepository,
 	source AirportSource,
 	translations TranslationSource,
 	countries CountryNameSource,
 ) *Handler {
 	return &Handler{
-		repo:         repo,
+		airportRepo:  airportRepo,
+		countryRepo:  countryRepo,
+		cityRepo:     cityRepo,
 		source:       source,
 		translations: translations,
 		countries:    countries,
@@ -109,7 +115,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 			if nameRU == "" {
 				nameRU = iso2 // last-resort fallback
 			}
-			if err := h.repo.UpsertCountry(ctx, iso2, nameRU); err != nil {
+			if err := h.countryRepo.Upsert(ctx, iso2, nameRU); err != nil {
 				return Result{}, fmt.Errorf("upsert country %s: %w", iso2, err)
 			}
 		}
@@ -151,7 +157,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 			continue
 		}
 
-		id, err := h.repo.UpsertCity(ctx, cityName, statePtr, r.TZ, strings.ToUpper(r.CountryISO2))
+		id, err := h.cityRepo.Upsert(ctx, cityName, statePtr, r.TZ, strings.ToUpper(r.CountryISO2))
 		if err != nil {
 			return Result{}, fmt.Errorf("upsert city %q: %w", r.City, err)
 		}
@@ -200,7 +206,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 			continue
 		}
 
-		if err := h.repo.UpsertAirport(ctx, r.ICAO, iataPtr, airportName, r.Lat, r.Lon, elevPtr, cityID); err != nil {
+		if err := h.airportRepo.Upsert(ctx, r.ICAO, iataPtr, airportName, r.Lat, r.Lon, elevPtr, cityID); err != nil {
 			return Result{}, fmt.Errorf("upsert airport %s: %w", r.ICAO, err)
 		}
 		syncedAirports++

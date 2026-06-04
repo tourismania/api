@@ -31,10 +31,9 @@ func NewHandler(airports AirportSearcher) *Handler {
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	res, err := h.airports.Search(ctx, repository.AirportFilter{
-		Search:  q.Search,
-		Country: q.Country,
-		Limit:   q.Limit,
-		Offset:  q.Offset,
+		Search: q.Search,
+		Limit:  q.Limit,
+		Offset: q.Offset,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("search airports: %w", err)

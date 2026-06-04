@@ -24,4 +24,5 @@ type AirportSearchResult struct {
 // The concrete implementation lives in infrastructure/persistence.
 type AirportRepository interface {
 	Search(ctx context.Context, f AirportFilter) (AirportSearchResult, error)
+	Upsert(ctx context.Context, icao string, iata *string, name string, lat, lon float64, elevationFt *int, cityID int) error
 }

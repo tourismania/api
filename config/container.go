@@ -96,13 +96,17 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	rightsDescriber := service.NewRightsDescriber(rightsFactory)
 
 	// Airport domain wiring.
-	airportRepo := pgrepo.NewAirportRepository(queries)
+	airportRepo := pgrepo.NewAirportRepository(queries, pool)
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 
+	countryRepo := pgrepo.NewCountryRepository(pool)
+	cityRepo := pgrepo.NewCityRepository(pool)
+
 	// Geo sync wiring.
-	geoSyncRepo := pgrepo.NewGeoSyncRepository(pool)
 	syncAirportsApp := syncairportscmd.NewHandler(
-		geoSyncRepo,
+		airportRepo,
+		countryRepo,
+		cityRepo,
 		mwgg.New(),
 		wikidata.New(),
 		static.CountryNames{},

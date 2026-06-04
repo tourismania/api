@@ -1,16 +1,17 @@
 package repository
 
 import (
+	"api/internal/infrastructure/persistence/postgres/mapper"
 	"context"
 	"errors"
 	"fmt"
 
 	"api/internal/domain/entity"
 	domainrepo "api/internal/domain/repository"
-	"api/internal/domain/valueobject"
 	"api/internal/infrastructure/persistence/postgres/db"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Compile-time interface check.
@@ -19,11 +20,15 @@ var _ domainrepo.AirportRepository = (*AirportRepository)(nil)
 // AirportRepository persists domain airport aggregates via pgx/sqlc.
 type AirportRepository struct {
 	queries *db.Queries
+	pool    *pgxpool.Pool
 }
 
 // NewAirportRepository wires the queries layer.
-func NewAirportRepository(queries *db.Queries) *AirportRepository {
-	return &AirportRepository{queries: queries}
+func NewAirportRepository(queries *db.Queries, pool *pgxpool.Pool) *AirportRepository {
+	return &AirportRepository{
+		queries: queries,
+		pool:    pool,
+	}
 }
 
 // Search executes the airport full-text search and maps results to domain entities.
@@ -49,54 +54,34 @@ func (r *AirportRepository) Search(ctx context.Context, f domainrepo.AirportFilt
 	var total int64
 	for _, row := range rows {
 		total = row.TotalCount
-		airports = append(airports, mapRowToAirport(row))
+		airports = append(airports, mapper.ToAirportDomain(row))
 	}
 
 	return domainrepo.AirportSearchResult{Airports: airports, TotalCount: total}, nil
 }
 
-func mapRowToAirport(row db.SearchAirportsRow) entity.Airport {
-	elevFt := ptrInt32ToInt(row.ElevationFt)
+// Upsert inserts or updates an airport row by ICAO primary key.
+func (r *AirportRepository) Upsert(
+	ctx context.Context,
+	icao string,
+	iata *string,
+	name string,
+	lat, lon float64,
+	elevationFt *int,
+	cityID int,
+) error {
+	const q = `
+INSERT INTO airports (icao, iata, name, location, elevation_ft, city_id)
+VALUES ($1, $2, $3, ARRAY[$4, $5]::float8[], $6, $7)
+ON CONFLICT (icao) DO UPDATE SET
+    iata         = EXCLUDED.iata,
+    name         = EXCLUDED.name,
+    location     = EXCLUDED.location,
+    elevation_ft = EXCLUDED.elevation_ft,
+    city_id      = EXCLUDED.city_id`
 
-	var lon, lat float64
-	if row.Lon != nil {
-		lon = *row.Lon
+	if _, err := r.pool.Exec(ctx, q, icao, iata, name, lon, lat, elevationFt, cityID); err != nil {
+		return fmt.Errorf("upsert airport: %w", err)
 	}
-	if row.Lat != nil {
-		lat = *row.Lat
-	}
-
-	timezone := ""
-	if row.CityTimezone != nil {
-		timezone = *row.CityTimezone
-	}
-
-	return entity.Airport{
-		ICAO: row.Icao,
-		IATA: row.Iata,
-		Name: row.AirportName,
-		Location: valueobject.Location{
-			Latitude:    lat,
-			Longitude:   lon,
-			ElevationFt: elevFt,
-		},
-		City: entity.City{
-			ID:       int(row.CityID),
-			Name:     row.CityName,
-			State:    row.CityState,
-			Timezone: timezone,
-		},
-		Country: entity.Country{
-			ISO2: row.CountryIso2,
-			Name: row.CountryName,
-		},
-	}
-}
-
-func ptrInt32ToInt(v *int32) *int {
-	if v == nil {
-		return nil
-	}
-	i := int(*v)
-	return &i
+	return nil
 }
