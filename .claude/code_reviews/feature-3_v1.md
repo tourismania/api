@@ -1,98 +1,98 @@
 # Code Review: feature/3 — v1
 
-**Date:** 2026-06-05  
-**Branch:** `feature/3`  
-**Scope:** `git diff main...HEAD` — airports feature (sync-airports CLI + GET /api/v1/airports)  
-**Files changed:** 49 files, +3195 −32 lines  
-**Method:** 7-angle finder (A–G) × parallel agents → 1-vote verify → top 10 findings
+**Дата:** 2026-06-05  
+**Ветка:** `feature/3`  
+**Scope:** `git diff main...HEAD` — фича аэропортов (CLI sync-airports + GET /api/v1/airports)  
+**Изменено файлов:** 49, +3195 −32 строки  
+**Метод:** 7-угловой поиск (A–G) × параллельные агенты → верификация 1 голосом → топ-10 находок
 
 ---
 
-## Findings
+## Находки
 
-### 🔴 Critical / High
+### 🔴 Критические / Высокие
 
-#### 1. Country filter silently dropped end-to-end
-**File:** `internal/application/query/search_airports/handler.go:33`  
-**Summary:** The country filter is never forwarded at any layer — not in `AirportFilter`, not in `SearchAirportsParams`, and not in the SQL query. `?country=DE` returns all airports with HTTP 200.  
-**Failure scenario:** HTTP GET `/api/v1/airports?country=DE` parses and validates the parameter correctly, but the application query handler (lines 33–37) never sets `AirportFilter.Country`; the repository `Search` method has nothing to forward; the SQL has no country `WHERE` clause. The feature is entirely non-functional.
-
----
-
-#### 2. `Cache-Control: public` on a JWT-protected endpoint
-**File:** `internal/presentation/http/api/v1/airport/search/handler.go:130`  
-**Summary:** Sets `Cache-Control: public, max-age=3600` on an endpoint guarded by JWT middleware. Shared caches (CDN, reverse proxy) may serve cached responses without validating the token.  
-**Failure scenario:** A CDN caches the first authenticated response keyed on URL only. A subsequent unauthenticated request to the same URL receives the cached body with HTTP 200, bypassing the JWT middleware entirely. Correct directive: `Cache-Control: private` or `no-store`.
+#### 1. Фильтр по стране молча игнорируется на всех уровнях
+**Файл:** `internal/application/query/search_airports/handler.go:33`  
+**Описание:** Фильтр по стране не передаётся ни на одном уровне — ни в `AirportFilter`, ни в `SearchAirportsParams`, ни в SQL-запросе. `?country=DE` возвращает все аэропорты с HTTP 200.  
+**Сценарий отказа:** HTTP GET `/api/v1/airports?country=DE` корректно парсит и валидирует параметр, но обработчик запроса в application-слое (строки 33–37) никогда не выставляет `AirportFilter.Country`; репозиторный метод `Search` не имеет что передавать; в SQL нет `WHERE`-условия по стране. Функциональность полностью нерабочая.
 
 ---
 
-#### 3. Integration test fails to compile — wrong constructor arity
-**File:** `tests/integration/airport_repository_test.go:34`  
-**Summary:** `pgrepo.NewAirportRepository(db.New(pool))` — called with 1 argument, but production constructor requires 2: `(queries *db.Queries, pool *pgxpool.Pool)`.  
-**Failure scenario:** `go test ./tests/integration/...` fails to build, so the entire Upsert code path (bulk airport writes) is never exercised in CI. Any regression there goes undetected.
+#### 2. `Cache-Control: public` на JWT-защищённом эндпоинте
+**Файл:** `internal/presentation/http/api/v1/airport/search/handler.go:130`  
+**Описание:** Устанавливает `Cache-Control: public, max-age=3600` на эндпоинте, защищённом JWT-middleware. Разделяемые кэши (CDN, reverse proxy) могут отдавать закэшированные ответы без проверки токена.  
+**Сценарий отказа:** CDN кэширует первый аутентифицированный ответ, используя в качестве ключа только URL. Последующий неаутентифицированный запрос к тому же URL получает тело из кэша с HTTP 200, полностью обходя JWT-middleware. Корректная директива: `Cache-Control: private` или `no-store`.
 
 ---
 
-### 🟡 Medium
-
-#### 4. `lat`/`lon` parameter order inverted in `pool.Exec`
-**File:** `internal/infrastructure/persistence/postgres/repository/airport_repository.go:83`  
-**Summary:** Signature declares `(lat, lon float64)` but `pool.Exec` passes them reversed as `(lon, lat)`. The SQL read path compensates (`location[1] AS lon, location[2] AS lat`) making the current round-trip appear correct, but the function contract is violated.  
-**Failure scenario:** Any direct query against the `location` column (e.g. a PostGIS `ST_MakePoint` expecting `[lat, lon]`, or a BI tool) will receive transposed coordinates. The inconsistency is also actively misleading to future readers and maintainers.
+#### 3. Интеграционный тест не компилируется — неверное количество аргументов конструктора
+**Файл:** `tests/integration/airport_repository_test.go:34`  
+**Описание:** `pgrepo.NewAirportRepository(db.New(pool))` — вызов с 1 аргументом, тогда как production-конструктор требует 2: `(queries *db.Queries, pool *pgxpool.Pool)`.  
+**Сценарий отказа:** `go test ./tests/integration/...` не собирается, поэтому весь путь Upsert (массовая запись аэропортов) никогда не проверяется в CI. Любой регресс там остаётся незамеченным.
 
 ---
 
-#### 5. Russian city name lookup is non-deterministic for multi-airport cities
-**File:** `internal/application/command/sync_airports/handler.go:145`  
-**Summary:** Russian name is looked up by `r.ICAO` in `cityNamesRU`. Because Go map iteration order is random, cities with multiple airports are permanently stored in English if the first-iterated airport has no Wikidata translation.  
-**Failure scenario:** Moscow is served by UUEE, UUWW, UUMO. If UUMO is iterated first and `cityNamesRU["UUMO"]` is empty, the city is upserted as "Moscow". The `seen`-guard fires for UUWW and UUEE — their Russian translation "Москва" is never consulted. After sync, Moscow stays in English permanently.
+### 🟡 Средние
+
+#### 4. Порядок параметров `lat`/`lon` инвертирован в `pool.Exec`
+**Файл:** `internal/infrastructure/persistence/postgres/repository/airport_repository.go:83`  
+**Описание:** Сигнатура объявляет `(lat, lon float64)`, но `pool.Exec` передаёт их в обратном порядке: `(lon, lat)`. SQL read-путь компенсирует это (`location[1] AS lon, location[2] AS lat`), поэтому текущий round-trip выглядит корректным, однако контракт функции нарушен.  
+**Сценарий отказа:** Любой прямой запрос к столбцу `location` (например, PostGIS `ST_MakePoint`, ожидающий `[lat, lon]`, или BI-инструмент) получит транспонированные координаты. Несоответствие также активно вводит в заблуждение будущих разработчиков.
 
 ---
 
-#### 6. Wikidata pagination terminates early on server-side partial pages
-**File:** `internal/infrastructure/geo/wikidata/client.go:111`  
-**Summary:** `if len(bindings) < pageSize { break }` — if a non-final page returns fewer rows than `pageSize` due to a Wikidata server-side soft limit, pagination stops and the remaining data is silently omitted.  
-**Failure scenario:** Wikidata SPARQL returns 9 800 of 10 000 requested rows on an intermediate page due to a per-query row cap. The loop breaks and all airports/cities after that offset are dropped. The sync completes with exit code 0 and no error.
+#### 5. Поиск русского названия города недетерминирован для городов с несколькими аэропортами
+**Файл:** `internal/application/command/sync_airports/handler.go:145`  
+**Описание:** Русское название ищется по `r.ICAO` в `cityNamesRU`. Поскольку порядок итерации по Go-карте случаен, города с несколькими аэропортами навсегда сохраняются на английском, если у первого обработанного аэропорта нет перевода в Wikidata.  
+**Сценарий отказа:** Москву обслуживают UUEE, UUWW, UUMO. Если UUMO обработан первым и `cityNamesRU["UUMO"]` пуст, город записывается как «Moscow». Защита `seen` срабатывает для UUWW и UUEE — их русский перевод «Москва» никогда не используется. После синхронизации Москва навсегда остаётся на английском.
 
 ---
 
-#### 7. Rate limiter scoped to all `/api/v1`, fires before JWT
-**File:** `internal/presentation/http/router.go:85`  
-**Summary:** `r.With(limiter.Handler).Route("/api/v1", ...)` applies the rate limit to every route including `/users` and `/users/me`, contrary to the comment "per-IP cap for the airports endpoint". The limiter also fires before JWT validation.  
-**Failure scenario:** A bot hammering `/api/v1/airports` consumes rate-limit tokens for `/api/v1/users/me`, throttling legitimate users on unrelated endpoints. Unauthenticated requests (which return 401) still consume tokens, enabling a denial-of-service against clients sharing the same NAT IP.
+#### 6. Пагинация Wikidata прерывается досрочно при серверной отдаче неполных страниц
+**Файл:** `internal/infrastructure/geo/wikidata/client.go:111`  
+**Описание:** `if len(bindings) < pageSize { break }` — если нефинальная страница возвращает меньше строк, чем `pageSize`, из-за серверного ограничения Wikidata, пагинация останавливается и оставшиеся данные молча теряются.  
+**Сценарий отказа:** SPARQL Wikidata возвращает 9 800 из 10 000 запрошенных строк на промежуточной странице из-за серверного лимита на запрос. Цикл прерывается, все аэропорты/города после этого смещения отбрасываются. Синхронизация завершается с кодом 0 и без ошибок.
 
 ---
 
-### 🏛 Architecture
-
-#### 8. Domain repository interface leaks DB surrogate key (`cityID int`)
-**File:** `internal/domain/repository/airport_repository.go:27`  
-**Summary:** `Upsert` accepts `cityID int` — a database foreign-key concept absent from the domain entity `Airport`, which embeds `City` as a struct.  
-**Impact:** Couples the domain interface to the DB auto-increment ID scheme. If city identity changes (e.g. to UUID), the domain interface must change too — inverting the intended dependency direction.
+#### 7. Rate limiter охватывает весь `/api/v1` и срабатывает до JWT
+**Файл:** `internal/presentation/http/router.go:85`  
+**Описание:** `r.With(limiter.Handler).Route("/api/v1", ...)` применяет ограничение ко всем маршрутам, включая `/users` и `/users/me`, вопреки комментарию «лимит запросов с IP для эндпоинта аэропортов». Лимитер также срабатывает до JWT-валидации.  
+**Сценарий отказа:** Бот, атакующий `/api/v1/airports`, расходует токены лимитера для `/api/v1/users/me`, замедляя работу легитимных пользователей на несвязанных эндпоинтах. Неаутентифицированные запросы (возвращающие 401) тоже расходуют токены, что открывает возможность для DoS-атаки против клиентов, использующих один NAT-IP.
 
 ---
 
-#### 9. Login handler bypasses application layer, holds `*db.Queries` directly
-**File:** `internal/presentation/http/api/login/handler.go:21`  
-**Summary:** The handler holds `*db.Queries` (sqlc-generated infra type) and calls `queries.GetUserByEmail` directly, short-circuiting `application/command` and `application/query` layers used by every other endpoint.  
-**Impact:** Adding brute-force lockout, audit logging, or MFA requires modifying the HTTP handler directly. Auth logic is untestable without a real DB. `container.go:123` wires `loginhttp.NewHandler(queries, ...)` with a raw sqlc type — the only Presentation → Infrastructure shortcut in the codebase.
+### 🏛 Архитектурные
+
+#### 8. Интерфейс доменного репозитория протекает суррогатным DB-ключом (`cityID int`)
+**Файл:** `internal/domain/repository/airport_repository.go:27`  
+**Описание:** `Upsert` принимает `cityID int` — концепция внешнего ключа БД, отсутствующая в доменной сущности `Airport`, которая встраивает `City` как структуру.  
+**Влияние:** Привязывает доменный интерфейс к схеме auto-increment ID в БД. Если идентификация города изменится (например, на UUID), придётся менять и доменный интерфейс — что инвертирует задуманное направление зависимостей.
 
 ---
 
-#### 10. Dead `logWriter` function blocks lint gate
-**File:** `internal/application/command/sync_airports/handler.go:243`  
-**Summary:** `logWriter` is defined but never called — all output goes through an inline `log` closure (line 81). `golangci-lint` will flag it as unreachable code (U1000).  
-**Impact:** If `golangci-lint run` is a required CI gate (per CLAUDE.md Validation Gates), the PR cannot merge. Also signals an incomplete refactor where the intended nil-safe writer was not threaded through.
+#### 9. Login-обработчик обходит application-слой, держа `*db.Queries` напрямую
+**Файл:** `internal/presentation/http/api/login/handler.go:21`  
+**Описание:** Обработчик хранит `*db.Queries` (инфраструктурный тип, генерируемый sqlc) и вызывает `queries.GetUserByEmail` напрямую, минуя слои `application/command` и `application/query`, используемые всеми остальными эндпоинтами.  
+**Влияние:** Добавление защиты от брутфорса, audit-логирования или MFA требует изменения HTTP-обработчика напрямую. Логика аутентификации нетестируема без реальной БД. `container.go:123` подключает `loginhttp.NewHandler(queries, ...)` с сырым sqlc-типом — единственный shortcut Presentation → Infrastructure во всей кодовой базе.
 
 ---
 
-## Summary
+#### 10. Мёртвая функция `logWriter` блокирует lint-gate
+**Файл:** `internal/application/command/sync_airports/handler.go:243`  
+**Описание:** `logWriter` объявлена, но нигде не вызывается — весь вывод идёт через inline-замыкание `log` (строка 81). `golangci-lint` пометит её как недостижимый код (U1000).  
+**Влияние:** Если `golangci-lint run` является обязательным CI-gate (согласно Validation Gates в CLAUDE.md), PR не сможет смёрджиться. Также сигнализирует о незавершённом рефакторинге: задуманный nil-safe writer так и не был подключён.
 
-| Severity | Count |
-|----------|-------|
-| Critical / High | 3 |
-| Medium | 4 |
-| Architecture | 3 |
-| **Total** | **10** |
+---
 
-**Must fix before merge:** findings 1, 2, 3 (country filter broken, public cache on auth endpoint, compile error in tests).
+## Итоги
+
+| Severity | Количество |
+|----------|------------|
+| Критические / Высокие | 3 |
+| Средние | 4 |
+| Архитектурные | 3 |
+| **Итого** | **10** |
+
+**Обязательно исправить перед merge:** находки 1, 2, 3 (сломан фильтр по стране, публичный кэш на аутентифицированном эндпоинте, ошибка компиляции в тестах).

@@ -5,6 +5,9 @@ bin/
 *.so
 *.dylib
 
+# claude
+.claude/code_reviews/*
+
 # Test binary, built with `go test -c`
 *.test
 *.out
