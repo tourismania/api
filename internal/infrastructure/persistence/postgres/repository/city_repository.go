@@ -23,34 +23,20 @@ func NewCityRepository(pool *pgxpool.Pool) *CityRepository {
 	return &CityRepository{pool: pool}
 }
 
-// Upsert looks up a matching city row; if none exists, inserts one.
-// Matching is case-insensitive on name and exact on (state, country_iso2).
-// Returns the city's database id.
+// Upsert inserts a new city or returns the id of the existing matching row.
+// Matching is case-insensitive on name and state; exact on country_iso2.
+// Requires the unique index cities_uniq_name_state_country (migration 011).
 func (r *CityRepository) Upsert(ctx context.Context, name string, state *string, timezone, countryISO2 string) (int, error) {
-	const selectQ = `
-SELECT id FROM cities
-WHERE lower(name) = lower($1)
-  AND country_iso2 = $2
-  AND (
-    ($3::text IS NULL AND state IS NULL)
-    OR lower(state) = lower($3::text)
-  )
-LIMIT 1`
-
-	var id int
-	err := r.pool.QueryRow(ctx, selectQ, name, countryISO2, state).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-
-	const insertQ = `
+	const q = `
 INSERT INTO cities (name, state, timezone, country_iso2)
 VALUES ($1, $2, $3, $4)
+ON CONFLICT (lower(name), COALESCE(lower(state), ''), country_iso2)
+DO UPDATE SET timezone = EXCLUDED.timezone
 RETURNING id`
 
-	err = r.pool.QueryRow(ctx, insertQ, name, state, timezone, countryISO2).Scan(&id)
-	if err != nil {
-		return 0, fmt.Errorf("insert city: %w", err)
+	var id int
+	if err := r.pool.QueryRow(ctx, q, name, state, timezone, countryISO2).Scan(&id); err != nil {
+		return 0, fmt.Errorf("upsert city: %w", err)
 	}
 	return id, nil
 }

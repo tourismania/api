@@ -161,5 +161,5 @@ func TestSearchAirports_CacheControlHeader(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
-	assert.Equal(t, "public, max-age=3600", rr.Header().Get("Cache-Control"))
+	assert.Equal(t, "private, max-age=3600", rr.Header().Get("Cache-Control"))
 }

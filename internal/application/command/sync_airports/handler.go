@@ -194,11 +194,8 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 			iataPtr = &s
 		}
 
-		var elevPtr *int
-		if r.Elevation != 0 {
-			e := r.Elevation
-			elevPtr = &e
-		}
+		e := r.Elevation
+		elevPtr := &e
 
 		if cmd.DryRun {
 			syncedAirports++

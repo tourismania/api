@@ -111,6 +111,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
+	w.Header().Set("Cache-Control", "private, max-age=3600")
 	httpx.WriteJSON(w, http.StatusOK, buildResponse(res, search, limit, offset))
 }
 
