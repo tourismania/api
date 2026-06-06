@@ -103,17 +103,6 @@ func TestSearchAirports_ICAO_UUEE(t *testing.T) {
 	assert.Equal(t, "UUEE", resp.Data[0].ICAO)
 }
 
-func TestSearchAirports_CountryFilter(t *testing.T) {
-	uc := &fakeUseCase{result: moscowResults()}
-	r := newTestRouter(uc)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/airports?search=mos&country=RU", nil)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
 func TestSearchAirports_TooShort(t *testing.T) {
 	uc := &fakeUseCase{}
 	r := newTestRouter(uc)

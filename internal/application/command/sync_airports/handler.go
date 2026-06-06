@@ -3,7 +3,6 @@ package syncairports
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 
 	domainrepo "api/internal/domain/repository"
@@ -238,11 +237,3 @@ func collectCountries(records []AirportRecord) map[string]struct{} {
 
 // Compile-time check.
 var _ UseCase = (*Handler)(nil)
-
-// logWriter is a helper so nil-safe writes don't need to be repeated.
-func logWriter(w io.Writer) io.Writer {
-	if w == nil {
-		return io.Discard
-	}
-	return w
-}

@@ -3,11 +3,10 @@ package searchairporthttp
 // SearchParams contains the query parameters for the airport search endpoint.
 // Validation uses go-playground/validator; business rules are applied in the handler.
 type SearchParams struct {
-	Search  string `schema:"search"  validate:"required"`
-	Limit   int    `schema:"limit"   validate:"omitempty,min=1,max=100"`
-	Offset  int    `schema:"offset"  validate:"omitempty,min=0,max=10000"`
-	Country string `schema:"country" validate:"omitempty,len=2"`
-	Lang    string `schema:"lang"    validate:"omitempty"`
+	Search string `schema:"search"  validate:"required"`
+	Limit  int    `schema:"limit"   validate:"omitempty,min=1,max=100"`
+	Offset int    `schema:"offset"  validate:"omitempty,min=0,max=10000"`
+	Lang   string `schema:"lang"    validate:"omitempty"`
 }
 
 // LocationResponse is the location projection in the JSON response.

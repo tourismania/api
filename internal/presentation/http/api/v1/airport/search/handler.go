@@ -36,11 +36,6 @@ func NormalizeSearch(raw string) (string, error) {
 	return s, nil
 }
 
-// NormalizeCountry uppercases the ISO-2 country code.
-func NormalizeCountry(s string) string {
-	return strings.ToUpper(s)
-}
-
 // Handler renders the airport search results.
 type Handler struct {
 	useCase  searchairports.UseCase
@@ -84,33 +79,22 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	limit := parseIntDefault(q.Get("limit"), DefaultLimit)
 	offset := parseIntDefault(q.Get("offset"), DefaultOffset)
 
-	// Parse and normalise country filter.
-	rawCountry := q.Get("country")
-
 	// Validate bounds via go-playground/validator.
 	params := SearchParams{
-		Search:  search,
-		Limit:   limit,
-		Offset:  offset,
-		Country: rawCountry,
-		Lang:    q.Get("lang"),
+		Search: search,
+		Limit:  limit,
+		Offset: offset,
+		Lang:   q.Get("lang"),
 	}
 	if err := h.validate.Struct(params); err != nil {
 		httpx.WriteValidationError(w, err)
 		return
 	}
 
-	var country *string
-	if rawCountry != "" {
-		normalized := NormalizeCountry(rawCountry)
-		country = &normalized
-	}
-
 	res, err := h.useCase.Handle(r.Context(), searchairports.Query{
-		Search:  search,
-		Country: country,
-		Limit:   limit,
-		Offset:  offset,
+		Search: search,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "airport search failed", "err", err)
@@ -127,7 +111,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
-	w.Header().Set("Cache-Control", "public, max-age=3600")
 	httpx.WriteJSON(w, http.StatusOK, buildResponse(res, search, limit, offset))
 }
 

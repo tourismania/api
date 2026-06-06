@@ -44,9 +44,3 @@ func TestDefaultLimit(t *testing.T) {
 func TestDefaultOffset(t *testing.T) {
 	assert.Equal(t, 0, searchairporthttp.DefaultOffset)
 }
-
-func TestCountryUppercase(t *testing.T) {
-	assert.Equal(t, "RU", searchairporthttp.NormalizeCountry("ru"))
-	assert.Equal(t, "US", searchairporthttp.NormalizeCountry("us"))
-	assert.Equal(t, "RU", searchairporthttp.NormalizeCountry("RU"))
-}

@@ -31,7 +31,7 @@ func newAirportRepo(t *testing.T) *pgrepo.AirportRepository {
 	pool, err := postgres.NewPool(ctx, testDB(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	return pgrepo.NewAirportRepository(db.New(pool))
+	return pgrepo.NewAirportRepository(db.New(pool), pool)
 }
 
 func TestAirportRepository_Search_ByName(t *testing.T) {
@@ -68,21 +68,6 @@ func TestAirportRepository_Search_ByICAO_ExactFirst(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, res.Airports)
 	assert.Equal(t, "UUEE", res.Airports[0].ICAO)
-}
-
-func TestAirportRepository_Search_CountryFilter(t *testing.T) {
-	repo := newAirportRepo(t)
-	country := "RU"
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
-		Search:  "SVO",
-		Country: &country,
-		Limit:   10,
-		Offset:  0,
-	})
-	require.NoError(t, err)
-	for _, a := range res.Airports {
-		assert.Equal(t, "RU", a.Country.ISO2)
-	}
 }
 
 func TestAirportRepository_Search_Pagination(t *testing.T) {
