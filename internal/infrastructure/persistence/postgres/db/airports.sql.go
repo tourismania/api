@@ -13,8 +13,8 @@ const searchAirportsSQL = `WITH q AS (
         a.icao,
         a.iata,
         a.name                  AS airport_name,
-        a.location[1]           AS lon,
-        a.location[2]           AS lat,
+        a.location[1]           AS lat,
+        a.location[2]           AS lon,
         a.elevation_ft,
         c.id                    AS city_id,
         c.name                  AS city_name,
@@ -39,7 +39,7 @@ const searchAirportsSQL = `WITH q AS (
         OR lower(unaccent(c.name))  LIKE lower(unaccent($3))
     )
 )
-SELECT icao, iata, airport_name, lon, lat, elevation_ft,
+SELECT icao, iata, airport_name, lat, lon, elevation_ft,
        city_id, city_name, city_state, city_timezone,
        country_iso2, country_name, rank,
        COUNT(*) OVER() AS total_count
@@ -96,8 +96,8 @@ func (q *Queries) SearchAirports(ctx context.Context, arg SearchAirportsParams) 
 			&row.Icao,
 			&row.Iata,
 			&row.AirportName,
-			&row.Lon,
 			&row.Lat,
+			&row.Lon,
 			&row.ElevationFt,
 			&row.CityID,
 			&row.CityName,

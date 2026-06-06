@@ -3,6 +3,7 @@ package syncairports
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	domainrepo "api/internal/domain/repository"
@@ -90,6 +91,11 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	}
 	log("Fetched %d airport records.", len(records))
 
+	// Sort by ICAO for deterministic processing across all loops below.
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].ICAO < records[j].ICAO
+	})
+
 	log("Fetching Russian airport names from Wikidata...")
 	airportNamesRU, err := h.translations.FetchAirportNamesRU(ctx)
 	if err != nil {
@@ -124,6 +130,24 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	type cityKey struct{ name, state, country string }
 	cityIDs := make(map[cityKey]int, len(records)/4)
 
+	// Pre-build cityKey → Russian name so multi-airport cities always
+	// prefer a translation when one is available. Records are already sorted
+	// by ICAO so the first match is the alphabetically earliest ICAO code.
+	cityRUByKey := make(map[cityKey]string, len(records)/4)
+	for _, r := range records {
+		if r.CountryISO2 == "" {
+			continue
+		}
+		k := cityKey{
+			name:    strings.ToLower(r.City),
+			state:   strings.ToLower(r.State),
+			country: strings.ToUpper(r.CountryISO2),
+		}
+		if cityRUByKey[k] == "" {
+			cityRUByKey[k] = cityNamesRU[r.ICAO]
+		}
+	}
+
 	log("Syncing cities...")
 	syncedCities := 0
 
@@ -141,7 +165,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		}
 
 		cityName := r.City
-		if ru, ok := cityNamesRU[r.ICAO]; ok && ru != "" {
+		if ru := cityRUByKey[k]; ru != "" {
 			cityName = ru
 		}
 

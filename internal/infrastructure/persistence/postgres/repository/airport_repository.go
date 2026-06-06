@@ -80,7 +80,7 @@ ON CONFLICT (icao) DO UPDATE SET
     elevation_ft = EXCLUDED.elevation_ft,
     city_id      = EXCLUDED.city_id`
 
-	if _, err := r.pool.Exec(ctx, q, icao, iata, name, lon, lat, elevationFt, cityID); err != nil {
+	if _, err := r.pool.Exec(ctx, q, icao, iata, name, lat, lon, elevationFt, cityID); err != nil {
 		return fmt.Errorf("upsert airport: %w", err)
 	}
 	return nil

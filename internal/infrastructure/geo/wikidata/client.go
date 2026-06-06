@@ -108,7 +108,7 @@ func (c *Client) fetchPaged(ctx context.Context, queryTmpl, keyVar, valVar strin
 			}
 		}
 
-		if len(bindings) < pageSize {
+		if len(bindings) == 0 {
 			break
 		}
 	}

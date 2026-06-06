@@ -4,6 +4,7 @@ package mwgg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,7 +12,14 @@ import (
 	syncairports "api/internal/application/command/sync_airports"
 )
 
-const dataURL = "https://raw.githubusercontent.com/mwgg/Airports/master/airports.json"
+const (
+	dataURL = "https://raw.githubusercontent.com/mwgg/Airports/master/airports.json"
+
+	// maxRetries is the total number of attempts (1 initial + 3 retries).
+	maxRetries = 4
+	// baseDelay is the wait before the first retry; subsequent waits double.
+	baseDelay = 3 * time.Second
+)
 
 // rawRecord mirrors one entry in the mwgg airports.json.
 type rawRecord struct {
@@ -27,6 +35,17 @@ type rawRecord struct {
 	TZ        string  `json:"tz"`
 }
 
+// transientErr marks a failure that warrants a retry (5xx, 429, network).
+type transientErr struct{ cause error }
+
+func (e *transientErr) Error() string { return e.cause.Error() }
+func (e *transientErr) Unwrap() error { return e.cause }
+
+func isTransient(err error) bool {
+	var t *transientErr
+	return errors.As(err, &t)
+}
+
 // Client fetches airport data from the mwgg GitHub dataset.
 type Client struct {
 	http *http.Client
@@ -39,8 +58,37 @@ func New() *Client {
 	}
 }
 
-// Fetch downloads and parses the full airports.json.
+// Fetch downloads and parses the full airports.json with exponential-backoff
+// retry on transient failures (5xx, 429, network errors). Backoff: 3s → 6s → 12s.
 func (c *Client) Fetch(ctx context.Context) ([]syncairports.AirportRecord, error) {
+	var lastErr error
+	for attempt := range maxRetries {
+		if attempt > 0 {
+			delay := baseDelay * time.Duration(1<<(attempt-1))
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		records, err := c.doFetch(ctx)
+		if err == nil {
+			return records, nil
+		}
+		lastErr = err
+
+		if !isTransient(err) {
+			return nil, err
+		}
+	}
+
+	return nil, fmt.Errorf("mwgg fetch: all %d attempts failed: %w", maxRetries, lastErr)
+}
+
+// doFetch performs a single HTTP round-trip. Transient failures (5xx, 429,
+// network errors) are wrapped in *transientErr so Fetch can retry them.
+func (c *Client) doFetch(ctx context.Context) ([]syncairports.AirportRecord, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dataURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
@@ -49,11 +97,17 @@ func (c *Client) Fetch(ctx context.Context) ([]syncairports.AirportRecord, error
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, &transientErr{cause: fmt.Errorf("http get: %w", err)}
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		// success — fall through to decode
+	case resp.StatusCode == http.StatusTooManyRequests,
+		resp.StatusCode >= http.StatusInternalServerError:
+		return nil, &transientErr{cause: fmt.Errorf("unexpected status %d", resp.StatusCode)}
+	default:
 		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 
