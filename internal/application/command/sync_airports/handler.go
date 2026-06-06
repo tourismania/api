@@ -85,15 +85,15 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	}
 
 	log("Fetching airports from external source...")
-	records, err := h.source.Fetch(ctx)
+	airportRecords, err := h.source.Fetch(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("fetch airports: %w", err)
 	}
-	log("Fetched %d airport records.", len(records))
+	log("Fetched %d airport records.", len(airportRecords))
 
 	// Sort by ICAO for deterministic processing across all loops below.
-	sort.Slice(records, func(i, j int) bool {
-		return records[i].ICAO < records[j].ICAO
+	sort.Slice(airportRecords, func(i, j int) bool {
+		return airportRecords[i].ICAO < airportRecords[j].ICAO
 	})
 
 	log("Fetching Russian airport names from Wikidata...")
@@ -111,7 +111,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	log("Got %d Russian city name translations.", len(cityNamesRU))
 
 	// Collect unique countries from source data.
-	countries := collectCountries(records)
+	countries := collectCountries(airportRecords)
 	log("Syncing %d countries...", len(countries))
 
 	if !cmd.DryRun {
@@ -128,13 +128,13 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 
 	// Upsert cities and build icao→cityID map.
 	type cityKey struct{ name, state, country string }
-	cityIDs := make(map[cityKey]int, len(records)/4)
+	cityIDs := make(map[cityKey]int, len(airportRecords)/4)
 
 	// Pre-build cityKey → Russian name so multi-airport cities always
 	// prefer a translation when one is available. Records are already sorted
 	// by ICAO so the first match is the alphabetically earliest ICAO code.
-	cityRUByKey := make(map[cityKey]string, len(records)/4)
-	for _, r := range records {
+	cityRUByKey := make(map[cityKey]string, len(airportRecords)/4)
+	for _, r := range airportRecords {
 		if r.CountryISO2 == "" {
 			continue
 		}
@@ -151,7 +151,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	log("Syncing cities...")
 	syncedCities := 0
 
-	for _, r := range records {
+	for _, r := range airportRecords {
 		if r.CountryISO2 == "" {
 			continue
 		}
@@ -192,10 +192,10 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		syncedCities = len(cityIDs)
 	}
 
-	log("Syncing %d airports...", len(records))
+	log("Syncing %d airports...", len(airportRecords))
 	syncedAirports := 0
 
-	for _, r := range records {
+	for _, r := range airportRecords {
 		if r.CountryISO2 == "" || r.ICAO == "" {
 			continue
 		}

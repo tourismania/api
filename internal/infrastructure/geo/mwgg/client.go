@@ -93,7 +93,7 @@ func (c *Client) doFetch(ctx context.Context) ([]syncairports.AirportRecord, err
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Tourismania/1.0 geo-sync")
+	req.Header.Set("User-Agent", "Tourismania/1.0 airport-sync")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
