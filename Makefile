@@ -23,4 +23,4 @@ swag: ## Generate OpenAPI docs into ./docs
 jwt-keys: ## Generate RSA keypair for JWT (RS256)
 	openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:2048
 	openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
-	chmod 644 config/jwt/private.pem config/jwt/public.pem
+	chmod 644 config/jwt/private.pem config/jwt/public.pem # TODO: нужно подготовить инфру по работе с secrets файлами и убрать это
