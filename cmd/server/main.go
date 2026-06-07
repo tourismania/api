@@ -52,11 +52,13 @@ func run() error {
 	defer container.Close()
 
 	httpServer := apihttp.Server{
-		Login:              container.LoginHandler,
-		CreateUser:         container.CreateUserHandler,
-		GetMe:              container.GetMeHandler,
+		Login:              container.Http.Login,
+		CreateUser:         container.Http.CreateUser,
+		GetMe:              container.Http.GetMe,
+		Airports:           container.Http.Airports,
 		JWT:                container.JWT,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
+		RateLimit:          cfg.RateLimit.RequestsPerMinute,
 	}
 
 	srv := &http.Server{

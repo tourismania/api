@@ -14,11 +14,12 @@ import (
 
 // Config aggregates the full application configuration.
 type Config struct {
-	App      AppConfig
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Kafka    KafkaConfig
+	App       AppConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	JWT       JWTConfig
+	Kafka     KafkaConfig
+	RateLimit RateLimitConfig
 }
 
 // AppConfig holds app-level metadata.
@@ -77,6 +78,11 @@ type KafkaConfig struct {
 	Topic   string
 }
 
+// RateLimitConfig controls per-IP request throttling for public endpoints.
+type RateLimitConfig struct {
+	RequestsPerMinute int // RATE_LIMIT_RPM, default 60
+}
+
 // Load reads .env (best-effort) and constructs Config from environment.
 func Load() (*Config, error) {
 	// Best-effort: missing .env is not an error (e.g. in production).
@@ -90,6 +96,15 @@ func Load() (*Config, error) {
 	ttlSeconds, err := atoiDefault("JWT_TTL", 86400)
 	if err != nil {
 		return nil, err
+	}
+
+	rateLimitRPM, err := atoiDefault("RATE_LIMIT_RPM", 60)
+	if err != nil {
+		return nil, err
+	}
+	rpm := rateLimitRPM
+	if rpm <= 0 {
+		rpm = 60
 	}
 
 	cfg := &Config{
@@ -118,6 +133,9 @@ func Load() (*Config, error) {
 		Kafka: KafkaConfig{
 			Brokers: getEnv("KAFKA_DSN", "kafka:9092"),
 			Topic:   getEnv("KAFKA_TOPIC", "events"),
+		},
+		RateLimit: RateLimitConfig{
+			RequestsPerMinute: rpm,
 		},
 	}
 

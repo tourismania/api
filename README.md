@@ -60,13 +60,32 @@ go run ./cmd/cli create-user "Ada" "Lovelace" ada@example.com secret
 docker compose exec tourismania_app /app/cli create-user "first_name" "last_name" email@example.com password
 ```
 
+### sync-airports
+
+Синхронизирует аэропорты, города и страны из внешних источников в БД.
+Загружает данные из [mwgg/Airports](https://github.com/mwgg/Airports) (GitHub JSON)
+и обогащает их русскоязычными названиями через Wikidata SPARQL.
+Ожидаемое время выполнения: ~3–4 минуты для ~40 000 аэропортов.
+
+```bash
+# Preview без записи в БД
+go run ./cmd/cli sync-airports --dry-run
+
+# Полная синхронизация (запускать раз в месяц)
+go run ./cmd/cli sync-airports
+
+# production
+docker compose exec tourismania_app /app/cli sync-airports
+```
+
 ## Endpoints
 
 | Метод | Путь             | Доступ | Описание                         |
-| ----- |------------------| ------ | -------------------------------- |
+| ----- |------------------|--------| -------------------------------- |
 | POST  | /api/login       | public | Логин, возвращает JWT            |
 | POST  | /api/v1/users    | JWT    | Создание пользователя            |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
+| GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
 | GET   | /api/doc         | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
 

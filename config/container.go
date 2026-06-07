@@ -11,16 +11,22 @@ import (
 	"fmt"
 
 	createusercmd "api/internal/application/command/create_user"
+	syncairportscmd "api/internal/application/command/sync_airports"
 	getmeq "api/internal/application/query/get_me"
+	searchairports "api/internal/application/query/search_airports"
 	"api/internal/domain/factory"
 	"api/internal/domain/service"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
+	"api/internal/infrastructure/geo/mwgg"
+	"api/internal/infrastructure/geo/static"
+	"api/internal/infrastructure/geo/wikidata"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
+	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,12 +43,21 @@ type Container struct {
 	JWT      *auth.Service
 	Validate *validator.Validate
 
-	CreateUserApp *createusercmd.Handler
-	GetMeApp      *getmeq.Handler
+	// App groups application-layer use-case handlers (write + read sides).
+	App struct {
+		CreateUser     *createusercmd.Handler
+		GetMe          *getmeq.Handler
+		SearchAirports *searchairports.Handler
+		SyncAirports   *syncairportscmd.Handler
+	}
 
-	LoginHandler      *loginhttp.Handler
-	CreateUserHandler *createuserhttp.Handler
-	GetMeHandler      *getmehttp.Handler
+	// Http groups presentation-layer HTTP handlers.
+	Http struct {
+		Login      *loginhttp.Handler
+		CreateUser *createuserhttp.Handler
+		GetMe      *getmehttp.Handler
+		Airports   *searchairporthttp.Handler
+	}
 }
 
 // Build constructs the Container.
@@ -80,6 +95,23 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	rightsFactory := factory.NewRightsDescribeFactory()
 	rightsDescriber := service.NewRightsDescriber(rightsFactory)
 
+	// Airport domain wiring.
+	airportRepo := pgrepo.NewAirportRepository(queries, pool)
+	searchAirportsApp := searchairports.NewHandler(airportRepo)
+
+	countryRepo := pgrepo.NewCountryRepository(pool)
+	cityRepo := pgrepo.NewCityRepository(pool)
+
+	// Geo sync wiring.
+	syncAirportsApp := syncairportscmd.NewHandler(
+		airportRepo,
+		countryRepo,
+		cityRepo,
+		mwgg.New(),
+		wikidata.New(),
+		static.CountryNames{},
+	)
+
 	// Application handlers.
 	createUserApp := createusercmd.NewHandler(userCreator)
 	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
@@ -91,20 +123,28 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	loginH := loginhttp.NewHandler(queries, hasher, jwtSvc, validate)
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp, getmehttp.NewResolver())
+	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
 
-	return &Container{
-		Cfg:               cfg,
-		Pool:              pool,
-		Queries:           queries,
-		Kafka:             producer,
-		JWT:               jwtSvc,
-		Validate:          validate,
-		CreateUserApp:     createUserApp,
-		GetMeApp:          getMeApp,
-		LoginHandler:      loginH,
-		CreateUserHandler: createUserH,
-		GetMeHandler:      getMeH,
-	}, nil
+	c := &Container{
+		Cfg:      cfg,
+		Pool:     pool,
+		Queries:  queries,
+		Kafka:    producer,
+		JWT:      jwtSvc,
+		Validate: validate,
+	}
+
+	c.App.CreateUser = createUserApp
+	c.App.GetMe = getMeApp
+	c.App.SearchAirports = searchAirportsApp
+	c.App.SyncAirports = syncAirportsApp
+
+	c.Http.Login = loginH
+	c.Http.CreateUser = createUserH
+	c.Http.GetMe = getMeH
+	c.Http.Airports = airportsH
+
+	return c, nil
 }
 
 // Close releases every owned resource. Safe to call on a partially-built
