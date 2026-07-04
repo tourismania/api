@@ -23,3 +23,6 @@ swag: ## Generate OpenAPI docs into ./docs
 jwt-keys: ## Generate RSA keypair for JWT (RS256)
 	openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:2048
 	openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
+
+debug-cli: ## Debug CLI inside dev container: make debug-cli cmd="sync-airports --dry-run"
+	docker compose exec app dlv debug ./cmd/cli --headless --listen=:2346 --api-version=2 --accept-multiclient -- $(cmd)
