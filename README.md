@@ -67,6 +67,8 @@ docker compose exec tourismania_app /app/cli create-user "first_name" "last_name
 и обогащает их русскоязычными названиями через Wikidata SPARQL.
 Ожидаемое время выполнения: ~3–4 минуты для ~40 000 аэропортов.
 
+Подробное описание алгоритма (источники данных, устройство запросов к Wikidata, тайминги, известные ограничения): [docs/cli/sync_airports.md](docs/cli/sync_airports.md).
+
 ```bash
 # Preview без записи в БД
 go run ./cmd/cli sync-airports --dry-run

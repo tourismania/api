@@ -28,13 +28,23 @@ type AirportSource interface {
 	Fetch(ctx context.Context) ([]AirportRecord, error)
 }
 
-// TranslationSource provides Russian-language names keyed by ICAO code.
+// CityRef identifies a city by its English source name and ISO-2 country
+// code, independent of any specific airport. It is the lookup key for
+// Russian city name translations.
+type CityRef struct {
+	Name        string
+	CountryISO2 string
+}
+
+// TranslationSource provides Russian-language names.
 // Missing keys mean the English name should be used as a fallback.
 type TranslationSource interface {
 	// FetchAirportNamesRU returns a map of ICAO → Russian airport name.
 	FetchAirportNamesRU(ctx context.Context) (map[string]string, error)
-	// FetchCityNamesRU returns a map of ICAO → Russian city name for that airport.
-	FetchCityNamesRU(ctx context.Context) (map[string]string, error)
+	// FetchCityNamesRU returns Russian names for the given cities, keyed by
+	// the same CityRef passed in. Cities without a matching translation are
+	// omitted from the result.
+	FetchCityNamesRU(ctx context.Context, cities []CityRef) (map[CityRef]string, error)
 }
 
 // CountryNameSource provides the full Russian country name for an ISO-2 code.
@@ -103,8 +113,9 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	}
 	log("Got %d Russian airport name translations.", len(airportNamesRU))
 
-	log("Fetching Russian city names from Wikidata...")
-	cityNamesRU, err := h.translations.FetchCityNamesRU(ctx)
+	cityRefs := collectCityRefs(airportRecords)
+	log("Fetching Russian city names from Wikidata for %d distinct cities...", len(cityRefs))
+	cityNamesRU, err := h.translations.FetchCityNamesRU(ctx, cityRefs)
 	if err != nil {
 		return Result{}, fmt.Errorf("fetch city names ru: %w", err)
 	}
@@ -130,24 +141,6 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	type cityKey struct{ name, state, country string }
 	cityIDs := make(map[cityKey]int, len(airportRecords)/4)
 
-	// Pre-build cityKey → Russian name so multi-airport cities always
-	// prefer a translation when one is available. Records are already sorted
-	// by ICAO so the first match is the alphabetically earliest ICAO code.
-	cityRUByKey := make(map[cityKey]string, len(airportRecords)/4)
-	for _, r := range airportRecords {
-		if r.CountryISO2 == "" {
-			continue
-		}
-		k := cityKey{
-			name:    strings.ToLower(r.City),
-			state:   strings.ToLower(r.State),
-			country: strings.ToUpper(r.CountryISO2),
-		}
-		if cityRUByKey[k] == "" {
-			cityRUByKey[k] = cityNamesRU[r.ICAO]
-		}
-	}
-
 	log("Syncing cities...")
 	syncedCities := 0
 
@@ -165,7 +158,8 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		}
 
 		cityName := r.City
-		if ru := cityRUByKey[k]; ru != "" {
+		ref := CityRef{Name: r.City, CountryISO2: strings.ToUpper(r.CountryISO2)}
+		if ru := cityNamesRU[ref]; ru != "" {
 			cityName = ru
 		}
 
@@ -254,6 +248,26 @@ func collectCountries(records []AirportRecord) map[string]struct{} {
 		}
 	}
 	return m
+}
+
+// collectCityRefs returns the unique (city name, country) pairs present in
+// records, so translations are looked up once per distinct city rather than
+// once per airport.
+func collectCityRefs(records []AirportRecord) []CityRef {
+	seen := make(map[CityRef]struct{}, len(records)/4)
+	refs := make([]CityRef, 0, len(records)/4)
+	for _, r := range records {
+		if r.City == "" || r.CountryISO2 == "" {
+			continue
+		}
+		ref := CityRef{Name: r.City, CountryISO2: strings.ToUpper(r.CountryISO2)}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 // Compile-time check.
