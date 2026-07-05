@@ -67,6 +67,8 @@ docker compose exec tourismania_app /app/cli create-user "first_name" "last_name
 и обогащает их русскоязычными названиями через Wikidata SPARQL.
 Ожидаемое время выполнения: ~3–4 минуты для ~40 000 аэропортов.
 
+Подробное описание алгоритма (источники данных, устройство запросов к Wikidata, тайминги, известные ограничения): [docs/cli/sync_airports.md](docs/cli/sync_airports.md).
+
 ```bash
 # Preview без записи в БД
 go run ./cmd/cli sync-airports --dry-run
@@ -108,7 +110,9 @@ docker compose exec tourismania_app /app/cli sync-airports
 
 **2. Поднимаем контейнер с приложением**
 
-**3. Подключиться из GoLand:**
+**3. Подключиться из IDE GoLand:**
+
+**3.1. Подключение из Goland**
 
 `Run → Edit Configurations → + → Go Remote`
 
@@ -121,6 +125,43 @@ docker compose exec tourismania_app /app/cli sync-airports
 Нажать **Debug** — GoLand подключается к dlv. Точки остановки в хендлерах срабатывают при каждом запросе. При изменении кода air пересобирает бинарник; нужно переподключиться из GoLand (кнопка Debug снова).
 
 > **Точка в `main.go`** выполняется один раз при старте. Чтобы поймать её, убери флаг `--continue` из `full_bin` — dlv будет ждать attach до запуска процесса.
+
+**3.2. Подключение из Visual Studio**
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Golang: Attach to docker (server)",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "remotePath": "/app",
+            "port": 2345,
+            "host": "127.0.0.1",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Golang: Attach to docker (CLI)",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "remotePath": "/app",
+            "port": 2346,
+            "host": "127.0.0.1",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
+```
+
+Как отлаживать CLI:
+
+1. docker compose up -d — поднять dev-стек (server через air на 2345, БД, Kafka).
+2. В отдельном терминале: make debug-cli cmd="sync-airports --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
+3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/sync_airports.go (или create_user.go) должны сработать.
+4. Завершить сессию — Ctrl+C в терминале с make debug-cli, порт 2346 освободится для следующего запуска.
 
 ---
 
