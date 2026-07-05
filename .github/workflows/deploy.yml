@@ -15,19 +15,33 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DATABASE_USER: ${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          APP_VERSION: ${{ github.ref_name }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          envs: DATABASE_USER,DATABASE_PASSWORD,DATABASE_HOST,CORS_ALLOWED_ORIGINS,APP_VERSION
           script: |
             cd ${{ secrets.SSH_PATH_TO_APP }}/api/
             cp .env.example .env
-            sed -i.bak 's/^DATABASE_USER=.*/DATABASE_USER=${{ secrets.DATABASE_USER }}/' .env
-            sed -i.bak 's/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}/' .env
-            sed -i.bak 's/^DATABASE_HOST=.*/DATABASE_HOST=${{ secrets.DATABASE_HOST }}/' .env
-            sed -i.bak 's/^APP_VERSION=.*/APP_VERSION=${{ github.ref_name }}/' .env
-            sed -i.bak 's/^APP_SECRET=.*/APP_ENV=production/' .env
-            sed -i.bak 's/^CORS_ALLOWED_ORIGINS=.*/CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}/' .env
+
+            set_env() {
+              grep -v "^$1=" .env > .env.tmp && mv .env.tmp .env
+              echo "$1=$2" >> .env
+            }
+
+            set_env DATABASE_USER "$DATABASE_USER"
+            set_env DATABASE_PASSWORD "$DATABASE_PASSWORD"
+            set_env DATABASE_HOST "$DATABASE_HOST"
+            set_env APP_VERSION "$APP_VERSION"
+            set_env APP_ENV "production"
+            set_env CORS_ALLOWED_ORIGINS "$CORS_ALLOWED_ORIGINS"
+
             cd ../infra-docker/
             make deploy-api-tag TAG=${{ github.ref_name }}
