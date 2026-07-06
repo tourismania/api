@@ -197,7 +197,7 @@ Plan → Issue → Implement → Review → Merge → Docs
 | Phase | Description |
 |-------|-------------|
 | **Plan** | Определить scope, зависимости, владельцев файлов. |
-| **Issue** | Создать GitHub Issue с acceptance criteria и negative constraints. |
+| **Issue** | Создать GitHub Issue с acceptance criteria и negative constraints. Продбурировать описаниа в md файле `/docs/issues/{issue_id}.md` |
 | **Implement** | Feature branch. Следовать конвенциям. Писать тесты. |
 | **Review** | PR. Проверка корректности, покрытия, соответствия конвенциям. |
 | **Merge** | После апрува — merge в `main`. |
@@ -207,13 +207,17 @@ Plan → Issue → Implement → Review → Merge → Docs
 
 - **`main`** — стабильный production-ready код
 - **Feature branches** — одна ветка на issue, от `main`
-  - Формат: `[type]/[short-description]` (например, `feat/user-profile`, `fix/jwt-expiry`)
+  - Формат: `[type]/[issue-id]` (например, `feature/6`, `bugfix/12`)
 
 ### Issues-First Rule
 
 - Каждый запрос на работу — сначала GitHub Issue, потом реализация.
 - Оригинальный промпт сохраняется в описании issue.
 - Если промпт содержит несколько задач — создавать отдельные issues.
+
+### Актуализация состояния
+
+При обработке комментариев в процессе составления задачи, реализации, PR, необходимо актуализировать описание задачи в `docs/issues`.
 
 ---
 
