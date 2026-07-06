@@ -10,7 +10,9 @@ import (
 	"context"
 	"fmt"
 
+	createagencycmd "api/internal/application/command/create_agency"
 	createusercmd "api/internal/application/command/create_user"
+	deactivateagencycmd "api/internal/application/command/deactivate_agency"
 	syncairportscmd "api/internal/application/command/sync_airports"
 	getmeq "api/internal/application/query/get_me"
 	searchairports "api/internal/application/query/search_airports"
@@ -45,10 +47,12 @@ type Container struct {
 
 	// App groups application-layer use-case handlers (write + read sides).
 	App struct {
-		CreateUser     *createusercmd.Handler
-		GetMe          *getmeq.Handler
-		SearchAirports *searchairports.Handler
-		SyncAirports   *syncairportscmd.Handler
+		CreateUser       *createusercmd.Handler
+		CreateAgency     *createagencycmd.Handler
+		DeactivateAgency *deactivateagencycmd.Handler
+		GetMe            *getmeq.Handler
+		SearchAirports   *searchairports.Handler
+		SyncAirports     *syncairportscmd.Handler
 	}
 
 	// Http groups presentation-layer HTTP handlers.
@@ -91,7 +95,9 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// Domain wiring.
 	hasher := security.NewBcryptHasher(bcrypt.DefaultCost)
 	userRepo := pgrepo.NewUserRepository(queries)
-	userCreator := service.NewUserCreator(userRepo, hasher, producer)
+	agencyRepo := pgrepo.NewAgencyRepository(queries)
+	agencyManager := service.NewAgencyManager(agencyRepo)
+	userCreator := service.NewUserCreator(userRepo, agencyRepo, hasher, producer)
 	rightsFactory := factory.NewRightsDescribeFactory()
 	rightsDescriber := service.NewRightsDescriber(rightsFactory)
 
@@ -114,6 +120,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 
 	// Application handlers.
 	createUserApp := createusercmd.NewHandler(userCreator)
+	createAgencyApp := createagencycmd.NewHandler(agencyManager)
+	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
 
 	// Validation.
@@ -135,6 +143,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	}
 
 	c.App.CreateUser = createUserApp
+	c.App.CreateAgency = createAgencyApp
+	c.App.DeactivateAgency = deactivateAgencyApp
 	c.App.GetMe = getMeApp
 	c.App.SearchAirports = searchAirportsApp
 	c.App.SyncAirports = syncAirportsApp

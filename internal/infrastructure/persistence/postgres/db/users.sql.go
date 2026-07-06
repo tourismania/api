@@ -10,9 +10,9 @@ import (
 const createUserSQL = `INSERT INTO "users" (
     uuid, first_name, last_name, email, login,
     created_at, updated_at, phone, password, is_active,
-    birthday, extra_information, roles
+    birthday, extra_information, roles, agency_id
 ) VALUES (
-    $1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, $10, $11, $12
 ) RETURNING id`
 
 // CreateUserParams matches the column order of createUserSQL.
@@ -28,6 +28,7 @@ type CreateUserParams struct {
 	Birthday         *time.Time
 	ExtraInformation []byte
 	Roles            []string
+	AgencyID         *int32
 }
 
 // CreateUser inserts a row and returns the generated id.
@@ -45,13 +46,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int32, 
 		arg.Birthday,
 		arg.ExtraInformation,
 		arg.Roles,
+		arg.AgencyID,
 	).Scan(&id)
 	return id, err
 }
 
 const getUserByEmailSQL = `SELECT id, uuid, first_name, last_name, email, login,
        created_at, updated_at, phone, password, is_active, birthday,
-       extra_information, roles
+       extra_information, roles, agency_id
 FROM "users"
 WHERE email = $1`
 
@@ -62,7 +64,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	err := row.Scan(
 		&u.ID, &u.Uuid, &u.FirstName, &u.LastName, &u.Email, &u.Login,
 		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Password, &u.IsActive,
-		&u.Birthday, &u.ExtraInformation, &u.Roles,
+		&u.Birthday, &u.ExtraInformation, &u.Roles, &u.AgencyID,
 	)
 	if err != nil {
 		return u, err
@@ -72,7 +74,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 
 const getUserByUuidSQL = `SELECT id, uuid, first_name, last_name, email, login,
        created_at, updated_at, phone, password, is_active, birthday,
-       extra_information, roles
+       extra_information, roles, agency_id
 FROM "users"
 WHERE uuid = $1`
 
@@ -84,7 +86,7 @@ func (q *Queries) GetUserByUuid(ctx context.Context, id uuid.UUID) (User, error)
 	err := row.Scan(
 		&u.ID, &u.Uuid, &u.FirstName, &u.LastName, &u.Email, &u.Login,
 		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Password, &u.IsActive,
-		&u.Birthday, &u.ExtraInformation, &u.Roles,
+		&u.Birthday, &u.ExtraInformation, &u.Roles, &u.AgencyID,
 	)
 	if err != nil {
 		return u, err

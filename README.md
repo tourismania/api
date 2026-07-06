@@ -80,12 +80,30 @@ go run ./cmd/cli sync-airports
 docker compose exec tourismania_app /app/cli sync-airports
 ```
 
+### agency
+
+Управление справочником агентств (только через CLI — HTTP CRUD агентств вне scope текущей итерации).
+
+```bash
+# Создать агентство (генерирует uuid, status=active, created_at)
+go run ./cmd/cli agency create --name "Acme Travel"
+# → Agency successfully created! id=1 uuid=...
+
+# Деактивировать агентство (status → inactive)
+go run ./cmd/cli agency deactivate --id 1
+# → Agency successfully deactivated! id=1
+
+# production
+docker compose exec tourismania_app /app/cli agency create --name "Acme Travel"
+docker compose exec tourismania_app /app/cli agency deactivate --id 1
+```
+
 ## Endpoints
 
 | Метод | Путь             | Доступ | Описание                         |
 | ----- |------------------|--------| -------------------------------- |
 | POST  | /api/login       | public | Логин, возвращает JWT            |
-| POST  | /api/v1/users    | JWT    | Создание пользователя            |
+| POST  | /api/v1/users    | JWT    | Создание пользователя (опционально `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
 | GET   | /api/doc         | public | Swagger UI                       |

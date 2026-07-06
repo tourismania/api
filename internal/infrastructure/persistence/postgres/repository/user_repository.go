@@ -74,6 +74,7 @@ func (r *UserRepository) Store(
 		Birthday:         &birthday,
 		ExtraInformation: []byte("{}"),
 		Roles:            []string{defaultRoleUser},
+		AgencyID:         intToInt32Ptr(user.AgencyID),
 	})
 	if err != nil {
 		// Database not reachable or no row inserted — bubble up as a
@@ -105,6 +106,7 @@ func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entit
 		FirstName: derefStr(u.FirstName),
 		LastName:  derefStr(u.LastName),
 		Roles:     u.Roles,
+		AgencyID:  int32ToIntPtr(u.AgencyID),
 	}, nil
 }
 
@@ -120,6 +122,22 @@ func derefStr(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func intToInt32Ptr(v *int) *int32 {
+	if v == nil {
+		return nil
+	}
+	out := int32(*v)
+	return &out
+}
+
+func int32ToIntPtr(v *int32) *int {
+	if v == nil {
+		return nil
+	}
+	out := int(*v)
+	return &out
 }
 
 // randomBirthday picks a deterministic year (1994) and a random valid

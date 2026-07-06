@@ -20,17 +20,19 @@ var ErrUserNotPersisted = errors.New("user was not persisted")
 // publish a UserRegistered event so async consumers can react.
 type UserCreator struct {
 	users    repository.UserRepository
+	agencies repository.AgencyRepository
 	hasher   PasswordHasher
 	eventBus event.Bus
 }
 
-// NewUserCreator wires the collaborators. All three are required.
+// NewUserCreator wires the collaborators. All four are required.
 func NewUserCreator(
 	users repository.UserRepository,
+	agencies repository.AgencyRepository,
 	hasher PasswordHasher,
 	eventBus event.Bus,
 ) *UserCreator {
-	return &UserCreator{users: users, hasher: hasher, eventBus: eventBus}
+	return &UserCreator{users: users, agencies: agencies, hasher: hasher, eventBus: eventBus}
 }
 
 // Create hashes the user's password, stores the entity, and publishes a
@@ -38,7 +40,24 @@ func NewUserCreator(
 // rather than swallowed: the original PHP project relies on
 // transactional outbox / retry at a higher level. If you later add an
 // outbox, replace the direct Publish here.
+//
+// When user.AgencyID is set, the referenced agency must exist and be
+// active (1 user = 1 agency); registration without an agency remains
+// valid for ROLE_USER clients.
 func (s *UserCreator) Create(ctx context.Context, user entity.User) (int, error) {
+	if user.AgencyID != nil {
+		agency, err := s.agencies.FindByID(ctx, *user.AgencyID)
+		if err != nil {
+			return 0, fmt.Errorf("find agency: %w", err)
+		}
+		if agency == nil {
+			return 0, ErrAgencyNotFound
+		}
+		if !agency.IsActive() {
+			return 0, ErrAgencyInactive
+		}
+	}
+
 	hash, err := s.hasher.Hash(user.Password)
 	if err != nil {
 		return 0, fmt.Errorf("hash password: %w", err)

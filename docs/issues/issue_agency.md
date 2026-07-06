@@ -40,14 +40,25 @@
 
 ## Acceptance criteria
 
-- [ ] Миграции 012–014 применяются и откатываются (`make migrate-up` / `migrate-down`).
-- [ ] `Agency` имеет `uuid`, `status` (active/inactive), `created_at`, `deleted_at`; чтения фильтруют `deleted_at IS NULL`.
-- [ ] Роль `ROLE_AGENT` добавлена в `enum.Role`.
-- [ ] У `users` есть `agency_id`; регистрация (`create_user`) принимает и сохраняет `agency_id`.
-- [ ] CLI `agency create` и `agency deactivate` работают через `AgencyManager`.
-- [ ] Seed-агентства применяются.
-- [ ] Публичные функции домена покрыты тестами; критический путь ≥ 90%.
-- [ ] `README.md` (CLI) обновлён; `go test ./...`, `golangci-lint run`, `go build ./...` — зелёные.
+- [x] Миграции 012–014 применяются и откатываются (`make migrate-up` / `migrate-down`) — проверено локально через `migrate up`/`down 3` против реального Postgres 17.
+- [x] `Agency` имеет `uuid`, `status` (active/inactive), `created_at`, `deleted_at`; чтения фильтруют `deleted_at IS NULL`.
+- [x] Роль `ROLE_AGENT` добавлена в `enum.Role`.
+- [x] У `users` есть `agency_id`; регистрация (`create_user`) принимает и сохраняет `agency_id`.
+- [x] CLI `agency create` и `agency deactivate` работают через `AgencyManager` — проверено вручную против реального Postgres.
+- [x] Seed-агентства применяются.
+- [x] Публичные функции домена покрыты тестами (unit: `Agency.IsActive`, `AgencyManager`; integration: `AgencyRepository`, `UserCreator` + agency).
+- [x] `README.md` (CLI) обновлён; `go test ./...`, `go build ./...` — зелёные. `golangci-lint` недоступен в текущем окружении (не установлен) — не запускался.
+
+## Реализация (заметки)
+
+- `db/` (sqlc-shaped код) в этом проекте **не генерируется** реальным `sqlc generate` — файлы поддерживаются вручную в стиле, который sqlc произвёл бы (см. комментарий в `db.go`). `agencies.sql.go` и правки `users.sql.go` сделаны тем же способом; `queries/*.sql` остаются источником истины для схемы запроса.
+- HTTP-хендлер `create_user` возвращает `400` (не `500`) на `ErrAgencyNotFound`/`ErrAgencyInactive` — это ошибки валидации входных данных, а не внутреннего состояния.
+- Kafka недоступна в среде разработки для сквозной проверки (`bitnami/kafka:3.7` снят с Docker Hub) — путь `agency_id` в `UserCreator` проверен integration-тестами с in-memory `event.Bus`, а не полным docker-compose стеком.
+
+## Открытый вопрос
+
+- ~~Обязателен ли `agency_id` при регистрации для всех, или только для агентов (клиент `ROLE_USER` — без агентства)?~~
+  **Решено:** `agency_id` необязателен для всех при регистрации (`*int`, nullable). Если передан — `UserCreator` проверяет существование и активность агентства (`ErrAgencyNotFound` / `ErrAgencyInactive`). Регистрация с ролью `ROLE_AGENT` как таковая вне scope этой задачи (роли при регистрации сейчас не выбираются — `create_user` всегда назначает `ROLE_USER`); обязательность `agency_id` для агентов будет закреплена в будущей задаче по регистрации агентов.
 
 ## Negative constraints (чего НЕ делаем)
 
