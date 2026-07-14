@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	activateagencycmd "api/internal/application/command/activate_agency"
 	createagencycmd "api/internal/application/command/create_agency"
 	createusercmd "api/internal/application/command/create_user"
 	deactivateagencycmd "api/internal/application/command/deactivate_agency"
@@ -50,6 +51,7 @@ type Container struct {
 		CreateUser       *createusercmd.Handler
 		CreateAgency     *createagencycmd.Handler
 		DeactivateAgency *deactivateagencycmd.Handler
+		ActivateAgency   *activateagencycmd.Handler
 		GetMe            *getmeq.Handler
 		SearchAirports   *searchairports.Handler
 		SyncAirports     *syncairportscmd.Handler
@@ -122,6 +124,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createUserApp := createusercmd.NewHandler(userCreator)
 	createAgencyApp := createagencycmd.NewHandler(agencyManager)
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
+	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
 
 	// Validation.
@@ -145,6 +148,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.CreateUser = createUserApp
 	c.App.CreateAgency = createAgencyApp
 	c.App.DeactivateAgency = deactivateAgencyApp
+	c.App.ActivateAgency = activateAgencyApp
 	c.App.GetMe = getMeApp
 	c.App.SearchAirports = searchAirportsApp
 	c.App.SyncAirports = syncAirportsApp

@@ -14,10 +14,9 @@ type User struct {
 	// to the domain service so the entity itself never carries credentials
 	// past UserCreator.
 	Password string
-	// AgencyID links the user to at most one agency (1 user = 1 agency).
-	// nil means the user is not affiliated with any agency (typical for
-	// ROLE_USER clients); required in practice for ROLE_AGENT.
-	AgencyID *int
+	// AgencyID links the user to exactly one agency (1 user = 1 agency).
+	// Required for every user, regardless of role.
+	AgencyID int
 }
 
 // UserRecord is a read-model returned by the persistence layer. It is

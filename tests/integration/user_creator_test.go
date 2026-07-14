@@ -22,17 +22,6 @@ type stubHasher struct{}
 func (stubHasher) Hash(p string) (string, error) { return "hashed:" + p, nil }
 func (stubHasher) Verify(_, _ string) error      { return nil }
 
-// noopAgencyRepo never expects to be queried — used for tests where
-// user.AgencyID is nil.
-type noopAgencyRepo struct{}
-
-func (noopAgencyRepo) Store(_ context.Context, _ entity.Agency) (int, error) { return 0, nil }
-func (noopAgencyRepo) FindByID(_ context.Context, _ int) (*entity.Agency, error) {
-	return nil, nil
-}
-func (noopAgencyRepo) SetStatus(_ context.Context, _ int, _ enum.AgencyStatus) error { return nil }
-func (noopAgencyRepo) Exists(_ context.Context, _ int) (bool, error)                 { return false, nil }
-
 // fakeAgencyRepo returns a fixed agency (or nil) for FindByID.
 type fakeAgencyRepo struct{ agency *entity.Agency }
 
@@ -70,11 +59,12 @@ func (b *inMemoryBus) Publish(e event.DomainEvent) error {
 func TestUserCreator_StoreReturnsNilID_ProducesError(t *testing.T) {
 	repo := &nilStoringRepo{}
 	bus := &inMemoryBus{}
-	svc := service.NewUserCreator(repo, noopAgencyRepo{}, stubHasher{}, bus)
+	active := entity.Agency{ID: 1, Status: enum.AgencyStatusActive, CreatedAt: time.Now()}
+	svc := service.NewUserCreator(repo, fakeAgencyRepo{agency: &active}, stubHasher{}, bus)
 
 	_, err := svc.Create(context.Background(), entity.User{
 		FirstName: "Ada", LastName: "Lovelace",
-		Email: "ada@example.com", Password: "secret",
+		Email: "ada@example.com", Password: "secret", AgencyID: 1,
 	})
 
 	assert.True(t, repo.called, "repository should be called")
@@ -97,19 +87,19 @@ type publishErrBus struct{}
 func (publishErrBus) Publish(_ event.DomainEvent) error { return errors.New("broker down") }
 
 func TestUserCreator_PublishFailure_PropagatesError(t *testing.T) {
-	svc := service.NewUserCreator(repoOK{}, noopAgencyRepo{}, stubHasher{}, publishErrBus{})
+	active := entity.Agency{ID: 1, Status: enum.AgencyStatusActive, CreatedAt: time.Now()}
+	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &active}, stubHasher{}, publishErrBus{})
 	_, err := svc.Create(context.Background(), entity.User{
-		Email: "a@b.c", Password: "p",
+		Email: "a@b.c", Password: "p", AgencyID: 1,
 	})
 	assert.Error(t, err)
 }
 
 func TestUserCreator_AgencyNotFound_ReturnsError(t *testing.T) {
-	agencyID := 99
 	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: nil}, stubHasher{}, &inMemoryBus{})
 
 	_, err := svc.Create(context.Background(), entity.User{
-		Email: "agent@example.com", Password: "secret", AgencyID: &agencyID,
+		Email: "agent@example.com", Password: "secret", AgencyID: 99,
 	})
 
 	assert.ErrorIs(t, err, service.ErrAgencyNotFound)
@@ -121,7 +111,7 @@ func TestUserCreator_AgencyInactive_ReturnsError(t *testing.T) {
 	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &inactive}, stubHasher{}, &inMemoryBus{})
 
 	_, err := svc.Create(context.Background(), entity.User{
-		Email: "agent@example.com", Password: "secret", AgencyID: &agencyID,
+		Email: "agent@example.com", Password: "secret", AgencyID: agencyID,
 	})
 
 	assert.ErrorIs(t, err, service.ErrAgencyInactive)
@@ -134,7 +124,7 @@ func TestUserCreator_ActiveAgency_Succeeds(t *testing.T) {
 	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &active}, stubHasher{}, bus)
 
 	id, err := svc.Create(context.Background(), entity.User{
-		Email: "agent@example.com", Password: "secret", AgencyID: &agencyID,
+		Email: "agent@example.com", Password: "secret", AgencyID: agencyID,
 	})
 
 	require.NoError(t, err)

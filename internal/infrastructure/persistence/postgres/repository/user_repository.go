@@ -74,7 +74,7 @@ func (r *UserRepository) Store(
 		Birthday:         &birthday,
 		ExtraInformation: []byte("{}"),
 		Roles:            []string{defaultRoleUser},
-		AgencyID:         intToInt32Ptr(user.AgencyID),
+		AgencyID:         intToInt32Ptr(&user.AgencyID),
 	})
 	if err != nil {
 		// Database not reachable or no row inserted — bubble up as a

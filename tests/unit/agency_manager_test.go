@@ -89,3 +89,23 @@ func TestAgencyManager_Deactivate_Exists_SetsInactiveStatus(t *testing.T) {
 	assert.Equal(t, 5, repo.setStatusID)
 	assert.Equal(t, enum.AgencyStatusInactive, repo.setStatusTo)
 }
+
+func TestAgencyManager_Activate_NotFound_ReturnsError(t *testing.T) {
+	repo := &mockAgencyRepo{existsVal: false}
+	mgr := service.NewAgencyManager(repo)
+
+	err := mgr.Activate(context.Background(), 5)
+
+	assert.ErrorIs(t, err, service.ErrAgencyNotFound)
+}
+
+func TestAgencyManager_Activate_Exists_SetsActiveStatus(t *testing.T) {
+	repo := &mockAgencyRepo{existsVal: true}
+	mgr := service.NewAgencyManager(repo)
+
+	err := mgr.Activate(context.Background(), 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, repo.setStatusID)
+	assert.Equal(t, enum.AgencyStatusActive, repo.setStatusTo)
+}

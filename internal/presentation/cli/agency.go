@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	activateagency "api/internal/application/command/activate_agency"
 	createagency "api/internal/application/command/create_agency"
 	deactivateagency "api/internal/application/command/deactivate_agency"
 
@@ -16,13 +17,19 @@ import (
 //
 //	app agency create --name "<name>"
 //	app agency deactivate --id <id>
-func NewAgencyCommand(createUC createagency.UseCase, deactivateUC deactivateagency.UseCase) *cobra.Command {
+//	app agency activate --id <id>
+func NewAgencyCommand(
+	createUC createagency.UseCase,
+	deactivateUC deactivateagency.UseCase,
+	activateUC activateagency.UseCase,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agency",
 		Short: "Manage travel agencies",
 	}
 	cmd.AddCommand(newAgencyCreateCommand(createUC))
 	cmd.AddCommand(newAgencyDeactivateCommand(deactivateUC))
+	cmd.AddCommand(newAgencyActivateCommand(activateUC))
 	return cmd
 }
 
@@ -64,6 +71,28 @@ func newAgencyDeactivateCommand(uc deactivateagency.UseCase) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully deactivated! id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&id, "id", 0, "Agency id")
+	return cmd
+}
+
+func newAgencyActivateCommand(uc activateagency.UseCase) *cobra.Command {
+	var id int
+
+	cmd := &cobra.Command{
+		Use:   "activate",
+		Short: "Activate an existing agency",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if id <= 0 {
+				return errors.New("--id is required")
+			}
+			if _, err := uc.Handle(cmd.Context(), activateagency.Command{ID: id}); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully activated! id=%d\n", id)
 			return nil
 		},
 	}

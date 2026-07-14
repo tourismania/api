@@ -57,6 +57,15 @@ func (m *AgencyManager) Create(ctx context.Context, name string) (entity.Agency,
 
 // Deactivate transitions an agency to the inactive status.
 func (m *AgencyManager) Deactivate(ctx context.Context, id int) error {
+	return m.setStatus(ctx, id, enum.AgencyStatusInactive)
+}
+
+// Activate transitions an agency back to the active status.
+func (m *AgencyManager) Activate(ctx context.Context, id int) error {
+	return m.setStatus(ctx, id, enum.AgencyStatusActive)
+}
+
+func (m *AgencyManager) setStatus(ctx context.Context, id int, status enum.AgencyStatus) error {
 	exists, err := m.agencies.Exists(ctx, id)
 	if err != nil {
 		return fmt.Errorf("check agency existence: %w", err)
@@ -65,8 +74,8 @@ func (m *AgencyManager) Deactivate(ctx context.Context, id int) error {
 		return ErrAgencyNotFound
 	}
 
-	if err := m.agencies.SetStatus(ctx, id, enum.AgencyStatusInactive); err != nil {
-		return fmt.Errorf("deactivate agency: %w", err)
+	if err := m.agencies.SetStatus(ctx, id, status); err != nil {
+		return fmt.Errorf("set agency status: %w", err)
 	}
 	return nil
 }

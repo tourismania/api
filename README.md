@@ -93,9 +93,14 @@ go run ./cmd/cli agency create --name "Acme Travel"
 go run ./cmd/cli agency deactivate --id 1
 # → Agency successfully deactivated! id=1
 
+# Активировать агентство обратно (status → active)
+go run ./cmd/cli agency activate --id 1
+# → Agency successfully activated! id=1
+
 # production
 docker compose exec tourismania_app /app/cli agency create --name "Acme Travel"
 docker compose exec tourismania_app /app/cli agency deactivate --id 1
+docker compose exec tourismania_app /app/cli agency activate --id 1
 ```
 
 ## Endpoints
@@ -103,7 +108,7 @@ docker compose exec tourismania_app /app/cli agency deactivate --id 1
 | Метод | Путь             | Доступ | Описание                         |
 | ----- |------------------|--------| -------------------------------- |
 | POST  | /api/login       | public | Логин, возвращает JWT            |
-| POST  | /api/v1/users    | JWT    | Создание пользователя (опционально `agency_id` — привязка к агентству) |
+| POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
 | GET   | /api/doc         | public | Swagger UI                       |

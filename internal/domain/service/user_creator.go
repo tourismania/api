@@ -41,21 +41,19 @@ func NewUserCreator(
 // transactional outbox / retry at a higher level. If you later add an
 // outbox, replace the direct Publish here.
 //
-// When user.AgencyID is set, the referenced agency must exist and be
-// active (1 user = 1 agency); registration without an agency remains
-// valid for ROLE_USER clients.
+// user.AgencyID is required (1 user = 1 agency): the referenced agency
+// must exist and be active, or Create fails with ErrAgencyNotFound /
+// ErrAgencyInactive.
 func (s *UserCreator) Create(ctx context.Context, user entity.User) (int, error) {
-	if user.AgencyID != nil {
-		agency, err := s.agencies.FindByID(ctx, *user.AgencyID)
-		if err != nil {
-			return 0, fmt.Errorf("find agency: %w", err)
-		}
-		if agency == nil {
-			return 0, ErrAgencyNotFound
-		}
-		if !agency.IsActive() {
-			return 0, ErrAgencyInactive
-		}
+	agency, err := s.agencies.FindByID(ctx, user.AgencyID)
+	if err != nil {
+		return 0, fmt.Errorf("find agency: %w", err)
+	}
+	if agency == nil {
+		return 0, ErrAgencyNotFound
+	}
+	if !agency.IsActive() {
+		return 0, ErrAgencyInactive
 	}
 
 	hash, err := s.hasher.Hash(user.Password)

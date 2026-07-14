@@ -9,7 +9,7 @@ type Command struct {
 	LastName  string
 	Email     string
 	Password  string
-	// AgencyID optionally links the new user to an existing, active
-	// agency (1 user = 1 agency). nil means no agency affiliation.
-	AgencyID *int
+	// AgencyID links the new user to an existing, active agency
+	// (1 user = 1 agency). Required for every registration.
+	AgencyID int
 }
