@@ -138,6 +138,8 @@ tests/
 
 ## Testing Strategy
 
+Тестирование и отладку запускать внутри docker контейнеров
+
 ### Framework and Tools
 
 - **Test framework:** `go test` (стандартная библиотека)
