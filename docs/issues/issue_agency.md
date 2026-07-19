@@ -27,6 +27,7 @@
   - `agency create --name "<name>"` → `AgencyManager.Create` (генерирует `uuid`, `created_at`, `status=active`), печатает `id`/`uuid`.
   - `agency deactivate --id <id>` → `AgencyManager.Deactivate` (`SetStatus(id, inactive)`).
   - `agency activate --id <id>` → `AgencyManager.Activate` (`SetStatus(id, active)`).
+  - Единый стандарт именования команд `<ресурс> <действие>` (см. review [#4730807556](https://github.com/tourismania/api/pull/13#pullrequestreview-4730807556)): бывший `create-user` переименован в `user create --agency-id <id>`, зафиксировано в `CLAUDE.md`/`README.md`.
 - Регистрация пользователя (§6.3): `create_user` принимает `agency_id`:
   - `.../user/create/dto.go` — поле `agency_id` (`int`, `validate:"required,gt=0"`).
   - `application/command/create_user/{command,handler}.go` — прокинуть `AgencyID` (обязательное поле).
@@ -34,8 +35,8 @@
   - `repository/user_repository.go` + `queries/users.sql` — писать/читать `agency_id`.
 - Миграции (1 действие = 1 миграция; таблица + её индексы вместе):
   - `012_create_agencies` — таблица `agencies (id, uuid UNIQUE, name, status DEFAULT 'active', created_at, deleted_at NULL)`.
-  - `013_add_users_agency` — `ALTER TABLE users ADD COLUMN agency_id INT NULL REFERENCES agencies(id)`. Колонка остаётся `NULL` на уровне БД, чтобы не ломать миграцию для уже существующих строк `users` (таблица существовала до этой задачи); обязательность `agency_id` обеспечивается на уровне приложения (`domain`/`dto`), см. «Открытый вопрос» ниже и тех.долг.
-  - `014_seed_agencies` — 1–2 демо-агентства (seed, отдельной миграцией).
+  - `013_seed_agencies` — сеет два агентства: `ДЕМО` и `ТУРИЗМАНИЯ`. Выполняется **до** `014`, чтобы `id` агентства `ТУРИЗМАНИЯ` уже существовал на момент backfill'а.
+  - `014_add_users_agency` — `ALTER TABLE users ADD COLUMN agency_id INT NULL REFERENCES agencies(id)`, затем `UPDATE users SET agency_id = (SELECT id FROM agencies WHERE name = 'ТУРИЗМАНИЯ') WHERE agency_id IS NULL` (id ищется по имени, а не хардкодится и не проставляется через DB-level `DEFAULT`), затем `ALTER COLUMN agency_id SET NOT NULL`. Колонка **не** остаётся `NULL`-able — см. пересмотр в «Открытый вопрос» ниже.
 - Тесты: unit (`AgencyManager`, инварианты `Agency`/`AgencyStatus`), integration (`AgencyRepository`: Store/SetStatus/FindByID), application (регистрация с `agency_id`).
 - Docs: `README.md` — раздел **CLI** (новые команды); при вопросах «зачем/почему» — `FAQ.md`; новые ENV (если появятся) — `.env.example`.
 
@@ -60,7 +61,8 @@
 
 - ~~Обязателен ли `agency_id` при регистрации для всех, или только для агентов (клиент `ROLE_USER` — без агентства)?~~
   **Решено (пересмотрено по итогам review [#4698705993](https://github.com/tourismania/api/pull/13#pullrequestreview-4698705993)):** `agency_id` обязателен для каждого пользователя вне зависимости от роли — `int`, не `*int`, `validate:"required,gt=0"` в DTO. `UserCreator.Create` всегда проверяет существование и активность агентства (`ErrAgencyNotFound` / `ErrAgencyInactive`). Роли при регистрации сейчас не выбираются — `create_user` всегда назначает `ROLE_USER`; выбор роли `ROLE_AGENT` остаётся вне scope этой задачи и будет закреплён в будущей задаче по регистрации агентов.
-  На уровне БД колонка `users.agency_id` осталась `NULL`-able (см. заметку у миграции `013`) — см. тех.долг `docs/tech_debt/tasks.md` про будущий backfill + `NOT NULL`.
+- ~~Оставлять ли `users.agency_id` `NULL`-able на уровне БД?~~
+  **Решено (пересмотрено по итогам review [#4730807556](https://github.com/tourismania/api/pull/13#pullrequestreview-4730807556)):** нет, колонка `NOT NULL`. Миграции `013_seed_agencies`/`014_add_users_agency` сеют агентства `ДЕМО` и `ТУРИЗМАНИЯ`, backfill'ят все существующие строки `users` на `ТУРИЗМАНИЯ` (поиск `id` по имени, без хардкода и без DB-level `DEFAULT`) и затем ставят `SET NOT NULL`. Ранее заведённая запись в тех.долге про nullable-колонку снята как реализованная — см. `docs/tech_debt/tasks.md`.
 
 ## Negative constraints (чего НЕ делаем)
 

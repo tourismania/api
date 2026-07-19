@@ -51,13 +51,15 @@ docker compose up
 
 ## CLI
 
+**Конвенция именования:** все команды следуют паттерну `<ресурс> <действие>` (например `user create`, `agency create`) — единый стандарт для всех CLI-команд проекта, вместо разрозненного `<действие>-<ресурс>`.
+
 ```bash
 # локально
-go run ./cmd/cli create-user "Ada" "Lovelace" ada@example.com secret
+go run ./cmd/cli user create "Ada" "Lovelace" ada@example.com secret --agency-id 1
 # → User successfully generated! id=1
 
 # production
-docker compose exec tourismania_app /app/cli create-user "first_name" "last_name" email@example.com password
+docker compose exec tourismania_app /app/cli user create "first_name" "last_name" email@example.com password --agency-id 1
 ```
 
 ### sync-airports
@@ -183,7 +185,7 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 
 1. docker compose up -d — поднять dev-стек (server через air на 2345, БД, Kafka).
 2. В отдельном терминале: make debug-cli cmd="sync-airports --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
-3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/sync_airports.go (или create_user.go) должны сработать.
+3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/sync_airports.go (или user.go) должны сработать.
 4. Завершить сессию — Ctrl+C в терминале с make debug-cli, порт 2346 освободится для следующего запуска.
 
 ---
@@ -200,7 +202,7 @@ CLI (`cmd/cli`) запускается локально, без Docker.
 |------|----------|
 | Run kind | `File` |
 | Files | `cmd/cli/main.go` |
-| Program arguments | `create-user "Ada" "Lovelace" ada@example.com secret` |
+| Program arguments | `user create "Ada" "Lovelace" ada@example.com secret --agency-id 1` |
 
 Поставить точку остановки → нажать **Debug**.
 
@@ -208,7 +210,7 @@ CLI (`cmd/cli`) запускается локально, без Docker.
 
 ```bash
 # dlv сам компилирует с нужными флагами и запускает
-dlv debug ./cmd/cli -- create-user "Ada" "Lovelace" ada@example.com secret
+dlv debug ./cmd/cli -- user create "Ada" "Lovelace" ada@example.com secret --agency-id 1
 ```
 
 Внутри интерактивной сессии dlv:

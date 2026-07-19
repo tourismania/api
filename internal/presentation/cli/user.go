@@ -3,7 +3,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -12,14 +11,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewCreateUserCommand returns the `create-user` cobra command.
+// NewUserCommand returns the `user` cobra command group.
 //
 // Usage:
 //
-//	app create-user <firstName> <lastName> <email> <password>
-func NewCreateUserCommand(uc createuser.UseCase) *cobra.Command {
-	return &cobra.Command{
-		Use:   "create-user <firstName> <lastName> <email> <password>",
+//	app user create <firstName> <lastName> <email> <password>
+func NewUserCommand(createUC createuser.UseCase) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "user",
+		Short: "Manage users",
+	}
+	cmd.AddCommand(newUserCreateCommand(createUC))
+	return cmd
+}
+
+func newUserCreateCommand(uc createuser.UseCase) *cobra.Command {
+	var agencyID int
+
+	cmd := &cobra.Command{
+		Use:   "create <firstName> <lastName> <email> <password>",
 		Short: "Create a new user",
 		Args:  cobra.ExactArgs(4),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -27,11 +37,15 @@ func NewCreateUserCommand(uc createuser.UseCase) *cobra.Command {
 			if email == "" || password == "" {
 				return errors.New("email and password are required")
 			}
-			res, err := uc.Handle(context.Background(), createuser.Command{
+			if agencyID <= 0 {
+				return errors.New("--agency-id is required")
+			}
+			res, err := uc.Handle(cmd.Context(), createuser.Command{
 				FirstName: firstName,
 				LastName:  lastName,
 				Email:     email,
 				Password:  password,
+				AgencyID:  agencyID,
 			})
 			if err != nil {
 				return err
@@ -40,4 +54,6 @@ func NewCreateUserCommand(uc createuser.UseCase) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().IntVar(&agencyID, "agency-id", 0, "Agency id (required)")
+	return cmd
 }

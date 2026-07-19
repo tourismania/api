@@ -29,5 +29,5 @@ type UserRecord struct {
 	FirstName string
 	LastName  string
 	Roles     []string
-	AgencyID  *int
+	AgencyID  int
 }

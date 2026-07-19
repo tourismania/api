@@ -28,7 +28,7 @@ type CreateUserParams struct {
 	Birthday         *time.Time
 	ExtraInformation []byte
 	Roles            []string
-	AgencyID         *int32
+	AgencyID         int32
 }
 
 // CreateUser inserts a row and returns the generated id.

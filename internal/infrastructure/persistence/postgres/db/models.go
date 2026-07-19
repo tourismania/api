@@ -24,7 +24,7 @@ type User struct {
 	Birthday         *time.Time
 	ExtraInformation []byte
 	Roles            []string
-	AgencyID         *int32
+	AgencyID         int32
 }
 
 // Agency is the sqlc-style row representation of the agencies table.
