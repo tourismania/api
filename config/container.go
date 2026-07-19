@@ -125,7 +125,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createAgencyApp := createagencycmd.NewHandler(agencyManager)
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
-	getMeApp := getmeq.NewHandler(userRepo, rightsDescriber)
+	getMeApp := getmeq.NewHandler(userRepo, agencyRepo, rightsDescriber)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())

@@ -62,7 +62,7 @@ go run ./cmd/cli user create "Ada" "Lovelace" ada@example.com secret --agency-id
 docker compose exec tourismania_app /app/cli user create "first_name" "last_name" email@example.com password --agency-id 1
 ```
 
-### sync-airports
+### airports
 
 Синхронизирует аэропорты, города и страны из внешних источников в БД.
 Загружает данные из [mwgg/Airports](https://github.com/mwgg/Airports) (GitHub JSON)
@@ -73,13 +73,13 @@ docker compose exec tourismania_app /app/cli user create "first_name" "last_name
 
 ```bash
 # Preview без записи в БД
-go run ./cmd/cli sync-airports --dry-run
+go run ./cmd/cli airports sync --dry-run
 
 # Полная синхронизация (запускать раз в месяц)
-go run ./cmd/cli sync-airports
+go run ./cmd/cli airports sync
 
 # production
-docker compose exec tourismania_app /app/cli sync-airports
+docker compose exec tourismania_app /app/cli airports sync
 ```
 
 ### agency
@@ -184,8 +184,8 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 Как отлаживать CLI:
 
 1. docker compose up -d — поднять dev-стек (server через air на 2345, БД, Kafka).
-2. В отдельном терминале: make debug-cli cmd="sync-airports --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
-3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/sync_airports.go (или user.go) должны сработать.
+2. В отдельном терминале: make debug-cli cmd="airports sync --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
+3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/airports.go (или user.go) должны сработать.
 4. Завершить сессию — Ctrl+C в терминале с make debug-cli, порт 2346 освободится для следующего запуска.
 
 ---

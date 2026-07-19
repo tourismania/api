@@ -6,16 +6,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewSyncAirportsCommand returns the `sync-airports` cobra command.
+// NewAirportsCommand returns the `airports` cobra command group.
 //
 // Usage:
 //
-//	app sync-airports [--dry-run]
-func NewSyncAirportsCommand(uc syncairports.UseCase) *cobra.Command {
+//	app airports sync [--dry-run]
+func NewAirportsCommand(syncUC syncairports.UseCase) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "airports",
+		Short: "Manage the airports/cities/countries reference data",
+	}
+	cmd.AddCommand(newAirportsSyncCommand(syncUC))
+	return cmd
+}
+
+func newAirportsSyncCommand(uc syncairports.UseCase) *cobra.Command {
 	var dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "sync-airports",
+		Use:   "sync",
 		Short: "Sync airports, cities, and countries from external sources (mwgg + Wikidata)",
 		Long: `Downloads the full airports dataset from github.com/mwgg/Airports and
 enriches it with Russian-language names via Wikidata SPARQL.

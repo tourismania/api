@@ -56,6 +56,8 @@
 - `db/` (sqlc-shaped код) в этом проекте **не генерируется** реальным `sqlc generate` — файлы поддерживаются вручную в стиле, который sqlc произвёл бы (см. комментарий в `db.go`). `agencies.sql.go` и правки `users.sql.go` сделаны тем же способом; `queries/*.sql` остаются источником истины для схемы запроса.
 - HTTP-хендлер `create_user` возвращает `400` (не `500`) на `ErrAgencyNotFound`/`ErrAgencyInactive` — это ошибки валидации входных данных, а не внутреннего состояния.
 - Kafka недоступна в среде разработки для сквозной проверки (`bitnami/kafka:3.7` снят с Docker Hub) — путь `agency_id` в `UserCreator` проверен integration-тестами с in-memory `event.Bus`, а не полным docker-compose стеком.
+- По итогам review [#4730807556](https://github.com/tourismania/api/pull/13#pullrequestreview-4730807556): `GET /api/v1/users/me` теперь возвращает `agency` (`id`, `uuid`, `name`) — `getme.Handler` получил порт `AgencyFinder` (переиспользует `AgencyRepository.FindByID`), `Result`/`GetMeResponse` расширены полем `Agency`.
+- Заодно унифицирован под `<ресурс> <действие>` и CLI `sync-airports`, пропущенный в первом проходе переименования: теперь `airports sync` (`internal/presentation/cli/airports.go`).
 
 ## Открытый вопрос
 

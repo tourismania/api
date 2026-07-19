@@ -39,7 +39,7 @@ func run() error {
 		SilenceErrors: false,
 	}
 	root.AddCommand(clicmd.NewUserCommand(container.App.CreateUser))
-	root.AddCommand(clicmd.NewSyncAirportsCommand(container.App.SyncAirports))
+	root.AddCommand(clicmd.NewAirportsCommand(container.App.SyncAirports))
 	root.AddCommand(clicmd.NewAgencyCommand(container.App.CreateAgency, container.App.DeactivateAgency, container.App.ActivateAgency))
 	return root.Execute()
 }
