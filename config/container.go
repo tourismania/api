@@ -12,10 +12,15 @@ import (
 
 	activateagencycmd "api/internal/application/command/activate_agency"
 	createagencycmd "api/internal/application/command/create_agency"
+	createoffercmd "api/internal/application/command/create_offer"
 	createusercmd "api/internal/application/command/create_user"
 	deactivateagencycmd "api/internal/application/command/deactivate_agency"
+	deleteoffercmd "api/internal/application/command/delete_offer"
 	syncairportscmd "api/internal/application/command/sync_airports"
+	updateoffercmd "api/internal/application/command/update_offer"
 	getmeq "api/internal/application/query/get_me"
+	getofferq "api/internal/application/query/get_offer"
+	getoffersq "api/internal/application/query/get_offers"
 	searchairports "api/internal/application/query/search_airports"
 	"api/internal/domain/factory"
 	"api/internal/domain/service"
@@ -30,6 +35,12 @@ import (
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
+	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
+	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
+	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
+	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -45,6 +56,9 @@ type Container struct {
 	Kafka    *kafka.Producer
 	JWT      *auth.Service
 	Validate *validator.Validate
+	// Users resolves the authenticated principal for
+	// custommw.CurrentUserMiddleware — reused by get_me and offers.
+	Users custommw.UserFinder
 
 	// App groups application-layer use-case handlers (write + read sides).
 	App struct {
@@ -55,14 +69,24 @@ type Container struct {
 		GetMe            *getmeq.Handler
 		SearchAirports   *searchairports.Handler
 		SyncAirports     *syncairportscmd.Handler
+		CreateOffer      *createoffercmd.Handler
+		UpdateOffer      *updateoffercmd.Handler
+		DeleteOffer      *deleteoffercmd.Handler
+		GetOffer         *getofferq.Handler
+		GetOffers        *getoffersq.Handler
 	}
 
 	// Http groups presentation-layer HTTP handlers.
 	Http struct {
-		Login      *loginhttp.Handler
-		CreateUser *createuserhttp.Handler
-		GetMe      *getmehttp.Handler
-		Airports   *searchairporthttp.Handler
+		Login       *loginhttp.Handler
+		CreateUser  *createuserhttp.Handler
+		GetMe       *getmehttp.Handler
+		Airports    *searchairporthttp.Handler
+		CreateOffer *createofferhttp.Handler
+		GetOffer    *getofferhttp.Handler
+		GetOffers   *listoffershttp.Handler
+		UpdateOffer *updateofferhttp.Handler
+		DeleteOffer *deleteofferhttp.Handler
 	}
 }
 
@@ -103,6 +127,10 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	rightsFactory := factory.NewRightsDescribeFactory()
 	rightsDescriber := service.NewRightsDescriber(rightsFactory)
 
+	// Offer domain wiring.
+	offerRepo := pgrepo.NewOfferRepository(queries)
+	offerManager := service.NewOfferManager(offerRepo, agencyRepo)
+
 	// Airport domain wiring.
 	airportRepo := pgrepo.NewAirportRepository(queries, pool)
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
@@ -126,6 +154,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, agencyRepo, rightsDescriber)
+	createOfferApp := createoffercmd.NewHandler(offerManager)
+	updateOfferApp := updateoffercmd.NewHandler(offerManager)
+	deleteOfferApp := deleteoffercmd.NewHandler(offerManager)
+	getOfferApp := getofferq.NewHandler(offerRepo)
+	getOffersApp := getoffersq.NewHandler(offerRepo)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -135,6 +168,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp, getmehttp.NewResolver())
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
+	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
+	getOfferH := getofferhttp.NewHandler(getOfferApp)
+	getOffersH := listoffershttp.NewHandler(getOffersApp, validate)
+	updateOfferH := updateofferhttp.NewHandler(updateOfferApp, validate)
+	deleteOfferH := deleteofferhttp.NewHandler(deleteOfferApp)
 
 	c := &Container{
 		Cfg:      cfg,
@@ -143,6 +181,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 		Kafka:    producer,
 		JWT:      jwtSvc,
 		Validate: validate,
+		Users:    userRepo,
 	}
 
 	c.App.CreateUser = createUserApp
@@ -152,11 +191,21 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.GetMe = getMeApp
 	c.App.SearchAirports = searchAirportsApp
 	c.App.SyncAirports = syncAirportsApp
+	c.App.CreateOffer = createOfferApp
+	c.App.UpdateOffer = updateOfferApp
+	c.App.DeleteOffer = deleteOfferApp
+	c.App.GetOffer = getOfferApp
+	c.App.GetOffers = getOffersApp
 
 	c.Http.Login = loginH
 	c.Http.CreateUser = createUserH
 	c.Http.GetMe = getMeH
 	c.Http.Airports = airportsH
+	c.Http.CreateOffer = createOfferH
+	c.Http.GetOffer = getOfferH
+	c.Http.GetOffers = getOffersH
+	c.Http.UpdateOffer = updateOfferH
+	c.Http.DeleteOffer = deleteOfferH
 
 	return c, nil
 }

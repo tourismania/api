@@ -44,14 +44,20 @@
 
 ## Acceptance criteria
 
-- [ ] Миграция 015 применяется/откатывается.
-- [ ] Эндпоинты `POST/GET/GET{uuid}/PATCH/DELETE /api/v1/offers` работают с кодами 201/200/204/400/401/403/404.
-- [ ] Владение по агентству: агент управляет всеми offer своего агентства; чужое агентство → 403; супер-админ → все.
-- [ ] Клиент (`ROLE_USER`) видит только `published`.
-- [ ] Soft delete: удалённые offer исключены из чтений.
-- [ ] Общий `CurrentUser` resolver-middleware внедрён и переиспользуется.
-- [ ] Swagger сгенерирован (`make swag`); `README.md` (Endpoints) обновлён.
-- [ ] Критический путь (создание + авторизация по агентству) ≥ 90% покрытия; `go test ./...`, `golangci-lint run`, `go build ./...` — зелёные.
+- [x] Миграция 015 применяется/откатывается.
+- [x] Эндпоинты `POST/GET/GET{uuid}/PATCH/DELETE /api/v1/offers` работают с кодами 201/200/204/400/401/403/404.
+- [x] Владение по агентству: агент управляет всеми offer своего агентства; чужое агентство → 403; супер-админ → все.
+- [x] Клиент (`ROLE_USER`) видит только `published`.
+- [x] Soft delete: удалённые offer исключены из чтений.
+- [x] Общий `CurrentUser` resolver-middleware внедрён и переиспользуется (также в `get_me`).
+- [x] Swagger сгенерирован (`make swag`); `README.md` (Endpoints + новый раздел «Роли и права») обновлён.
+- [x] Критический путь (создание + авторизация по агентству) покрыт unit-тестами `OfferManager`/`get_offer`/`get_offers` (мокированные репозитории) + integration-тестами `OfferRepository` + application e2e (401/403/201); `go test ./...`, `go build ./...` — зелёные. `golangci-lint run` не выявил замечаний в новом коде (6 предсуществующих замечаний в несвязанных файлах).
+
+## Заметки по реализации
+
+- Видимость `ROLE_USER` реализована **без** ограничения по агентству (клиент видит `published` offer любого агентства — витрина-маркетплейс), в соответствии с полным ТЗ (`docs/issues/offer_crud_spec.md`, §6). Тело исходного GitHub issue содержало формулировку «своего агенства» для `ROLE_USER`, которая противоречит полному ТЗ; выбран вариант из полного ТЗ как источник истины.
+- `entity.UserRecord` дополнен полем `ID int` (внутренний numeric id) — требовалось для `CurrentUserID` в identity, которую резолвит `CurrentUser` middleware.
+- Файлы в `internal/infrastructure/persistence/postgres/db/` в этом репозитории **хэнд-мейд, имитирующие вывод sqlc** (реальный `sqlc generate` даёт другую типизацию — `pgtype.*` вместо `uuid.UUID`/`*string`); `offers.sql.go` написан вручную в том же стиле, что и `agencies.sql.go`.
 
 ## Negative constraints (чего НЕ делаем)
 

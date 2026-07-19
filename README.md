@@ -113,8 +113,15 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 | POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
+| POST  | /api/v1/offers   | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN | Создать offer (agency_id выводится из агентства текущего агента) |
+| GET   | /api/v1/offers   | JWT    | Список offer (пагинация + фильтры); видимость по роли — см. ниже |
+| GET   | /api/v1/offers/{uuid} | JWT | Получить один offer; видимость по роли — см. ниже |
+| PATCH | /api/v1/offers/{uuid} | JWT, агент своего агентства или ROLE_SUPER_ADMIN | Частичное обновление offer (title/description/status) |
+| DELETE| /api/v1/offers/{uuid} | JWT, агент своего агентства или ROLE_SUPER_ADMIN | Soft delete offer |
 | GET   | /api/doc         | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
+
+**Видимость offer (read-side):** `ROLE_SUPER_ADMIN` — все offer; `ROLE_AGENT` — все offer своего агентства (любой статус, фильтр `agency_id` всегда принудительно выставляется в собственное агентство); остальные аутентифицированные пользователи — только `status=published`, без ограничения по агентству (витрина-маркетплейс).
 
 ## Отладка (Debugger)
 
@@ -241,6 +248,20 @@ migrate -path=./migrations -database "postgres://root:qwerty123@localhost:5432/t
 ```bash
 make jwt-keys # генерация ключей
 ```
+
+## Роли и права
+
+Роль хранится в `users.roles` (массив) и восстанавливается на каждый запрос через общий resolver-middleware `CurrentUser` (по `Claims.Subject` из JWT), а не из самого токена — так отозванные/изменённые права применяются немедленно, без переиздания токена.
+
+| Роль               | Offers: создание/изменение/удаление | Offers: чтение |
+|--------------------|--------------------------------------|-----------------|
+| `ROLE_SUPER_ADMIN` | Любой offer, любого агентства | Любой offer |
+| `ROLE_AGENT`       | Только offer своего агентства (`offer.agency_id == user.agency_id`); чужое агентство → `403` | Любой offer своего агентства (черновик и опубликованный) + опубликованные offer любых агентств |
+| `ROLE_USER`        | Недоступно (`403` на write-эндпоинты) | Только `status = published`, любого агентства (витрина-маркетплейс) |
+
+- Владение по агентству — жёстко привязано к `AgencyID` пользователя (1 пользователь = 1 агентство), не к `CreatedBy` (тот — только аудит).
+- `agency_id` при создании offer никогда не берётся из тела запроса — только из агентства текущего агента.
+- Guard `RequireRole(...)` (мидлварь) проверяет принадлежность к роли на границе HTTP; проверку владения агентством выполняет доменный `OfferManager`.
 
 ## Тесты
 

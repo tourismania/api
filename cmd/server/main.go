@@ -56,7 +56,13 @@ func run() error {
 		CreateUser:         container.Http.CreateUser,
 		GetMe:              container.Http.GetMe,
 		Airports:           container.Http.Airports,
+		CreateOffer:        container.Http.CreateOffer,
+		GetOffer:           container.Http.GetOffer,
+		GetOffers:          container.Http.GetOffers,
+		UpdateOffer:        container.Http.UpdateOffer,
+		DeleteOffer:        container.Http.DeleteOffer,
 		JWT:                container.JWT,
+		Users:              container.Users,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 		RateLimit:          cfg.RateLimit.RequestsPerMinute,
 	}

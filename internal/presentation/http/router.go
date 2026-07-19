@@ -7,9 +7,15 @@ import (
 	"net/http"
 	"time"
 
+	"api/internal/domain/enum"
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
+	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
+	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
+	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -23,11 +29,19 @@ import (
 // Server holds every HTTP-layer dependency and builds the final handler.
 // It is the single place that knows the URL → handler mapping — easy to audit.
 type Server struct {
-	Login      *loginhttp.Handler
-	CreateUser *createuserhttp.Handler
-	GetMe      *getmehttp.Handler
-	Airports   *searchairporthttp.Handler
-	JWT        *auth.Service
+	Login       *loginhttp.Handler
+	CreateUser  *createuserhttp.Handler
+	GetMe       *getmehttp.Handler
+	Airports    *searchairporthttp.Handler
+	CreateOffer *createofferhttp.Handler
+	GetOffer    *getofferhttp.Handler
+	GetOffers   *listoffershttp.Handler
+	UpdateOffer *updateofferhttp.Handler
+	DeleteOffer *deleteofferhttp.Handler
+	JWT         *auth.Service
+	// Users resolves the authenticated principal (id/agency/roles) for
+	// custommw.CurrentUserMiddleware — reused by get_me and offers.
+	Users custommw.UserFinder
 
 	// RateLimit is the per-IP cap in requests per minute for the airports endpoint.
 	RateLimit int
@@ -84,6 +98,9 @@ func (s Server) Build() http.Handler {
 	// Versioned, JWT-guarded API surface.
 	r.With(limiter.Handler).Route("/api/v1", func(api chi.Router) {
 		api.Use(custommw.JWT(s.JWT))
+		// Resolves the full principal (id/agency/roles) once per request;
+		// reused by get_me and every offers endpoint below.
+		api.Use(custommw.CurrentUserMiddleware(s.Users))
 
 		// Users
 		api.Post("/users", s.CreateUser.Handle)
@@ -91,6 +108,16 @@ func (s Server) Build() http.Handler {
 
 		// Airports
 		api.Get("/airports", s.Airports.Handle)
+
+		// Offers
+		agentOrAdmin := custommw.RequireRole(enum.RoleAgent, enum.RoleSuperAdmin)
+		api.Route("/offers", func(offers chi.Router) {
+			offers.With(agentOrAdmin).Post("/", s.CreateOffer.Handle)
+			offers.Get("/", s.GetOffers.Handle)
+			offers.Get("/{uuid}", s.GetOffer.Handle)
+			offers.With(agentOrAdmin).Patch("/{uuid}", s.UpdateOffer.Handle)
+			offers.With(agentOrAdmin).Delete("/{uuid}", s.DeleteOffer.Handle)
+		})
 	})
 
 	// Liveness/readiness.

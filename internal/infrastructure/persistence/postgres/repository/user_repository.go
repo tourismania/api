@@ -100,6 +100,7 @@ func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entit
 		return nil, fmt.Errorf("find user by uuid: %w", err)
 	}
 	return &entity.UserRecord{
+		ID:        int(u.ID),
 		Uuid:      u.Uuid,
 		Email:     u.Email,
 		Phone:     derefStr(u.Phone),
