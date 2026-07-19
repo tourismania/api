@@ -31,6 +31,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		LastName:  cmd.LastName,
 		Email:     cmd.Email,
 		Password:  cmd.Password,
+		AgencyID:  cmd.AgencyID,
 	})
 	if err != nil {
 		return Result{}, err

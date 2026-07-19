@@ -58,5 +58,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		FirstName: res.FirstName,
 		LastName:  res.LastName,
 		Rights:    Rights{IsSuperAdmin: res.Rights.IsSuperAdmin},
+		Agency: Agency{
+			ID:   res.Agency.ID,
+			Uuid: res.Agency.UUID,
+			Name: res.Agency.Name,
+		},
 	})
 }

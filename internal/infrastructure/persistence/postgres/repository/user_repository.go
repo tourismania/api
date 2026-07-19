@@ -74,6 +74,7 @@ func (r *UserRepository) Store(
 		Birthday:         &birthday,
 		ExtraInformation: []byte("{}"),
 		Roles:            []string{defaultRoleUser},
+		AgencyID:         int32(user.AgencyID),
 	})
 	if err != nil {
 		// Database not reachable or no row inserted — bubble up as a
@@ -105,6 +106,7 @@ func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entit
 		FirstName: derefStr(u.FirstName),
 		LastName:  derefStr(u.LastName),
 		Roles:     u.Roles,
+		AgencyID:  int(u.AgencyID),
 	}, nil
 }
 

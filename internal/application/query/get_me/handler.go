@@ -21,15 +21,21 @@ type UserFinder interface {
 	FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error)
 }
 
+// AgencyFinder is the read-port for fetching the agency a user belongs to.
+type AgencyFinder interface {
+	FindByID(ctx context.Context, id int) (*entity.Agency, error)
+}
+
 // Handler fetches the full user profile from the DB and derives rights.
 type Handler struct {
 	users           UserFinder
+	agencies        AgencyFinder
 	rightsDescriber *service.RightsDescriber
 }
 
 // NewHandler constructs the handler.
-func NewHandler(users UserFinder, rightsDescriber *service.RightsDescriber) *Handler {
-	return &Handler{users: users, rightsDescriber: rightsDescriber}
+func NewHandler(users UserFinder, agencies AgencyFinder, rightsDescriber *service.RightsDescriber) *Handler {
+	return &Handler{users: users, agencies: agencies, rightsDescriber: rightsDescriber}
 }
 
 // Handle satisfies UseCase.
@@ -38,6 +44,15 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("get user: %w", err)
 	}
+
+	agency, err := h.agencies.FindByID(ctx, user.AgencyID)
+	if err != nil {
+		return Result{}, fmt.Errorf("get agency: %w", err)
+	}
+	if agency == nil {
+		return Result{}, fmt.Errorf("get agency: agency %d not found", user.AgencyID)
+	}
+
 	rights := h.rightsDescriber.ByRoles(user.Roles)
 	return Result{
 		Uuid:      user.Uuid,
@@ -46,5 +61,10 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Rights:    rights,
+		Agency: Agency{
+			ID:   agency.ID,
+			UUID: agency.UUID,
+			Name: agency.Name,
+		},
 	}, nil
 }

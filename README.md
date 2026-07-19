@@ -51,16 +51,18 @@ docker compose up
 
 ## CLI
 
+**Конвенция именования:** все команды следуют паттерну `<ресурс> <действие>` (например `user create`, `agency create`) — единый стандарт для всех CLI-команд проекта, вместо разрозненного `<действие>-<ресурс>`.
+
 ```bash
 # локально
-go run ./cmd/cli create-user "Ada" "Lovelace" ada@example.com secret
+go run ./cmd/cli user create "Ada" "Lovelace" ada@example.com secret --agency-id 1
 # → User successfully generated! id=1
 
 # production
-docker compose exec tourismania_app /app/cli create-user "first_name" "last_name" email@example.com password
+docker compose exec tourismania_app /app/cli user create "first_name" "last_name" email@example.com password --agency-id 1
 ```
 
-### sync-airports
+### airports
 
 Синхронизирует аэропорты, города и страны из внешних источников в БД.
 Загружает данные из [mwgg/Airports](https://github.com/mwgg/Airports) (GitHub JSON)
@@ -71,13 +73,36 @@ docker compose exec tourismania_app /app/cli create-user "first_name" "last_name
 
 ```bash
 # Preview без записи в БД
-go run ./cmd/cli sync-airports --dry-run
+go run ./cmd/cli airports sync --dry-run
 
 # Полная синхронизация (запускать раз в месяц)
-go run ./cmd/cli sync-airports
+go run ./cmd/cli airports sync
 
 # production
-docker compose exec tourismania_app /app/cli sync-airports
+docker compose exec tourismania_app /app/cli airports sync
+```
+
+### agency
+
+Управление справочником агентств (только через CLI — HTTP CRUD агентств вне scope текущей итерации).
+
+```bash
+# Создать агентство (генерирует uuid, status=active, created_at)
+go run ./cmd/cli agency create --name "Acme Travel"
+# → Agency successfully created! id=1 uuid=...
+
+# Деактивировать агентство (status → inactive)
+go run ./cmd/cli agency deactivate --id 1
+# → Agency successfully deactivated! id=1
+
+# Активировать агентство обратно (status → active)
+go run ./cmd/cli agency activate --id 1
+# → Agency successfully activated! id=1
+
+# production
+docker compose exec tourismania_app /app/cli agency create --name "Acme Travel"
+docker compose exec tourismania_app /app/cli agency deactivate --id 1
+docker compose exec tourismania_app /app/cli agency activate --id 1
 ```
 
 ## Endpoints
@@ -85,7 +110,7 @@ docker compose exec tourismania_app /app/cli sync-airports
 | Метод | Путь             | Доступ | Описание                         |
 | ----- |------------------|--------| -------------------------------- |
 | POST  | /api/login       | public | Логин, возвращает JWT            |
-| POST  | /api/v1/users    | JWT    | Создание пользователя            |
+| POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
 | GET   | /api/doc         | public | Swagger UI                       |
@@ -159,8 +184,8 @@ docker compose exec tourismania_app /app/cli sync-airports
 Как отлаживать CLI:
 
 1. docker compose up -d — поднять dev-стек (server через air на 2345, БД, Kafka).
-2. В отдельном терминале: make debug-cli cmd="sync-airports --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
-3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/sync_airports.go (или create_user.go) должны сработать.
+2. В отдельном терминале: make debug-cli cmd="airports sync --dry-run" — зайдёт в уже запущенный контейнер app и стартует headless dlv для ./cmd/cli на порту 2346, дождётся подключения.
+3. В VS Code: Run and Debug → выбрать "Golang: Attach to docker (CLI)" → F5. Брейкпоинты в internal/presentation/cli/airports.go (или user.go) должны сработать.
 4. Завершить сессию — Ctrl+C в терминале с make debug-cli, порт 2346 освободится для следующего запуска.
 
 ---
@@ -177,7 +202,7 @@ CLI (`cmd/cli`) запускается локально, без Docker.
 |------|----------|
 | Run kind | `File` |
 | Files | `cmd/cli/main.go` |
-| Program arguments | `create-user "Ada" "Lovelace" ada@example.com secret` |
+| Program arguments | `user create "Ada" "Lovelace" ada@example.com secret --agency-id 1` |
 
 Поставить точку остановки → нажать **Debug**.
 
@@ -185,7 +210,7 @@ CLI (`cmd/cli`) запускается локально, без Docker.
 
 ```bash
 # dlv сам компилирует с нужными флагами и запускает
-dlv debug ./cmd/cli -- create-user "Ada" "Lovelace" ada@example.com secret
+dlv debug ./cmd/cli -- user create "Ada" "Lovelace" ada@example.com secret --agency-id 1
 ```
 
 Внутри интерактивной сессии dlv:

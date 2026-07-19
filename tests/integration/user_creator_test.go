@@ -4,20 +4,33 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"api/internal/domain/entity"
+	"api/internal/domain/enum"
 	"api/internal/domain/event"
 	"api/internal/domain/service"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubHasher returns the input as-is, prefixed so we can assert it
 // arrived at the repository.
 type stubHasher struct{}
 
-func (stubHasher) Hash(p string) (string, error)   { return "hashed:" + p, nil }
-func (stubHasher) Verify(_, _ string) error        { return nil }
+func (stubHasher) Hash(p string) (string, error) { return "hashed:" + p, nil }
+func (stubHasher) Verify(_, _ string) error      { return nil }
+
+// fakeAgencyRepo returns a fixed agency (or nil) for FindByID.
+type fakeAgencyRepo struct{ agency *entity.Agency }
+
+func (r fakeAgencyRepo) Store(_ context.Context, _ entity.Agency) (int, error) { return 0, nil }
+func (r fakeAgencyRepo) FindByID(_ context.Context, _ int) (*entity.Agency, error) {
+	return r.agency, nil
+}
+func (fakeAgencyRepo) SetStatus(_ context.Context, _ int, _ enum.AgencyStatus) error { return nil }
+func (fakeAgencyRepo) Exists(_ context.Context, _ int) (bool, error)                 { return false, nil }
 
 // nilStoringRepo simulates a repository that "stores" without producing
 // an id — same path as the PHP integration test, where Store returns
@@ -46,11 +59,12 @@ func (b *inMemoryBus) Publish(e event.DomainEvent) error {
 func TestUserCreator_StoreReturnsNilID_ProducesError(t *testing.T) {
 	repo := &nilStoringRepo{}
 	bus := &inMemoryBus{}
-	svc := service.NewUserCreator(repo, stubHasher{}, bus)
+	active := entity.Agency{ID: 1, Status: enum.AgencyStatusActive, CreatedAt: time.Now()}
+	svc := service.NewUserCreator(repo, fakeAgencyRepo{agency: &active}, stubHasher{}, bus)
 
 	_, err := svc.Create(context.Background(), entity.User{
 		FirstName: "Ada", LastName: "Lovelace",
-		Email: "ada@example.com", Password: "secret",
+		Email: "ada@example.com", Password: "secret", AgencyID: 1,
 	})
 
 	assert.True(t, repo.called, "repository should be called")
@@ -73,9 +87,47 @@ type publishErrBus struct{}
 func (publishErrBus) Publish(_ event.DomainEvent) error { return errors.New("broker down") }
 
 func TestUserCreator_PublishFailure_PropagatesError(t *testing.T) {
-	svc := service.NewUserCreator(repoOK{}, stubHasher{}, publishErrBus{})
+	active := entity.Agency{ID: 1, Status: enum.AgencyStatusActive, CreatedAt: time.Now()}
+	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &active}, stubHasher{}, publishErrBus{})
 	_, err := svc.Create(context.Background(), entity.User{
-		Email: "a@b.c", Password: "p",
+		Email: "a@b.c", Password: "p", AgencyID: 1,
 	})
 	assert.Error(t, err)
+}
+
+func TestUserCreator_AgencyNotFound_ReturnsError(t *testing.T) {
+	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: nil}, stubHasher{}, &inMemoryBus{})
+
+	_, err := svc.Create(context.Background(), entity.User{
+		Email: "agent@example.com", Password: "secret", AgencyID: 99,
+	})
+
+	assert.ErrorIs(t, err, service.ErrAgencyNotFound)
+}
+
+func TestUserCreator_AgencyInactive_ReturnsError(t *testing.T) {
+	agencyID := 1
+	inactive := entity.Agency{ID: agencyID, Status: enum.AgencyStatusInactive, CreatedAt: time.Now()}
+	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &inactive}, stubHasher{}, &inMemoryBus{})
+
+	_, err := svc.Create(context.Background(), entity.User{
+		Email: "agent@example.com", Password: "secret", AgencyID: agencyID,
+	})
+
+	assert.ErrorIs(t, err, service.ErrAgencyInactive)
+}
+
+func TestUserCreator_ActiveAgency_Succeeds(t *testing.T) {
+	agencyID := 1
+	active := entity.Agency{ID: agencyID, Status: enum.AgencyStatusActive, CreatedAt: time.Now()}
+	bus := &inMemoryBus{}
+	svc := service.NewUserCreator(repoOK{}, fakeAgencyRepo{agency: &active}, stubHasher{}, bus)
+
+	id, err := svc.Create(context.Background(), entity.User{
+		Email: "agent@example.com", Password: "secret", AgencyID: agencyID,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 42, id)
+	assert.Len(t, bus.events, 1)
 }

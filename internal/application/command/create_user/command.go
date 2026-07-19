@@ -9,4 +9,7 @@ type Command struct {
 	LastName  string
 	Email     string
 	Password  string
+	// AgencyID links the new user to an existing, active agency
+	// (1 user = 1 agency). Required for every registration.
+	AgencyID int
 }

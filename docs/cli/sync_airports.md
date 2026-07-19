@@ -1,12 +1,12 @@
-# CLI-команда `sync-airports`
+# CLI-команда `airports sync`
 
-> **Файлы:** [handler.go](../../internal/application/command/sync_airports/handler.go), [wikidata/client.go](../../internal/infrastructure/geo/wikidata/client.go), [mwgg/client.go](../../internal/infrastructure/geo/mwgg/client.go), [static/countries_ru.go](../../internal/infrastructure/geo/static/countries_ru.go), [cli/sync_airports.go](../../internal/presentation/cli/sync_airports.go)
+> **Файлы:** [handler.go](../../internal/application/command/sync_airports/handler.go), [wikidata/client.go](../../internal/infrastructure/geo/wikidata/client.go), [mwgg/client.go](../../internal/infrastructure/geo/mwgg/client.go), [static/countries_ru.go](../../internal/infrastructure/geo/static/countries_ru.go), [cli/airports.go](../../internal/presentation/cli/airports.go)
 
 Команда наполняет таблицы `countries`, `cities`, `airports` данными из внешних источников. Запускается вручную раз в месяц админом (см. `README.md → CLI`).
 
 ```bash
-go run ./cmd/cli sync-airports --dry-run   # только посчитать, не писать в БД
-go run ./cmd/cli sync-airports             # полная синхронизация
+go run ./cmd/cli airports sync --dry-run   # только посчитать, не писать в БД
+go run ./cmd/cli airports sync             # полная синхронизация
 ```
 
 ---

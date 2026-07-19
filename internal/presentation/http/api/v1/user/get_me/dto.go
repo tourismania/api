@@ -18,9 +18,17 @@ type GetMeResponse struct {
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
 	Rights    Rights    `json:"rights"`
+	Agency    Agency    `json:"agency"`
 }
 
 // Rights is the public projection of valueobject.RightsDescribe.
 type Rights struct {
 	IsSuperAdmin bool `json:"is_super_admin"`
+}
+
+// Agency is the public projection of the agency the user belongs to.
+type Agency struct {
+	ID   int       `json:"id"`
+	Uuid uuid.UUID `json:"uuid"`
+	Name string    `json:"name"`
 }
