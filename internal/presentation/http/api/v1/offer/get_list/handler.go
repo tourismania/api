@@ -37,7 +37,7 @@ func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        agency_id  query     int     false  "Filter by agency id"
-//	@Param        status     query     string  false  "Filter by status (draft|published)"
+//	@Param        status     query     string  false  "Filter by status (draft|ready|published)"
 //	@Param        limit      query     int     false  "Max results (1–100, default 20)"
 //	@Param        offset     query     int     false  "Pagination offset (0–10000)"
 //	@Success      200        {object}  ListOffersResponse

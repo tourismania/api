@@ -9,7 +9,7 @@ import "github.com/google/uuid"
 type UpdateOfferRequest struct {
 	Title       *string `json:"title"       validate:"omitempty,max=200"`
 	Description *string `json:"description" validate:"omitempty,max=5000"`
-	Status      *string `json:"status"      validate:"omitempty,oneof=draft published"`
+	Status      *string `json:"status"      validate:"omitempty,oneof=draft ready published"`
 }
 
 // UpdateOfferResponse is the response envelope.

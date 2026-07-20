@@ -10,7 +10,7 @@ import "github.com/google/uuid"
 type CreateOfferRequest struct {
 	Title       string `json:"title"       validate:"required,max=200"`
 	Description string `json:"description" validate:"max=5000"`
-	Status      string `json:"status"      validate:"required,oneof=draft published"`
+	Status      string `json:"status"      validate:"required,oneof=draft ready published"`
 }
 
 // CreateOfferResponse is the response envelope.

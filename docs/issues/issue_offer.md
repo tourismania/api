@@ -15,7 +15,7 @@
 
 - Домен:
   - `internal/domain/entity/offer.go` — `Offer{ ID, UUID, Title, Description, AgencyID, CreatedBy, Status, CreatedAt, UpdatedAt, DeletedAt }` (без цены).
-  - `internal/domain/enum/offer_status.go` — `OfferStatus` (`draft` / `published`).
+  - `internal/domain/enum/offer_status.go` — `OfferStatus` (`draft` / `ready` / `published`; `ready` — заполнен и сохранён, но ещё не опубликован, видимость как у `draft`).
   - `internal/domain/repository/offer_repository.go` — `Store`, `FindByUUID`, `List(OfferFilter)`, `Update`, `SoftDelete`; `OfferFilter{ AgencyID, Status, CreatedBy, Limit, Offset }`.
   - `internal/domain/service/offer_manager.go` — единый `OfferManager{ Insert, Update, Delete }`: инварианты, проверка активности агентства, **владение по агентству** (`offer.AgencyID == actor.AgencyID`, строгое равенство, **без исключений для `ROLE_SUPER_ADMIN`** — 1 пользователь = 1 агентство). Sentinel-ошибки `ErrOfferNotFound`, `ErrOfferForbidden`, `ErrAgencyInactive`, …
 - Infrastructure:
@@ -67,7 +67,7 @@
 2. **Убран кросс-агентский bypass для `ROLE_SUPER_ADMIN`.** `1 пользователь = 1 агентство` касается всех ролей одинаково — супер-админ не может управлять/видеть offer чужих агентств "просто потому что супер-админ". Метод `Actor.IsSuperAdmin()` и связанная ветка в `OfferManager.findOwned` удалены; владение — строгое равенство `offer.AgencyID == actor.AgencyID`. На read-side элевированную видимость (черновики своего агентства) сохраняет только принадлежность к агентству + роль `ROLE_AGENT`/`ROLE_SUPER_ADMIN` (иначе customer с тем же `agency_id` видел бы чужие черновики).
 3. **`AgencyID` в `Actor`/командах стал обязательным `int`** (было `*int`) — ревьюер указал, что `agency_id` пользователя NOT NULL в БД (миграция `014_add_users_agency`), поэтому моделировать его как опциональный было ошибкой. Затронуты: `service.Actor`, `create_offer/update_offer/delete_offer.Command` (поле переименовано `CurrentAgencyID` → `AgencyID`, `CurrentRoles` убрано как избыточное — write-side ownership больше не завязан на роли), `middleware.CurrentUser.AgencyID`. Read-side (`get_offer/get_offers.Query.CurrentAgencyID`) сознательно остался `*int`: `nil` здесь означает не "нет агентства", а "гостевой запрос без сотрудника агентства" — легитимная семантика для публичных ручек.
 4. **Command больше не принимает отдельный `CurrentAgencyID`, отличный от авторизованного пользователя** — `AgencyID` в команде теперь заполняется presentation-слоем строго из `CurrentUser.AgencyID` (`middleware.CurrentUserFromContext`), другого источника нет.
-5. **Дополнительный статус offer между `draft` и `published`** — запрошен ревьюером ("не черновик, результат сохранён, но не готов к публикации"); требует уточнения названия/семантики, вынесено на отдельное обсуждение с автором задачи перед реализацией.
+5. **Добавлен статус `ready`** между `draft` и `published` — запрошен ревьюером ("не черновик, результат сохранён, но не готов к публикации"). Семантика: offer полностью заполнен и сохранён, но агент ещё не принял решение публиковать. Видимость идентична `draft` (только сотрудники своего агентства); публично виден только `published`. Затронуты: `enum.OfferStatus`, `validate:"oneof=draft ready published"` в DTO create/update/get_list, `entity.Offer.IsPublished()` (без изменений — уже учитывает только `published`).
 
 ## Negative constraints (чего НЕ делаем)
 

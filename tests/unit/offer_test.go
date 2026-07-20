@@ -19,8 +19,14 @@ func TestOffer_IsPublished_FalseForDraftStatus(t *testing.T) {
 	assert.False(t, offer.IsPublished())
 }
 
+func TestOffer_IsPublished_FalseForReadyStatus(t *testing.T) {
+	offer := entity.Offer{Status: enum.OfferStatusReady}
+	assert.False(t, offer.IsPublished(), "ready is saved but not yet published — same visibility as draft")
+}
+
 func TestOfferStatus_IsValid_KnownValues(t *testing.T) {
 	assert.True(t, enum.OfferStatusDraft.IsValid())
+	assert.True(t, enum.OfferStatusReady.IsValid())
 	assert.True(t, enum.OfferStatusPublished.IsValid())
 }
 

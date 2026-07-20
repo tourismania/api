@@ -13,7 +13,7 @@ import (
 // (read-side visibility) are applied by the use-case.
 type ListOffersParams struct {
 	AgencyID int    `validate:"omitempty,gt=0"`
-	Status   string `validate:"omitempty,oneof=draft published"`
+	Status   string `validate:"omitempty,oneof=draft ready published"`
 	Limit    int    `validate:"omitempty,min=1,max=100"`
 	Offset   int    `validate:"omitempty,min=0,max=10000"`
 }
