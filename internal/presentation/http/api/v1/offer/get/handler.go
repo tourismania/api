@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	getoffer "api/internal/application/query/get_offer"
+	"api/internal/domain/enum"
 	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -14,6 +15,7 @@ import (
 )
 
 // Handler renders a single offer as JSON, honouring read-side visibility.
+// This endpoint is public: no Authorization header is required.
 type Handler struct {
 	useCase getoffer.UseCase
 }
@@ -26,15 +28,13 @@ func NewHandler(uc getoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Get an offer
-//	@Description  Returns a single offer by uuid. Visibility depends on the caller's role: super admins see any offer, agents see any offer of their own agency, everyone else only sees published offers.
+//	@Description  Returns a single offer by uuid. Published offers are visible to anyone, including anonymous callers. An authenticated agent/super admin additionally sees any-status offers of their own agency.
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        uuid  path      string  true  "Offer UUID"
 //	@Success      200   {object}  OfferResponse
 //	@Failure      400   {object}  httpx.ErrorBody
-//	@Failure      401   {object}  httpx.ErrorBody
 //	@Failure      404   {object}  httpx.ErrorBody
-//	@Security     Bearer
 //	@Router       /api/v1/offers/{uuid} [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "uuid"))
@@ -43,17 +43,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-		return
-	}
-
 	res, err := h.useCase.Handle(r.Context(), getoffer.Query{
 		UUID:            id,
-		CurrentUserID:   cu.ID,
-		CurrentAgencyID: cu.AgencyID,
-		CurrentRoles:    cu.Roles,
+		CurrentAgencyID: staffAgencyID(r),
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrOfferNotFound) {
@@ -65,6 +57,19 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, toResponse(res))
+}
+
+// staffAgencyID returns the caller's own agency id when they are staff
+// (ROLE_AGENT or ROLE_SUPER_ADMIN) of that agency, or nil otherwise
+// (anonymous callers and plain ROLE_USER clients) — nil means the
+// use-case restricts visibility to published offers only.
+func staffAgencyID(r *http.Request) *int {
+	cu, ok := custommw.CurrentUserFromContext(r.Context())
+	if !ok || (!cu.HasRole(enum.RoleAgent) && !cu.HasRole(enum.RoleSuperAdmin)) {
+		return nil
+	}
+	agencyID := cu.AgencyID
+	return &agencyID
 }
 
 func toResponse(res getoffer.Result) OfferResponse {

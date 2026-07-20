@@ -29,7 +29,7 @@ func NewHandler(uc updateoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Update an offer
-//	@Description  Partially updates an offer. Only the agent who owns it (same agency) or a super admin may update.
+//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -72,13 +72,12 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.useCase.Handle(r.Context(), updateoffer.Command{
-		UUID:            id,
-		Title:           req.Title,
-		Description:     req.Description,
-		Status:          status,
-		CurrentUserID:   cu.ID,
-		CurrentAgencyID: cu.AgencyID,
-		CurrentRoles:    cu.Roles,
+		UUID:          id,
+		Title:         req.Title,
+		Description:   req.Description,
+		Status:        status,
+		CurrentUserID: cu.ID,
+		AgencyID:      cu.AgencyID,
 	})
 	if err != nil {
 		switch {

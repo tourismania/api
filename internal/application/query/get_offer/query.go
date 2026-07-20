@@ -1,18 +1,14 @@
 // Package getoffer contains the "single offer" read-side use case.
 package getoffer
 
-import (
-	"api/internal/domain/enum"
+import "github.com/google/uuid"
 
-	"github.com/google/uuid"
-)
-
-// Query carries the requested offer identifier plus the caller's
-// identity, needed to compute read-side visibility.
+// Query carries the requested offer identifier plus the caller's agency
+// (if any), needed to compute read-side visibility. CurrentAgencyID is
+// nil for anonymous/unauthenticated requests — published offers are
+// visible to anyone.
 type Query struct {
 	UUID uuid.UUID
 
-	CurrentUserID   int
 	CurrentAgencyID *int
-	CurrentRoles    []enum.Role
 }

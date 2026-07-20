@@ -68,11 +68,9 @@ func TestOfferManager_Insert_ValidInput_DerivesAgencyFromActor(t *testing.T) {
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(3)}
 	mgr := service.NewOfferManager(offers, agencies)
 
-	agencyID := 3
 	offer, err := mgr.Insert(context.Background(), "Sochi package", "5 nights", enum.OfferStatusDraft, service.Actor{
 		UserID:   42,
-		AgencyID: &agencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 3,
 	})
 
 	require.NoError(t, err)
@@ -86,65 +84,50 @@ func TestOfferManager_Insert_ValidInput_DerivesAgencyFromActor(t *testing.T) {
 }
 
 func TestOfferManager_Insert_EmptyTitle_ReturnsError(t *testing.T) {
-	agencyID := 1
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{findByIDAgency: activeAgency(1)})
 
 	_, err := mgr.Insert(context.Background(), "", "desc", enum.OfferStatusDraft, service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferTitleInvalid)
 }
 
 func TestOfferManager_Insert_TitleTooLong_ReturnsError(t *testing.T) {
-	agencyID := 1
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{findByIDAgency: activeAgency(1)})
 
 	_, err := mgr.Insert(context.Background(), strings.Repeat("a", entity.OfferTitleMaxLength+1), "desc", enum.OfferStatusDraft, service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferTitleInvalid)
 }
 
 func TestOfferManager_Insert_InvalidStatus_ReturnsError(t *testing.T) {
-	agencyID := 1
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{findByIDAgency: activeAgency(1)})
 
 	_, err := mgr.Insert(context.Background(), "Title", "desc", enum.OfferStatus("archived"), service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferStatusInvalid)
 }
 
-func TestOfferManager_Insert_ActorHasNoAgency_ReturnsError(t *testing.T) {
-	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{})
-
-	_, err := mgr.Insert(context.Background(), "Title", "desc", enum.OfferStatusDraft, service.Actor{
-		AgencyID: nil,
-	})
-
-	assert.ErrorIs(t, err, service.ErrActorHasNoAgency)
-}
-
 func TestOfferManager_Insert_AgencyNotFound_ReturnsError(t *testing.T) {
-	agencyID := 1
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{findByIDAgency: nil})
 
 	_, err := mgr.Insert(context.Background(), "Title", "desc", enum.OfferStatusDraft, service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrAgencyNotFound)
 }
 
 func TestOfferManager_Insert_AgencyInactive_ReturnsError(t *testing.T) {
-	agencyID := 1
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{findByIDAgency: inactiveAgency(1)})
 
 	_, err := mgr.Insert(context.Background(), "Title", "desc", enum.OfferStatusDraft, service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrAgencyInactive)
@@ -153,9 +136,8 @@ func TestOfferManager_Insert_AgencyInactive_ReturnsError(t *testing.T) {
 func TestOfferManager_Update_NotFound_ReturnsError(t *testing.T) {
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: nil}, &mockAgencyRepo{})
 
-	agencyID := 1
 	_, err := mgr.Update(context.Background(), uuid.New(), nil, nil, nil, service.Actor{
-		AgencyID: &agencyID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
@@ -165,10 +147,8 @@ func TestOfferManager_Update_DifferentAgency_ReturnsForbidden(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
-	otherAgencyID := 2
 	_, err := mgr.Update(context.Background(), existing.UUID, nil, nil, nil, service.Actor{
-		AgencyID: &otherAgencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 2,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferForbidden)
@@ -180,10 +160,8 @@ func TestOfferManager_Update_SameAgency_AppliesPartialChanges(t *testing.T) {
 	mgr := service.NewOfferManager(offers, &mockAgencyRepo{})
 
 	newTitle := "New title"
-	agencyID := 1
 	updated, err := mgr.Update(context.Background(), existing.UUID, &newTitle, nil, nil, service.Actor{
-		AgencyID: &agencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 1,
 	})
 
 	require.NoError(t, err)
@@ -192,29 +170,27 @@ func TestOfferManager_Update_SameAgency_AppliesPartialChanges(t *testing.T) {
 	assert.Equal(t, "New title", offers.updatedOffer.Title)
 }
 
-func TestOfferManager_Update_SuperAdmin_BypassesAgencyOwnership(t *testing.T) {
+func TestOfferManager_Update_DifferentAgency_SuperAdminStillForbidden(t *testing.T) {
+	// 1 user = 1 agency: there is no role-based bypass, not even for
+	// ROLE_SUPER_ADMIN — ownership is strict agency equality.
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
-	otherAgencyID := 999
 	newTitle := "Admin edit"
 	_, err := mgr.Update(context.Background(), existing.UUID, &newTitle, nil, nil, service.Actor{
-		AgencyID: &otherAgencyID,
-		Roles:    []enum.Role{enum.RoleSuperAdmin},
+		AgencyID: 999,
 	})
 
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, service.ErrOfferForbidden)
 }
 
 func TestOfferManager_Update_InvalidStatus_ReturnsError(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
-	agencyID := 1
 	badStatus := enum.OfferStatus("archived")
 	_, err := mgr.Update(context.Background(), existing.UUID, nil, nil, &badStatus, service.Actor{
-		AgencyID: &agencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferStatusInvalid)
@@ -223,8 +199,7 @@ func TestOfferManager_Update_InvalidStatus_ReturnsError(t *testing.T) {
 func TestOfferManager_Delete_NotFound_ReturnsError(t *testing.T) {
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: nil}, &mockAgencyRepo{})
 
-	agencyID := 1
-	err := mgr.Delete(context.Background(), uuid.New(), service.Actor{AgencyID: &agencyID})
+	err := mgr.Delete(context.Background(), uuid.New(), service.Actor{AgencyID: 1})
 
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
@@ -233,10 +208,8 @@ func TestOfferManager_Delete_DifferentAgency_ReturnsForbidden(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
-	otherAgencyID := 2
 	err := mgr.Delete(context.Background(), existing.UUID, service.Actor{
-		AgencyID: &otherAgencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 2,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferForbidden)
@@ -247,18 +220,10 @@ func TestOfferManager_Delete_SameAgency_SoftDeletes(t *testing.T) {
 	offers := &mockOfferRepo{findByUUIDOffer: existing}
 	mgr := service.NewOfferManager(offers, &mockAgencyRepo{})
 
-	agencyID := 1
 	err := mgr.Delete(context.Background(), existing.UUID, service.Actor{
-		AgencyID: &agencyID,
-		Roles:    []enum.Role{enum.RoleAgent},
+		AgencyID: 1,
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, existing.UUID, offers.softDeletedID)
-}
-
-func TestActor_IsSuperAdmin(t *testing.T) {
-	assert.True(t, service.Actor{Roles: []enum.Role{enum.RoleAgent, enum.RoleSuperAdmin}}.IsSuperAdmin())
-	assert.False(t, service.Actor{Roles: []enum.Role{enum.RoleAgent}}.IsSuperAdmin())
-	assert.False(t, service.Actor{}.IsSuperAdmin())
 }

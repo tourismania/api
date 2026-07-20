@@ -26,8 +26,7 @@ func NewHandler(offerManager *service.OfferManager) *Handler {
 func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	offer, err := h.offerManager.Update(ctx, cmd.UUID, cmd.Title, cmd.Description, cmd.Status, service.Actor{
 		UserID:   cmd.CurrentUserID,
-		AgencyID: cmd.CurrentAgencyID,
-		Roles:    cmd.CurrentRoles,
+		AgencyID: cmd.AgencyID,
 	})
 	if err != nil {
 		return Result{}, err

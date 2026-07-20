@@ -33,7 +33,7 @@ func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      List offers
-//	@Description  Paginated offer listing with filters. Visibility depends on the caller's role: super admins see everything, agents see their own agency (any status), everyone else sees published offers only.
+//	@Description  Paginated offer listing with filters. Published offers are visible to anyone, including anonymous callers. An authenticated agent/super admin additionally sees any-status offers of their own agency (the agency_id filter is then forced to their own agency).
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        agency_id  query     int     false  "Filter by agency id"
@@ -42,8 +42,6 @@ func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
 //	@Param        offset     query     int     false  "Pagination offset (0–10000)"
 //	@Success      200        {object}  ListOffersResponse
 //	@Failure      400        {object}  httpx.ErrorBody
-//	@Failure      401        {object}  httpx.ErrorBody
-//	@Security     Bearer
 //	@Router       /api/v1/offers [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -69,12 +67,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-		return
-	}
-
 	var agencyID *int
 	if params.AgencyID > 0 {
 		agencyID = &params.AgencyID
@@ -90,9 +82,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Status:          status,
 		Limit:           limit,
 		Offset:          offset,
-		CurrentUserID:   cu.ID,
-		CurrentAgencyID: cu.AgencyID,
-		CurrentRoles:    cu.Roles,
+		CurrentAgencyID: staffAgencyID(r),
 	})
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
@@ -100,6 +90,19 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, buildResponse(res, limit, offset))
+}
+
+// staffAgencyID returns the caller's own agency id when they are staff
+// (ROLE_AGENT or ROLE_SUPER_ADMIN) of that agency, or nil otherwise
+// (anonymous callers and plain ROLE_USER clients) — nil means the
+// use-case restricts visibility to published offers only.
+func staffAgencyID(r *http.Request) *int {
+	cu, ok := custommw.CurrentUserFromContext(r.Context())
+	if !ok || (!cu.HasRole(enum.RoleAgent) && !cu.HasRole(enum.RoleSuperAdmin)) {
+		return nil
+	}
+	agencyID := cu.AgencyID
+	return &agencyID
 }
 
 func buildResponse(res getoffers.Result, limit, offset int) ListOffersResponse {

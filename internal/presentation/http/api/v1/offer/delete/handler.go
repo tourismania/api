@@ -28,7 +28,7 @@ func NewHandler(uc deleteoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Delete an offer
-//	@Description  Soft-deletes an offer. Only the agent who owns it (same agency) or a super admin may delete.
+//	@Description  Soft-deletes an offer. Only an agent/super admin belonging to the offer's own agency may delete it — 1 user = 1 agency, no cross-agency access.
 //	@Tags         Offers
 //	@Param        uuid  path  string  true  "Offer UUID"
 //	@Success      204
@@ -52,10 +52,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.useCase.Handle(r.Context(), deleteoffer.Command{
-		UUID:            id,
-		CurrentUserID:   cu.ID,
-		CurrentAgencyID: cu.AgencyID,
-		CurrentRoles:    cu.Roles,
+		UUID:          id,
+		CurrentUserID: cu.ID,
+		AgencyID:      cu.AgencyID,
 	})
 	if err != nil {
 		switch {

@@ -26,8 +26,7 @@ func NewHandler(offerManager *service.OfferManager) *Handler {
 func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	if err := h.offerManager.Delete(ctx, cmd.UUID, service.Actor{
 		UserID:   cmd.CurrentUserID,
-		AgencyID: cmd.CurrentAgencyID,
-		Roles:    cmd.CurrentRoles,
+		AgencyID: cmd.AgencyID,
 	}); err != nil {
 		return Result{}, err
 	}

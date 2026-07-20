@@ -24,12 +24,15 @@ var ErrInvalidSubject = errors.New("token subject is not a valid uuid")
 
 // CurrentUser is the identity of the authenticated principal, resolved
 // once per request from JWT claims + the user's DB row. It is the single
-// place presentation-layer handlers pull CurrentUserID / CurrentAgencyID /
-// CurrentRoles from before handing them to application use-cases.
+// place presentation-layer handlers pull CurrentUserID / AgencyID /
+// Roles from before handing them to application use-cases. AgencyID is
+// required: every user belongs to exactly one agency (1 user = 1
+// agency, enforced at the database level) — it is never optional for an
+// authenticated principal.
 type CurrentUser struct {
 	ID       int
 	UUID     uuid.UUID
-	AgencyID *int
+	AgencyID int
 	Roles    []enum.Role
 }
 
@@ -54,10 +57,37 @@ type UserFinder interface {
 // Claims.Subject (placed on the context by JWT), loads the matching
 // user row, and stores a CurrentUser on the context for downstream
 // handlers. Reused by every /api/v1 route that needs identity beyond the
-// bare JWT subject (e.g. get_me, offers).
+// bare JWT subject (e.g. get_me, offers). Requires JWT to run first —
+// there must be claims on the context, or the request is rejected.
 func CurrentUserMiddleware(users UserFinder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cu, err := resolveCurrentUser(r.Context(), users)
+			if err != nil {
+				httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+				return
+			}
+			ctx := context.WithValue(r.Context(), currentUserKey{}, cu)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// OptionalCurrentUser resolves the principal only if JWT claims are
+// already on the context (i.e. mounted after OptionalJWT, not JWT). An
+// anonymous request (no claims) simply continues with no CurrentUser on
+// context — CurrentUserFromContext then reports ok=false, and handlers
+// treat that as "public visitor". Used by the public offer read
+// endpoints, where published offers are visible to anyone but an
+// authenticated agent additionally sees their own agency's offers.
+func OptionalCurrentUser(users UserFinder) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := ClaimsFromContext(r.Context())
+			if !ok || claims == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
 			cu, err := resolveCurrentUser(r.Context(), users)
 			if err != nil {
 				httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
@@ -85,7 +115,6 @@ func resolveCurrentUser(ctx context.Context, users UserFinder) (CurrentUser, err
 		return CurrentUser{}, errors.New("user not found")
 	}
 
-	agencyID := record.AgencyID
 	roles := make([]enum.Role, 0, len(record.Roles))
 	for _, r := range record.Roles {
 		roles = append(roles, enum.Role(r))
@@ -94,14 +123,15 @@ func resolveCurrentUser(ctx context.Context, users UserFinder) (CurrentUser, err
 	return CurrentUser{
 		ID:       record.ID,
 		UUID:     record.Uuid,
-		AgencyID: &agencyID,
+		AgencyID: record.AgencyID,
 		Roles:    roles,
 	}, nil
 }
 
 // CurrentUserFromContext extracts the principal placed by
-// CurrentUserMiddleware. The boolean is false when the request did not
-// pass through that middleware.
+// CurrentUserMiddleware or OptionalCurrentUser. The boolean is false
+// when the request is anonymous (didn't pass through either middleware,
+// or passed through OptionalCurrentUser without a token).
 func CurrentUserFromContext(ctx context.Context) (CurrentUser, bool) {
 	cu, ok := ctx.Value(currentUserKey{}).(CurrentUser)
 	return cu, ok

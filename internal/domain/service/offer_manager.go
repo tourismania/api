@@ -17,8 +17,10 @@ import (
 // non-deleted row.
 var ErrOfferNotFound = errors.New("offer not found")
 
-// ErrOfferForbidden is returned when the acting user does not own the
-// offer's agency and is not a super admin.
+// ErrOfferForbidden is returned when the acting user does not belong to
+// the offer's owning agency. 1 user = 1 agency: there is no bypass —
+// every actor, including ROLE_SUPER_ADMIN, may only manage offers of
+// their own agency.
 var ErrOfferForbidden = errors.New("forbidden: offer belongs to another agency")
 
 // ErrOfferTitleInvalid is returned when the title is empty or exceeds
@@ -33,31 +35,18 @@ var ErrOfferStatusInvalid = errors.New("invalid offer status")
 // an offer for a reason the caller could not predict.
 var ErrOfferNotPersisted = errors.New("offer was not persisted")
 
-// ErrActorHasNoAgency is returned when the acting user has no agency
-// attached — required to create or own offers.
-var ErrActorHasNoAgency = errors.New("actor has no agency")
-
 // Actor is the identity of the user performing an offer operation. It is
-// a plain domain value — no HTTP/JWT knowledge leaks in here.
+// a plain domain value — no HTTP/JWT knowledge leaks in here. AgencyID
+// is required: every user belongs to exactly one agency (1 user = 1
+// agency, enforced at the database level).
 type Actor struct {
 	UserID   int
-	AgencyID *int
-	Roles    []enum.Role
-}
-
-// IsSuperAdmin reports whether the actor carries the super-admin role.
-func (a Actor) IsSuperAdmin() bool {
-	for _, r := range a.Roles {
-		if r == enum.RoleSuperAdmin {
-			return true
-		}
-	}
-	return false
+	AgencyID int
 }
 
 // OfferManager orchestrates offer lifecycle: creation, update and soft
-// deletion. It enforces invariants and agency ownership; super admins
-// bypass the ownership check.
+// deletion. It enforces invariants and strict agency ownership — an
+// offer may only be managed by an actor belonging to its owning agency.
 type OfferManager struct {
 	offers   repository.OfferRepository
 	agencies repository.AgencyRepository
@@ -77,11 +66,8 @@ func (m *OfferManager) Insert(ctx context.Context, title, description string, st
 	if !status.IsValid() {
 		return entity.Offer{}, ErrOfferStatusInvalid
 	}
-	if actor.AgencyID == nil {
-		return entity.Offer{}, ErrActorHasNoAgency
-	}
 
-	agency, err := m.agencies.FindByID(ctx, *actor.AgencyID)
+	agency, err := m.agencies.FindByID(ctx, actor.AgencyID)
 	if err != nil {
 		return entity.Offer{}, fmt.Errorf("find agency: %w", err)
 	}
@@ -97,7 +83,7 @@ func (m *OfferManager) Insert(ctx context.Context, title, description string, st
 		UUID:        uuid.New(),
 		Title:       title,
 		Description: description,
-		AgencyID:    *actor.AgencyID,
+		AgencyID:    actor.AgencyID,
 		CreatedBy:   actor.UserID,
 		Status:      status,
 		CreatedAt:   now,
@@ -117,7 +103,7 @@ func (m *OfferManager) Insert(ctx context.Context, title, description string, st
 
 // Update applies partial changes to an existing offer. Only non-nil
 // fields are modified. Ownership is enforced: the actor must belong to
-// the offer's agency, unless they are a super admin.
+// the offer's agency.
 func (m *OfferManager) Update(ctx context.Context, id uuid.UUID, title, description *string, status *enum.OfferStatus, actor Actor) (entity.Offer, error) {
 	offer, err := m.findOwned(ctx, id, actor)
 	if err != nil {
@@ -159,9 +145,8 @@ func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor Actor) er
 	return nil
 }
 
-// findOwned fetches an offer and verifies the actor may act on it:
-// super admins may act on any offer; everyone else must belong to the
-// offer's owning agency.
+// findOwned fetches an offer and verifies the actor belongs to its
+// owning agency. 1 user = 1 agency: there is no role-based bypass.
 func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor Actor) (*entity.Offer, error) {
 	offer, err := m.offers.FindByUUID(ctx, id)
 	if err != nil {
@@ -170,10 +155,8 @@ func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor Actor)
 	if offer == nil {
 		return nil, ErrOfferNotFound
 	}
-	if !actor.IsSuperAdmin() {
-		if actor.AgencyID == nil || offer.AgencyID != *actor.AgencyID {
-			return nil, ErrOfferForbidden
-		}
+	if offer.AgencyID != actor.AgencyID {
+		return nil, ErrOfferForbidden
 	}
 	return offer, nil
 }

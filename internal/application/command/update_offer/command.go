@@ -16,8 +16,8 @@ type Command struct {
 	Description *string
 	Status      *enum.OfferStatus
 
-	// Caller identity, resolved by presentation from JWT + DB.
-	CurrentUserID   int
-	CurrentAgencyID *int
-	CurrentRoles    []enum.Role
+	// Caller identity, resolved by presentation from JWT + DB. AgencyID
+	// is required — every user belongs to exactly one agency.
+	CurrentUserID int
+	AgencyID      int
 }

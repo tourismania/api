@@ -20,11 +20,12 @@ type OfferLister interface {
 }
 
 // Handler orchestrates the offer listing use-case and enforces
-// read-side visibility by role:
-//   - ROLE_SUPER_ADMIN — every offer, filters applied as requested.
-//   - ROLE_AGENT       — every offer of their own agency (any status);
-//     the agency filter is always forced to their own agency.
-//   - everyone else    — published offers only.
+// read-side visibility by agency:
+//   - an actor belonging to the requested/own agency — every offer of
+//     that agency, any status; the agency filter is always forced to
+//     their own agency.
+//   - everyone else, including anonymous visitors — published offers
+//     only.
 type Handler struct {
 	offers OfferLister
 }
@@ -43,7 +44,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		Limit:     q.Limit,
 		Offset:    q.Offset,
 	}
-	applyVisibility(&filter, q.CurrentAgencyID, q.CurrentRoles)
+	applyVisibility(&filter, q.CurrentAgencyID)
 
 	res, err := h.offers.List(ctx, filter)
 	if err != nil {
@@ -67,17 +68,10 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	return Result{Offers: out, TotalCount: res.TotalCount}, nil
 }
 
-func applyVisibility(filter *repository.OfferFilter, currentAgencyID *int, roles []enum.Role) {
-	for _, r := range roles {
-		if r == enum.RoleSuperAdmin {
-			return
-		}
-	}
-	for _, r := range roles {
-		if r == enum.RoleAgent && currentAgencyID != nil {
-			filter.AgencyID = currentAgencyID
-			return
-		}
+func applyVisibility(filter *repository.OfferFilter, currentAgencyID *int) {
+	if currentAgencyID != nil {
+		filter.AgencyID = currentAgencyID
+		return
 	}
 	published := enum.OfferStatusPublished
 	filter.Status = &published

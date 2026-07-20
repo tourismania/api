@@ -95,28 +95,38 @@ func (s Server) Build() http.Handler {
 	// Public auth endpoint.
 	r.Post("/api/login", s.Login.Handle)
 
-	// Versioned, JWT-guarded API surface.
+	// Versioned API surface.
 	r.With(limiter.Handler).Route("/api/v1", func(api chi.Router) {
-		api.Use(custommw.JWT(s.JWT))
-		// Resolves the full principal (id/agency/roles) once per request;
-		// reused by get_me and every offers endpoint below.
-		api.Use(custommw.CurrentUserMiddleware(s.Users))
+		// Offer reads are public: a published offer is visible to
+		// anyone, including anonymous callers. OptionalJWT/
+		// OptionalCurrentUser still resolve the principal when a valid
+		// token is present, so an authenticated agent/super admin
+		// additionally sees their own agency's non-published offers.
+		api.Group(func(pub chi.Router) {
+			pub.Use(custommw.OptionalJWT(s.JWT))
+			pub.Use(custommw.OptionalCurrentUser(s.Users))
+			pub.Get("/offers", s.GetOffers.Handle)
+			pub.Get("/offers/{uuid}", s.GetOffer.Handle)
+		})
 
-		// Users
-		api.Post("/users", s.CreateUser.Handle)
-		api.Get("/users/me", s.GetMe.Handle)
+		// Everything else requires a valid JWT and a resolved principal.
+		api.Group(func(priv chi.Router) {
+			priv.Use(custommw.JWT(s.JWT))
+			priv.Use(custommw.CurrentUserMiddleware(s.Users))
 
-		// Airports
-		api.Get("/airports", s.Airports.Handle)
+			// Users
+			priv.Post("/users", s.CreateUser.Handle)
+			priv.Get("/users/me", s.GetMe.Handle)
 
-		// Offers
-		agentOrAdmin := custommw.RequireRole(enum.RoleAgent, enum.RoleSuperAdmin)
-		api.Route("/offers", func(offers chi.Router) {
-			offers.With(agentOrAdmin).Post("/", s.CreateOffer.Handle)
-			offers.Get("/", s.GetOffers.Handle)
-			offers.Get("/{uuid}", s.GetOffer.Handle)
-			offers.With(agentOrAdmin).Patch("/{uuid}", s.UpdateOffer.Handle)
-			offers.With(agentOrAdmin).Delete("/{uuid}", s.DeleteOffer.Handle)
+			// Airports
+			priv.Get("/airports", s.Airports.Handle)
+
+			// Offer writes: agent/super admin, own agency only (enforced
+			// by the domain OfferManager — no cross-agency bypass).
+			agentOrAdmin := custommw.RequireRole(enum.RoleAgent, enum.RoleSuperAdmin)
+			priv.With(agentOrAdmin).Post("/offers", s.CreateOffer.Handle)
+			priv.With(agentOrAdmin).Patch("/offers/{uuid}", s.UpdateOffer.Handle)
+			priv.With(agentOrAdmin).Delete("/offers/{uuid}", s.DeleteOffer.Handle)
 		})
 	})
 

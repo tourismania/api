@@ -57,12 +57,11 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.useCase.Handle(r.Context(), createoffer.Command{
-		Title:           req.Title,
-		Description:     req.Description,
-		Status:          enum.OfferStatus(req.Status),
-		CurrentUserID:   cu.ID,
-		CurrentAgencyID: cu.AgencyID,
-		CurrentRoles:    cu.Roles,
+		Title:         req.Title,
+		Description:   req.Description,
+		Status:        enum.OfferStatus(req.Status),
+		CurrentUserID: cu.ID,
+		AgencyID:      cu.AgencyID,
 	})
 	if err != nil {
 		switch {
@@ -70,7 +69,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusForbidden, err.Error())
 		case errors.Is(err, service.ErrOfferTitleInvalid),
 			errors.Is(err, service.ErrOfferStatusInvalid),
-			errors.Is(err, service.ErrActorHasNoAgency),
 			errors.Is(err, service.ErrAgencyNotFound),
 			errors.Is(err, service.ErrAgencyInactive):
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
