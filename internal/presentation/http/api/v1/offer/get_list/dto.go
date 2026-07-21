@@ -12,10 +12,10 @@ import (
 // endpoint. Validation uses go-playground/validator; business rules
 // (read-side visibility) are applied by the use-case.
 type ListOffersParams struct {
-	AgencyID int    `validate:"omitempty,gt=0"`
-	Status   string `validate:"omitempty,oneof=draft ready published"`
-	Limit    int    `validate:"omitempty,min=1,max=100"`
-	Offset   int    `validate:"omitempty,min=0,max=10000"`
+	Status    string `validate:"omitempty,oneof=draft ready published"`
+	CreatedBy int    `validate:"omitempty,gt=0"`
+	Limit     int    `validate:"omitempty,min=1,max=100"`
+	Offset    int    `validate:"omitempty,min=0,max=10000"`
 }
 
 // OfferResponse is the public projection of a single offer within the list.

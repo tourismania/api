@@ -1,43 +1,40 @@
-package getofferhttp
+package getpublicofferhttp
 
 import (
 	"errors"
 	"net/http"
 
-	getoffer "api/internal/application/query/get_offer"
+	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
-	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-// Handler renders a single offer as JSON. Private endpoint: the caller
-// must be authenticated and only ever sees offers of their own agency,
-// any status.
+// Handler renders a single published offer as JSON. Fully public: no
+// Authorization header is used or required. This is the link an agent
+// shares with a client.
 type Handler struct {
-	useCase getoffer.UseCase
+	useCase getpublishedoffer.UseCase
 }
 
 // NewHandler constructs the handler.
-func NewHandler(uc getoffer.UseCase) *Handler {
+func NewHandler(uc getpublishedoffer.UseCase) *Handler {
 	return &Handler{useCase: uc}
 }
 
 // Handle is the http.HandlerFunc.
 //
-//	@Summary      Get an offer
-//	@Description  Returns a single offer by uuid, scoped to the caller's own agency (any status). An offer belonging to another agency is reported as not found.
+//	@Summary      Get a published offer (public)
+//	@Description  Returns a single offer by uuid, no authentication required. Only published offers are visible — draft/ready offers of any agency are reported as not found.
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        uuid  path      string  true  "Offer UUID"
 //	@Success      200   {object}  OfferResponse
 //	@Failure      400   {object}  httpx.ErrorBody
-//	@Failure      401   {object}  httpx.ErrorBody
 //	@Failure      404   {object}  httpx.ErrorBody
-//	@Security     Bearer
-//	@Router       /api/v1/offers/{uuid} [get]
+//	@Router       /api/v1/public/offers/{uuid} [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "uuid"))
 	if err != nil {
@@ -45,16 +42,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-		return
-	}
-
-	res, err := h.useCase.Handle(r.Context(), getoffer.Query{
-		UUID:     id,
-		AgencyID: cu.AgencyID,
-	})
+	res, err := h.useCase.Handle(r.Context(), getpublishedoffer.Query{UUID: id})
 	if err != nil {
 		if errors.Is(err, service.ErrOfferNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
@@ -64,19 +52,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, toResponse(res))
-}
-
-func toResponse(res getoffer.Result) OfferResponse {
-	return OfferResponse{
+	httpx.WriteJSON(w, http.StatusOK, OfferResponse{
 		ID:          res.ID,
 		UUID:        res.UUID,
 		Title:       res.Title,
 		Description: res.Description,
 		AgencyID:    res.AgencyID,
-		CreatedBy:   res.CreatedBy,
-		Status:      res.Status.String(),
 		CreatedAt:   res.CreatedAt,
 		UpdatedAt:   res.UpdatedAt,
-	}
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"api/internal/domain/enum"
 	"api/internal/domain/repository"
 )
 
@@ -19,13 +18,10 @@ type OfferLister interface {
 	List(ctx context.Context, f repository.OfferFilter) (repository.OfferListResult, error)
 }
 
-// Handler orchestrates the offer listing use-case and enforces
-// read-side visibility by agency:
-//   - an actor belonging to the requested/own agency — every offer of
-//     that agency, any status; the agency filter is always forced to
-//     their own agency.
-//   - everyone else, including anonymous visitors — published offers
-//     only.
+// Handler orchestrates the offer listing use-case. The list is always
+// scoped to the caller's own agency, any status — the role has no
+// bearing on visibility, only on write access (enforced separately by
+// RequireRole at the presentation boundary).
 type Handler struct {
 	offers OfferLister
 }
@@ -38,13 +34,12 @@ func NewHandler(offers OfferLister) *Handler {
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	filter := repository.OfferFilter{
-		AgencyID:  q.AgencyID,
+		AgencyID:  &q.AgencyID,
 		Status:    q.Status,
 		CreatedBy: q.CreatedBy,
 		Limit:     q.Limit,
 		Offset:    q.Offset,
 	}
-	applyVisibility(&filter, q.CurrentAgencyID)
 
 	res, err := h.offers.List(ctx, filter)
 	if err != nil {
@@ -66,13 +61,4 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		})
 	}
 	return Result{Offers: out, TotalCount: res.TotalCount}, nil
-}
-
-func applyVisibility(filter *repository.OfferFilter, currentAgencyID *int) {
-	if currentAgencyID != nil {
-		filter.AgencyID = currentAgencyID
-		return
-	}
-	published := enum.OfferStatusPublished
-	filter.Status = &published
 }

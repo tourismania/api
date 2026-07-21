@@ -59,6 +59,7 @@ func run() error {
 		CreateOffer:        container.Http.CreateOffer,
 		GetOffer:           container.Http.GetOffer,
 		GetOffers:          container.Http.GetOffers,
+		GetPublishedOffer:  container.Http.GetPublishedOffer,
 		UpdateOffer:        container.Http.UpdateOffer,
 		DeleteOffer:        container.Http.DeleteOffer,
 		JWT:                container.JWT,

@@ -29,7 +29,7 @@ func NewHandler(uc updateoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Update an offer
-//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access.
+//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -83,8 +83,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrOfferNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
-		case errors.Is(err, service.ErrOfferForbidden):
-			httpx.WriteError(w, http.StatusForbidden, err.Error())
 		case errors.Is(err, service.ErrOfferTitleInvalid),
 			errors.Is(err, service.ErrOfferStatusInvalid):
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())

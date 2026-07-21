@@ -73,32 +73,6 @@ func CurrentUserMiddleware(users UserFinder) func(http.Handler) http.Handler {
 	}
 }
 
-// OptionalCurrentUser resolves the principal only if JWT claims are
-// already on the context (i.e. mounted after OptionalJWT, not JWT). An
-// anonymous request (no claims) simply continues with no CurrentUser on
-// context — CurrentUserFromContext then reports ok=false, and handlers
-// treat that as "public visitor". Used by the public offer read
-// endpoints, where published offers are visible to anyone but an
-// authenticated agent additionally sees their own agency's offers.
-func OptionalCurrentUser(users UserFinder) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := ClaimsFromContext(r.Context())
-			if !ok || claims == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-			cu, err := resolveCurrentUser(r.Context(), users)
-			if err != nil {
-				httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-				return
-			}
-			ctx := context.WithValue(r.Context(), currentUserKey{}, cu)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
 func resolveCurrentUser(ctx context.Context, users UserFinder) (CurrentUser, error) {
 	claims, ok := ClaimsFromContext(ctx)
 	if !ok || claims == nil {
@@ -129,9 +103,8 @@ func resolveCurrentUser(ctx context.Context, users UserFinder) (CurrentUser, err
 }
 
 // CurrentUserFromContext extracts the principal placed by
-// CurrentUserMiddleware or OptionalCurrentUser. The boolean is false
-// when the request is anonymous (didn't pass through either middleware,
-// or passed through OptionalCurrentUser without a token).
+// CurrentUserMiddleware. The boolean is false when the request did not
+// pass through that middleware.
 func CurrentUserFromContext(ctx context.Context) (CurrentUser, bool) {
 	cu, ok := ctx.Value(currentUserKey{}).(CurrentUser)
 	return cu, ok

@@ -28,7 +28,7 @@ func NewHandler(uc deleteoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Delete an offer
-//	@Description  Soft-deletes an offer. Only an agent/super admin belonging to the offer's own agency may delete it — 1 user = 1 agency, no cross-agency access.
+//	@Description  Soft-deletes an offer. Only an agent/super admin belonging to the offer's own agency may delete it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found.
 //	@Tags         Offers
 //	@Param        uuid  path  string  true  "Offer UUID"
 //	@Success      204
@@ -60,8 +60,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrOfferNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
-		case errors.Is(err, service.ErrOfferForbidden):
-			httpx.WriteError(w, http.StatusForbidden, err.Error())
 		default:
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		}

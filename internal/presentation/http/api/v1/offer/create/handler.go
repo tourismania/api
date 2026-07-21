@@ -65,8 +65,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrOfferForbidden):
-			httpx.WriteError(w, http.StatusForbidden, err.Error())
 		case errors.Is(err, service.ErrOfferTitleInvalid),
 			errors.Is(err, service.ErrOfferStatusInvalid),
 			errors.Is(err, service.ErrAgencyNotFound),

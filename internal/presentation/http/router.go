@@ -15,6 +15,7 @@ import (
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
 	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
+	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -29,16 +30,17 @@ import (
 // Server holds every HTTP-layer dependency and builds the final handler.
 // It is the single place that knows the URL → handler mapping — easy to audit.
 type Server struct {
-	Login       *loginhttp.Handler
-	CreateUser  *createuserhttp.Handler
-	GetMe       *getmehttp.Handler
-	Airports    *searchairporthttp.Handler
-	CreateOffer *createofferhttp.Handler
-	GetOffer    *getofferhttp.Handler
-	GetOffers   *listoffershttp.Handler
-	UpdateOffer *updateofferhttp.Handler
-	DeleteOffer *deleteofferhttp.Handler
-	JWT         *auth.Service
+	Login             *loginhttp.Handler
+	CreateUser        *createuserhttp.Handler
+	GetMe             *getmehttp.Handler
+	Airports          *searchairporthttp.Handler
+	CreateOffer       *createofferhttp.Handler
+	GetOffer          *getofferhttp.Handler
+	GetOffers         *listoffershttp.Handler
+	GetPublishedOffer *getpublicofferhttp.Handler
+	UpdateOffer       *updateofferhttp.Handler
+	DeleteOffer       *deleteofferhttp.Handler
+	JWT               *auth.Service
 	// Users resolves the authenticated principal (id/agency/roles) for
 	// custommw.CurrentUserMiddleware — reused by get_me and offers.
 	Users custommw.UserFinder
@@ -97,17 +99,9 @@ func (s Server) Build() http.Handler {
 
 	// Versioned API surface.
 	r.With(limiter.Handler).Route("/api/v1", func(api chi.Router) {
-		// Offer reads are public: a published offer is visible to
-		// anyone, including anonymous callers. OptionalJWT/
-		// OptionalCurrentUser still resolve the principal when a valid
-		// token is present, so an authenticated agent/super admin
-		// additionally sees their own agency's non-published offers.
-		api.Group(func(pub chi.Router) {
-			pub.Use(custommw.OptionalJWT(s.JWT))
-			pub.Use(custommw.OptionalCurrentUser(s.Users))
-			pub.Get("/offers", s.GetOffers.Handle)
-			pub.Get("/offers/{uuid}", s.GetOffer.Handle)
-		})
+		// Fully anonymous "share link": only ever returns a published
+		// offer, regardless of agency. No auth middleware at all.
+		api.Get("/public/offers/{uuid}", s.GetPublishedOffer.Handle)
 
 		// Everything else requires a valid JWT and a resolved principal.
 		api.Group(func(priv chi.Router) {
@@ -120,6 +114,11 @@ func (s Server) Build() http.Handler {
 
 			// Airports
 			priv.Get("/airports", s.Airports.Handle)
+
+			// Offer reads: any authenticated principal, scoped to their
+			// own agency, any status. Role has no effect on visibility.
+			priv.Get("/offers", s.GetOffers.Handle)
+			priv.Get("/offers/{uuid}", s.GetOffer.Handle)
 
 			// Offer writes: agent/super admin, own agency only (enforced
 			// by the domain OfferManager — no cross-agency bypass).

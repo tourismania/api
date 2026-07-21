@@ -29,8 +29,21 @@ func TestGetOffer_MatchingAgency_SeesDraftOffer(t *testing.T) {
 	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
 
 	res, err := h.Handle(context.Background(), getoffer.Query{
-		UUID:            offer.UUID,
-		CurrentAgencyID: intPtr(7),
+		UUID:     offer.UUID,
+		AgencyID: 7,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, offer.UUID, res.UUID)
+}
+
+func TestGetOffer_MatchingAgency_SeesPublishedOffer(t *testing.T) {
+	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
+	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
+
+	res, err := h.Handle(context.Background(), getoffer.Query{
+		UUID:     offer.UUID,
+		AgencyID: 7,
 	})
 
 	require.NoError(t, err)
@@ -42,59 +55,35 @@ func TestGetOffer_DifferentAgency_DraftOffer_NotFound(t *testing.T) {
 	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
-		UUID:            offer.UUID,
-		CurrentAgencyID: intPtr(1),
+		UUID:     offer.UUID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
-func TestGetOffer_DifferentAgency_PublishedOffer_Visible(t *testing.T) {
+func TestGetOffer_DifferentAgency_PublishedOffer_StillNotFound(t *testing.T) {
+	// 1 user = 1 agency: even a published offer of another agency is
+	// invisible on the private endpoint — get_published_offer serves
+	// cross-agency published reads separately, with no identity at all.
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
-
-	res, err := h.Handle(context.Background(), getoffer.Query{
-		UUID:            offer.UUID,
-		CurrentAgencyID: intPtr(1),
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, offer.UUID, res.UUID)
-}
-
-func TestGetOffer_Anonymous_DraftOffer_NotFound(t *testing.T) {
-	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusDraft}
 	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
-		UUID:            offer.UUID,
-		CurrentAgencyID: nil,
+		UUID:     offer.UUID,
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
-}
-
-func TestGetOffer_Anonymous_PublishedOffer_Visible(t *testing.T) {
-	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer})
-
-	res, err := h.Handle(context.Background(), getoffer.Query{
-		UUID:            offer.UUID,
-		CurrentAgencyID: nil,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, offer.UUID, res.UUID)
 }
 
 func TestGetOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
 	h := getoffer.NewHandler(stubOfferFinder{offer: nil})
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
-		UUID: uuid.New(),
+		UUID:     uuid.New(),
+		AgencyID: 1,
 	})
 
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
-
-func intPtr(v int) *int { return &v }

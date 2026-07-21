@@ -143,7 +143,7 @@ func TestOfferManager_Update_NotFound_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
-func TestOfferManager_Update_DifferentAgency_ReturnsForbidden(t *testing.T) {
+func TestOfferManager_Update_DifferentAgency_ReturnsNotFound(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
@@ -151,7 +151,7 @@ func TestOfferManager_Update_DifferentAgency_ReturnsForbidden(t *testing.T) {
 		AgencyID: 2,
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferForbidden)
+	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
 func TestOfferManager_Update_SameAgency_AppliesPartialChanges(t *testing.T) {
@@ -170,9 +170,10 @@ func TestOfferManager_Update_SameAgency_AppliesPartialChanges(t *testing.T) {
 	assert.Equal(t, "New title", offers.updatedOffer.Title)
 }
 
-func TestOfferManager_Update_DifferentAgency_SuperAdminStillForbidden(t *testing.T) {
+func TestOfferManager_Update_DifferentAgency_SuperAdminStillNotFound(t *testing.T) {
 	// 1 user = 1 agency: there is no role-based bypass, not even for
-	// ROLE_SUPER_ADMIN — ownership is strict agency equality.
+	// ROLE_SUPER_ADMIN — ownership is strict agency equality, and a
+	// mismatch is reported as not-found, not forbidden.
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
@@ -181,7 +182,7 @@ func TestOfferManager_Update_DifferentAgency_SuperAdminStillForbidden(t *testing
 		AgencyID: 999,
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferForbidden)
+	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
 func TestOfferManager_Update_InvalidStatus_ReturnsError(t *testing.T) {
@@ -204,7 +205,7 @@ func TestOfferManager_Delete_NotFound_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
-func TestOfferManager_Delete_DifferentAgency_ReturnsForbidden(t *testing.T) {
+func TestOfferManager_Delete_DifferentAgency_ReturnsNotFound(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 
@@ -212,7 +213,7 @@ func TestOfferManager_Delete_DifferentAgency_ReturnsForbidden(t *testing.T) {
 		AgencyID: 2,
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferForbidden)
+	assert.ErrorIs(t, err, service.ErrOfferNotFound)
 }
 
 func TestOfferManager_Delete_SameAgency_SoftDeletes(t *testing.T) {

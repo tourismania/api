@@ -1,4 +1,4 @@
-package getoffer
+package getpublishedoffer
 
 import (
 	"context"
@@ -21,10 +21,8 @@ type OfferFinder interface {
 	FindByUUID(ctx context.Context, id uuid.UUID) (*entity.Offer, error)
 }
 
-// Handler fetches a single offer for its own agency's staff/users: the
-// caller sees it regardless of status as long as it belongs to their
-// agency; any other agency's offer is reported as not found. Published
-// offers of other agencies are served separately by get_published_offer.
+// Handler fetches a single offer and only ever returns it if published —
+// draft/ready offers are reported as not found, regardless of agency.
 type Handler struct {
 	offers OfferFinder
 }
@@ -40,9 +38,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("find offer: %w", err)
 	}
-	if offer == nil || offer.AgencyID != q.AgencyID {
-		// A different agency's offer is reported the same as not-found —
-		// 1 user = 1 agency, no bypass, existence is never leaked.
+	if offer == nil || !offer.IsPublished() {
 		return Result{}, service.ErrOfferNotFound
 	}
 
@@ -52,8 +48,6 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		Title:       offer.Title,
 		Description: offer.Description,
 		AgencyID:    offer.AgencyID,
-		CreatedBy:   offer.CreatedBy,
-		Status:      offer.Status,
 		CreatedAt:   offer.CreatedAt,
 		UpdatedAt:   offer.UpdatedAt,
 	}, nil

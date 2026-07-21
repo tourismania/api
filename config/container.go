@@ -21,6 +21,7 @@ import (
 	getmeq "api/internal/application/query/get_me"
 	getofferq "api/internal/application/query/get_offer"
 	getoffersq "api/internal/application/query/get_offers"
+	getpublishedofferq "api/internal/application/query/get_published_offer"
 	searchairports "api/internal/application/query/search_airports"
 	"api/internal/domain/factory"
 	"api/internal/domain/service"
@@ -39,6 +40,7 @@ import (
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
 	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
+	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -62,31 +64,33 @@ type Container struct {
 
 	// App groups application-layer use-case handlers (write + read sides).
 	App struct {
-		CreateUser       *createusercmd.Handler
-		CreateAgency     *createagencycmd.Handler
-		DeactivateAgency *deactivateagencycmd.Handler
-		ActivateAgency   *activateagencycmd.Handler
-		GetMe            *getmeq.Handler
-		SearchAirports   *searchairports.Handler
-		SyncAirports     *syncairportscmd.Handler
-		CreateOffer      *createoffercmd.Handler
-		UpdateOffer      *updateoffercmd.Handler
-		DeleteOffer      *deleteoffercmd.Handler
-		GetOffer         *getofferq.Handler
-		GetOffers        *getoffersq.Handler
+		CreateUser        *createusercmd.Handler
+		CreateAgency      *createagencycmd.Handler
+		DeactivateAgency  *deactivateagencycmd.Handler
+		ActivateAgency    *activateagencycmd.Handler
+		GetMe             *getmeq.Handler
+		SearchAirports    *searchairports.Handler
+		SyncAirports      *syncairportscmd.Handler
+		CreateOffer       *createoffercmd.Handler
+		UpdateOffer       *updateoffercmd.Handler
+		DeleteOffer       *deleteoffercmd.Handler
+		GetOffer          *getofferq.Handler
+		GetOffers         *getoffersq.Handler
+		GetPublishedOffer *getpublishedofferq.Handler
 	}
 
 	// Http groups presentation-layer HTTP handlers.
 	Http struct {
-		Login       *loginhttp.Handler
-		CreateUser  *createuserhttp.Handler
-		GetMe       *getmehttp.Handler
-		Airports    *searchairporthttp.Handler
-		CreateOffer *createofferhttp.Handler
-		GetOffer    *getofferhttp.Handler
-		GetOffers   *listoffershttp.Handler
-		UpdateOffer *updateofferhttp.Handler
-		DeleteOffer *deleteofferhttp.Handler
+		Login             *loginhttp.Handler
+		CreateUser        *createuserhttp.Handler
+		GetMe             *getmehttp.Handler
+		Airports          *searchairporthttp.Handler
+		CreateOffer       *createofferhttp.Handler
+		GetOffer          *getofferhttp.Handler
+		GetOffers         *listoffershttp.Handler
+		GetPublishedOffer *getpublicofferhttp.Handler
+		UpdateOffer       *updateofferhttp.Handler
+		DeleteOffer       *deleteofferhttp.Handler
 	}
 }
 
@@ -159,6 +163,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	deleteOfferApp := deleteoffercmd.NewHandler(offerManager)
 	getOfferApp := getofferq.NewHandler(offerRepo)
 	getOffersApp := getoffersq.NewHandler(offerRepo)
+	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -171,6 +176,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
 	getOffersH := listoffershttp.NewHandler(getOffersApp, validate)
+	getPublishedOfferH := getpublicofferhttp.NewHandler(getPublishedOfferApp)
 	updateOfferH := updateofferhttp.NewHandler(updateOfferApp, validate)
 	deleteOfferH := deleteofferhttp.NewHandler(deleteOfferApp)
 
@@ -196,6 +202,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.DeleteOffer = deleteOfferApp
 	c.App.GetOffer = getOfferApp
 	c.App.GetOffers = getOffersApp
+	c.App.GetPublishedOffer = getPublishedOfferApp
 
 	c.Http.Login = loginH
 	c.Http.CreateUser = createUserH
@@ -204,6 +211,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH
 	c.Http.GetOffers = getOffersH
+	c.Http.GetPublishedOffer = getPublishedOfferH
 	c.Http.UpdateOffer = updateOfferH
 	c.Http.DeleteOffer = deleteOfferH
 

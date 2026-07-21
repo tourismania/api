@@ -17,12 +17,6 @@ import (
 // non-deleted row.
 var ErrOfferNotFound = errors.New("offer not found")
 
-// ErrOfferForbidden is returned when the acting user does not belong to
-// the offer's owning agency. 1 user = 1 agency: there is no bypass —
-// every actor, including ROLE_SUPER_ADMIN, may only manage offers of
-// their own agency.
-var ErrOfferForbidden = errors.New("forbidden: offer belongs to another agency")
-
 // ErrOfferTitleInvalid is returned when the title is empty or exceeds
 // entity.OfferTitleMaxLength.
 var ErrOfferTitleInvalid = errors.New("offer title is required and must be at most 200 characters")
@@ -146,17 +140,16 @@ func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor Actor) er
 }
 
 // findOwned fetches an offer and verifies the actor belongs to its
-// owning agency. 1 user = 1 agency: there is no role-based bypass.
+// owning agency. 1 user = 1 agency: there is no role-based bypass. An
+// offer of another agency is reported as ErrOfferNotFound, not a
+// forbidden error — for the actor it simply does not exist.
 func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor Actor) (*entity.Offer, error) {
 	offer, err := m.offers.FindByUUID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("find offer: %w", err)
 	}
-	if offer == nil {
+	if offer == nil || offer.AgencyID != actor.AgencyID {
 		return nil, ErrOfferNotFound
-	}
-	if offer.AgencyID != actor.AgencyID {
-		return nil, ErrOfferForbidden
 	}
 	return offer, nil
 }

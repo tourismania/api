@@ -1,14 +1,13 @@
-// Package getoffer contains the "single offer" read-side use case.
+// Package getoffer contains the "single offer" read-side use case
+// (private endpoint — the caller is always authenticated).
 package getoffer
 
 import "github.com/google/uuid"
 
-// Query carries the requested offer identifier plus the caller's agency
-// (if any), needed to compute read-side visibility. CurrentAgencyID is
-// nil for anonymous/unauthenticated requests — published offers are
-// visible to anyone.
+// Query carries the requested offer identifier plus the caller's own
+// agency. AgencyID is required: this use-case backs the private
+// endpoint only, reachable exclusively by authenticated principals.
 type Query struct {
-	UUID uuid.UUID
-
-	CurrentAgencyID *int
+	UUID     uuid.UUID
+	AgencyID int
 }
