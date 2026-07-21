@@ -69,6 +69,7 @@ tests/
 - Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 - use skill: golang-design-patterns
 - Для работы с техническим заданием подключай агента - engineering-technical-writer
+  - В процессе создания ТЗ когда ссылаешься на какие-нибудь пункты, не используй синтаксис `#1`, используй `№1`. Чтобы при формировании задачи в Github не подставлялись ссылки на задачи
 - Если создаётся новая CLI-команда — добавь её в `README.md` в раздел **CLI**.
 - Если создаётся новый route — добавь его в `README.md` в раздел **Endpoints**.
 - Файлы в `docs/` и `internal/infrastructure/persistence/postgres/db/` генерируются автоматически. Не редактируй их вручную.
