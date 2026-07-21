@@ -2,82 +2,136 @@
 
 > **GitHub issue:** [#12](https://github.com/tourismania/api/issues/12)
 > **Зависит от:** [#11](https://github.com/tourismania/api/issues/11) (Agency)
+> **Ревизия ТЗ:** переработанный текст после разбора нестыковок. Заменяет тело исходного issue и `offer_crud_spec.md` как источник истины.
 
 ## Контекст
 
-Витрина предложений: турагент публикует offer, клиент знакомится и решает о покупке. Итоговая цена в offer **не хранится** — будет считаться из дочерних сущностей (перелёты/отели/поездки) в отдельных issue. Владение — **по агентству**: агент (или супер-админ) управляет только offer **своего** агентства — 1 пользователь = 1 агентство касается всех ролей одинаково, кросс-агентского доступа нет ни у кого. Опубликованный (`published`) offer виден любому, включая неавторизованных пользователей.
+Витрина предложений по турпутёвкам. Авторизованный турагент создаёт, редактирует и удаляет предложения (`offer`). Управлять предложением может любой сотрудник **того же агентства** (владение — по агентству, не по автору). Чтобы поделиться предложением с клиентом (неавторизованным пользователем), агент публикует его: опубликованный offer доступен по `uuid` без авторизации.
 
-Полное ТЗ: `docs/specs/offer_crud_spec.md`.
+Базовые правила модели:
 
-> **Зависит от issue «Сущность Agency»** (нужны `agencies`, `users.agency_id`, `ROLE_AGENT`, `AgencyRepository`).
+- **`1 пользователь = 1 агентство`**, поле `agency_id` у пользователя `NOT NULL` (миграция `014_add_users_agency`). Действует для **всех** ролей одинаково, включая `ROLE_SUPER_ADMIN`.
+- **У авторизованного пользователя нет понятия «чужое агентство»** — он всегда работает только в пределах агентства, к которому принадлежит. Offer другого агентства для него на приватных ручках просто не существует (`404`), а не «запрещён».
+- **Публичный доступ** (без токена) — агентства не касается вовсе: гостю виден любой `published` offer по `uuid`.
+- **`ROLE_USER` — только чтение.** Сотрудник агентства без прав записи: видит все offer своего агентства (любой статус), но не может создавать/редактировать/удалять.
+- **Запись (`POST`/`PATCH`/`DELETE`) — только `ROLE_AGENT` и `ROLE_SUPER_ADMIN`** в пределах своего агентства.
+- **Смена статуса — свободная**, через тело запроса; машины состояний нет.
+
+## Статусы (`OfferStatus`)
+
+- `draft` — черновик.
+- `ready` — заполнен и сохранён, но агент ещё не решил публиковать; видимость идентична `draft` (только внутри агентства).
+- `published` — публично видим по `uuid`.
+
+Переходы свободные: допустимы любые (создание сразу в `published`, снятие с публикации `published → draft/ready`). Валидация значения — `oneof=draft ready published`; недопустимое значение → `400`.
+
+## Эндпоинты (что реализуем)
+
+| # | Метод | Путь | Доступ | Успех |
+|---|---|---|---|---|
+| 1 | `POST` | `/api/v1/offers` | `ROLE_AGENT`/`ROLE_SUPER_ADMIN`, своё агентство | `201` |
+| 2 | `GET` | `/api/v1/offers` | любой авторизованный (своё агентство) | `200` |
+| 3 | `GET` | `/api/v1/offers/{uuid}` | любой авторизованный (своё агентство, любой статус) | `200` |
+| 4 | `GET` | `/api/v1/public/offers/{uuid}` | публичный (без токена), только `published` | `200` |
+| 5 | `PATCH` | `/api/v1/offers/{uuid}` | `ROLE_AGENT`/`ROLE_SUPER_ADMIN`, своё агентство | `200` |
+| 6 | `DELETE` | `/api/v1/offers/{uuid}` | `ROLE_AGENT`/`ROLE_SUPER_ADMIN`, своё агентство | `204` |
+
+Получение offer по `uuid` разделено на **две отдельные ручки** (#3 приватная и #4 публичная) с разными обработчиками, представлениями и query. Публичная ручка (#4) — это «ссылка, которой делятся с клиентом».
+
+> Путь публичной ручки `/api/v1/public/offers/{uuid}` выбран под разделение роутера на публичную/приватную группы; при желании легко заменить (например `/api/v1/offers/{uuid}/public`).
+
+## Матрица видимости
+
+| Принципал | `POST` / `PATCH` / `DELETE` | `GET /offers` (список) | `GET /offers/{uuid}` (приватный) | `GET /public/offers/{uuid}` |
+|---|---|---|---|---|
+| Гость (без токена) | `401` | `401` | `401` | `published` → `200`, иначе `404` |
+| `ROLE_USER` (своё агентство) | `403` | offer своего агентства, **все статусы** | offer своего агентства, любой статус; иначе `404` | `published` → `200`, иначе `404` |
+| `ROLE_AGENT` / `ROLE_SUPER_ADMIN` (своё агентство) | `201`/`200`/`204` (только своё агентство) | offer своего агентства, **все статусы** | offer своего агентства, любой статус; иначе `404` | `published` → `200`, иначе `404` |
+
+Представление: приватные ручки (#2, #3) → детальное DTO; публичная (#4) → публичное DTO.
+
+Коды ошибок:
+
+- **`401`** — нет/невалидный токен на приватной ручке.
+- **`403`** — авторизован, но роль без права записи (`ROLE_USER` на `POST`/`PATCH`/`DELETE`) — отдаёт `RequireRole`.
+- **`404`** — offer не найден **или** принадлежит не тому агентству, что у пользователя (существование чужого offer не раскрываем). То же для не-`published` на публичной ручке.
 
 ## Scope
 
-- Домен:
-  - `internal/domain/entity/offer.go` — `Offer{ ID, UUID, Title, Description, AgencyID, CreatedBy, Status, CreatedAt, UpdatedAt, DeletedAt }` (без цены).
-  - `internal/domain/enum/offer_status.go` — `OfferStatus` (`draft` / `ready` / `published`; `ready` — заполнен и сохранён, но ещё не опубликован, видимость как у `draft`).
-  - `internal/domain/repository/offer_repository.go` — `Store`, `FindByUUID`, `List(OfferFilter)`, `Update`, `SoftDelete`; `OfferFilter{ AgencyID, Status, CreatedBy, Limit, Offset }`.
-  - `internal/domain/service/offer_manager.go` — единый `OfferManager{ Insert, Update, Delete }`: инварианты, проверка активности агентства, **владение по агентству** (`offer.AgencyID == actor.AgencyID`, строгое равенство, **без исключений для `ROLE_SUPER_ADMIN`** — 1 пользователь = 1 агентство). Sentinel-ошибки `ErrOfferNotFound`, `ErrOfferForbidden`, `ErrAgencyInactive`, …
-- Infrastructure:
-  - `repository/offer_repository.go` + `queries/offers.sql` (`make sqlc`) + `mapper/offer_mapper.go`. Чтения фильтруют `deleted_at IS NULL`.
-- Application (CQRS):
-  - command: `create_offer`, `update_offer`, `delete_offer`.
-  - query: `get_offer`, `get_offers` (пагинация + фильтры + `TotalCount`).
-  - Identity вызывающего передаётся явно: write-side — `CurrentUserID int`, `AgencyID int` (обязательный, берётся из `CurrentUser`, без отдельного "Current"-префикса); read-side — `CurrentAgencyID *int` (`nil` = гость/не сотрудник агентства — используется для публичных GET).
-- Presentation (HTTP), пакеты `internal/presentation/http/api/v1/offer/{create,get,get_list,update,delete}`:
-  - `POST /api/v1/offers` (ROLE_AGENT, ROLE_SUPER_ADMIN; только своё агентство)
-  - `GET /api/v1/offers` (**публичный**, JWT опционален; видимость — см. ниже)
-  - `GET /api/v1/offers/{uuid}` (**публичный**, JWT опционален; видимость — см. ниже)
-  - `PATCH /api/v1/offers/{uuid}` (агент/супер-админ того же агентства)
-  - `DELETE /api/v1/offers/{uuid}` (soft; агент/супер-админ того же агентства)
-  - Тело `POST`/`PATCH`: только `title`, `description`, `status` (`agency_id` выводится из агентства текущего пользователя на сервере).
-  - Регистрация в `router.go`; сборка в `config/container.go`.
-- Авторизация: общий переиспользуемый middleware **`CurrentUser`** (по `Claims.Subject` достаёт `User{ ID, Roles, AgencyID }` из БД, кладёт в контекст; переиспользуется и в `get_me`) + guard `RequireRole(...)` для write-эндпоинтов + **`OptionalJWT`/`OptionalCurrentUser`** для публичных read-эндпоинтов offer (резолвят принципала, если токен есть, иначе продолжают как гость).
-- Миграция: `015_create_offers` — таблица `offers` + индексы (`agency_id`, `status`, частичный `WHERE deleted_at IS NULL`) в одной миграции.
-- Swagger (`make swag`), тесты, `README.md` (Endpoints).
+### Домен (`internal/domain/`)
 
-## Видимость (read-side)
+- `entity/offer.go` — `Offer{ ID, UUID, Title, Description, AgencyID, CreatedBy, Status, CreatedAt, UpdatedAt, DeletedAt }`. Метод `IsPublished()` (учитывает только `published`).
+- `enum/offer_status.go` — `OfferStatus` (`draft` / `ready` / `published`).
+- `repository/offer_repository.go` — интерфейс: `Store`, `FindByUUID`, `List(OfferFilter)`, `Update`, `SoftDelete`. `OfferFilter{ AgencyID, Status, CreatedBy, Limit, Offset }` (`AgencyID` заполняется слоями выше из identity, наружу как query-параметр не выставляется).
+- `service/offer_manager.go` — единый `OfferManager{ Insert, Update, Delete }`: инварианты, проверка активности агентства, владение по агентству (строгое равенство `offer.AgencyID == actor.AgencyID`, **без ветки для `ROLE_SUPER_ADMIN`**). При несовпадении агентства → `ErrOfferNotFound` (не `Forbidden`: чужой offer для пользователя не существует). Sentinel-ошибки: `ErrOfferNotFound`, `ErrAgencyInactive`, `ErrOfferInvalid`, …
+  - `service.Actor{ UserID int, AgencyID int }` — `AgencyID` обязательный `int` (не `*int`), т.к. `agency_id` пользователя `NOT NULL`. Роль на write-ownership не влияет (гейт по роли — в presentation через `RequireRole`), поэтому `Roles` в `Actor` для write не нужны. Метода `IsSuperAdmin()` нет.
 
-`GET /api/v1/offers*` — публичные эндпоинты (JWT не обязателен):
+### Infrastructure (`internal/infrastructure/persistence/postgres/`)
 
-- Опубликованный (`status=published`) offer виден **любому**, включая неавторизованных пользователей.
-- Аутентифицированный сотрудник агентства (`ROLE_AGENT` или `ROLE_SUPER_ADMIN`) дополнительно видит offer **своего** агентства в любом статусе; фильтр `agency_id` в этом случае принудительно выставляется в собственное агентство — кросс-агентского доступа нет даже у `ROLE_SUPER_ADMIN`.
-- `ROLE_USER`-клиенты видят только `published`, независимо от своего `agency_id` (наличие `agency_id` у клиента — административный атрибут регистрации, не даёт видимости чужих черновиков).
+- `repository/offer_repository.go` — реализация `domain/repository`.
+- `queries/offers.sql` (+ `make sqlc`) — все чтения фильтруют `deleted_at IS NULL`.
+- `mapper/offer_mapper.go` — маппинг `model.Offer ↔ entity.Offer`.
+
+### Application (CQRS, `internal/application/`)
+
+**command:**
+
+- `create_offer`, `update_offer`, `delete_offer`. Identity write-side передаётся явно: `CurrentUserID int`, `AgencyID int` (обязательный, заполняется presentation-слоем **строго** из `CurrentUser.AgencyID`, другого источника нет). Поле ролей в команде не нужно.
+
+**query:**
+
+- `get_offers` — список для авторизованного пользователя. `Query{ AgencyID int, Status *OfferStatus, CreatedBy *int, Limit, Offset }`; результат — элементы + `TotalCount`. Всегда скоуп `agency_id = AgencyID`, любые статусы. Роль на выборку не влияет (`ROLE_USER` и агенты видят одинаковый список своего агентства).
+- `get_offer` — приватное получение одного offer по `uuid`. `Query{ UUID, AgencyID int }`. Возвращает offer любого статуса, если `offer.AgencyID == AgencyID`; иначе `ErrOfferNotFound`.
+- `get_published_offer` — **(новая)** публичное получение одного offer по `uuid`. `Query{ UUID }`, без identity. Возвращает offer только если `published`; иначе `ErrOfferNotFound`.
+
+### Presentation (HTTP, `internal/presentation/http/`)
+
+Пакеты `api/v1/offers/*`.
+
+- Тело `POST`/`PATCH`: только `title`, `description`, `status` (`agency_id` выводится из агентства текущего пользователя на сервере, в теле не принимается).
+- Query-параметры списка (#2): `status` (`oneof=draft ready published`), `created_by`, `limit`, `offset`. Параметра `agency_id` нет — скоуп навязывается из `CurrentUser.AgencyID`.
+- Регистрация маршрутов в `router.go`; роутер разделён на:
+  - **публичную группу** (без auth) — `GET /api/v1/public/offers/{uuid}` (#4);
+  - **приватную группу** (`JWT` + `CurrentUser`) — `GET /offers` (#2), `GET /offers/{uuid}` (#3);
+  - внутри приватной — **write-подгруппа** с `RequireRole(ROLE_AGENT, ROLE_SUPER_ADMIN)`: `POST`/`PATCH`/`DELETE` (#1, #5, #6).
+- Сборка зависимостей — в `config/container.go`.
+
+### Авторизация (middleware)
+
+- **`CurrentUser`** — переиспользуемый resolver: по `Claims.Subject` достаёт `User{ ID, Roles, AgencyID }` из БД **через query из слоя Application**, кладёт в контекст. Переиспользуется также в `get_me`.
+- **`RequireRole(...)`** — guard для write-эндпоинтов.
+- Публичная ручка (#4) auth-middleware не использует (полностью анонимна). Отдельный `OptionalJWT`/`OptionalCurrentUser` не нужен — публичное и приватное чтение разнесены по разным эндпоинтам.
+- `entity.UserRecord` дополняется полем `ID int` (внутренний numeric id) — нужно для `CurrentUserID` в identity.
+
+### Миграция
+
+- `015_create_offers` — одна миграция: таблица `offers` + индексы (`agency_id`, `status`, частичный `WHERE deleted_at IS NULL`) + FK `agency_id → agencies(id)` и FK `created_by → users(id)`. Создание таблицы со своими constraints/индексами — одно логическое изменение.
+
+### Прочее
+
+- Swagger — `make swag`.
+- `README.md` — раздел **Endpoints** (6 ручек) + раздел **Роли и права** (матрица видимости).
 
 ## Acceptance criteria
 
-- [x] Миграция 015 применяется/откатывается.
-- [x] Эндпоинты `POST/GET/GET{uuid}/PATCH/DELETE /api/v1/offers` работают с кодами 201/200/204/400/401/403/404.
-- [x] Владение по агентству: агент/супер-админ управляет только offer своего агентства; чужое агентство → 403 (без исключений по роли — 1 пользователь = 1 агентство).
-- [x] Клиент (`ROLE_USER`) и неавторизованный пользователь видят только `published`; `GET /api/v1/offers*` — публичные эндпоинты.
-- [x] Soft delete: удалённые offer исключены из чтений.
-- [x] Общий `CurrentUser` resolver-middleware внедрён и переиспользуется (также в `get_me`).
-- [x] Swagger сгенерирован (`make swag`); `README.md` (Endpoints + новый раздел «Роли и права») обновлён.
-- [x] Критический путь (создание + авторизация по агентству) покрыт unit-тестами `OfferManager`/`get_offer`/`get_offers` (мокированные репозитории) + integration-тестами `OfferRepository` + application e2e (401/403/201); `go test ./...`, `go build ./...` — зелёные. `golangci-lint run` не выявил замечаний в новом коде (6 предсуществующих замечаний в несвязанных файлах).
-
-## Заметки по реализации
-
-- Видимость `ROLE_USER` реализована **без** ограничения по агентству (клиент видит `published` offer любого агентства — витрина-маркетплейс), в соответствии с полным ТЗ (`docs/issues/offer_crud_spec.md`, §6). Тело исходного GitHub issue содержало формулировку «своего агенства» для `ROLE_USER`, которая противоречит полному ТЗ; выбран вариант из полного ТЗ как источник истины.
-- `entity.UserRecord` дополнен полем `ID int` (внутренний numeric id) — требовалось для `CurrentUserID` в identity, которую резолвит `CurrentUser` middleware.
-- Файлы в `internal/infrastructure/persistence/postgres/db/` в этом репозитории **хэнд-мейд, имитирующие вывод sqlc** (реальный `sqlc generate` даёт другую типизацию — `pgtype.*` вместо `uuid.UUID`/`*string`); `offers.sql.go` написан вручную в том же стиле, что и `agencies.sql.go`.
-
-### Правки по итогам code review PR #16
-
-1. **`GET /api/v1/offers*` сделаны публичными.** Изначально обе ручки чтения требовали JWT — ревьюер указал, что `published` offer должен быть виден любому неавторизованному пользователю. Добавлены `middleware.OptionalJWT`/`middleware.OptionalCurrentUser` (парсят токен, если он есть, иначе продолжают как гость); роутер разделён на публичную группу (offer-чтения) и приватную (всё остальное, включая offer-записи).
-2. **Убран кросс-агентский bypass для `ROLE_SUPER_ADMIN`.** `1 пользователь = 1 агентство` касается всех ролей одинаково — супер-админ не может управлять/видеть offer чужих агентств "просто потому что супер-админ". Метод `Actor.IsSuperAdmin()` и связанная ветка в `OfferManager.findOwned` удалены; владение — строгое равенство `offer.AgencyID == actor.AgencyID`. На read-side элевированную видимость (черновики своего агентства) сохраняет только принадлежность к агентству + роль `ROLE_AGENT`/`ROLE_SUPER_ADMIN` (иначе customer с тем же `agency_id` видел бы чужие черновики).
-3. **`AgencyID` в `Actor`/командах стал обязательным `int`** (было `*int`) — ревьюер указал, что `agency_id` пользователя NOT NULL в БД (миграция `014_add_users_agency`), поэтому моделировать его как опциональный было ошибкой. Затронуты: `service.Actor`, `create_offer/update_offer/delete_offer.Command` (поле переименовано `CurrentAgencyID` → `AgencyID`, `CurrentRoles` убрано как избыточное — write-side ownership больше не завязан на роли), `middleware.CurrentUser.AgencyID`. Read-side (`get_offer/get_offers.Query.CurrentAgencyID`) сознательно остался `*int`: `nil` здесь означает не "нет агентства", а "гостевой запрос без сотрудника агентства" — легитимная семантика для публичных ручек.
-4. **Command больше не принимает отдельный `CurrentAgencyID`, отличный от авторизованного пользователя** — `AgencyID` в команде теперь заполняется presentation-слоем строго из `CurrentUser.AgencyID` (`middleware.CurrentUserFromContext`), другого источника нет.
-5. **Добавлен статус `ready`** между `draft` и `published` — запрошен ревьюером ("не черновик, результат сохранён, но не готов к публикации"). Семантика: offer полностью заполнен и сохранён, но агент ещё не принял решение публиковать. Видимость идентична `draft` (только сотрудники своего агентства); публично виден только `published`. Затронуты: `enum.OfferStatus`, `validate:"oneof=draft ready published"` в DTO create/update/get_list, `entity.Offer.IsPublished()` (без изменений — уже учитывает только `published`).
+- [ ] Миграция 015 применяется и откатывается.
+- [ ] Эндпоинты #1–#6 работают с кодами `201`/`200`/`204`/`400`/`401`/`403`/`404`.
+- [ ] Гость: `POST/PATCH/DELETE` и `GET /offers`, `GET /offers/{uuid}` → `401`; `GET /public/offers/{uuid}` → `published` виден, не-`published` → `404`.
+- [ ] `ROLE_USER`: `GET /offers` и `GET /offers/{uuid}` — offer только своего агентства, все статусы; `POST/PATCH/DELETE` → `403`.
+- [ ] Агент/супер-админ: управляет и видит offer только своего агентства (все статусы); offer с `uuid` другого агентства на приватных ручках → `404` (без исключений по роли — `1 пользователь = 1 агентство`).
+- [ ] Получение по `uuid` разделено на приватную (#3) и публичную (#4) ручки с отдельными query (`get_offer` / `get_published_offer`).
+- [ ] Добавлены описание ролей в документацию
+- [ ] Добавлены описание статусов offer в документацию
+- [ ] Смена `status` свободная через тело; создание сразу в `published` и снятие с публикации работают; недопустимое значение статуса → `400`.
+- [ ] Soft delete: удалённые offer исключены из всех чтений.
+- [ ] Общий `CurrentUser` resolver-middleware внедрён и переиспользуется (в т.ч. в `get_me`).
+- [ ] Swagger сгенерирован (`make swag`); `README.md` (Endpoints + «Роли и права») обновлён.
+- [ ] Критический путь покрыт: unit `OfferManager`/`get_offer`/`get_offers`/`get_published_offer` (мок-репозитории) + integration `OfferRepository` + application e2e (`401`/`403`/`201`/публичный `200`+`404`). `go test ./...`, `go build ./...` — зелёные; `golangci-lint run` без новых замечаний.
 
 ## Negative constraints (чего НЕ делаем)
 
-- Нет цены в offer и дочерних сущностей (перелёты/отели/поездки) — отдельные issue.
 - Нет Kafka-событий по offer, нет нечёткого поиска, нет бронирования/покупки.
+- Нет машины состояний статусов (переходы свободные).
+- Нет маркетплейс-витрины между агентствами: авторизованный пользователь видит только своё агентство; кросс-агентский доступ — только через публичную ссылку на `published`.
 - Домен без внешних импортов; никаких `log.Fatal`/`os.Exit` вне `main()`; DI только в `config/container.go`.
-- Файлы в `db/` и `docs/` вручную не редактируются.
-
-## Roadmap (отдельные будущие issue)
-
-- Дочерние сущности `OfferFlight`, `OfferHotel`, `OfferTrip` (нормализованно, не JSON).
-- Вычисление итоговой цены offer из дочерних сущностей.
-- Полный HTTP-CRUD агентств.
+- Файлы в `db/` и `docs/` (генерируемые) вручную не редактируются.
