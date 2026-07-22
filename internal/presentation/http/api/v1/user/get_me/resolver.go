@@ -1,25 +1,24 @@
 package getmehttp
 
 import (
-	"api/internal/presentation/http/middleware"
 	"context"
 	"errors"
 
-	"github.com/google/uuid"
+	"api/internal/presentation/http/middleware"
 )
 
-// ErrNoAuthClaims means the request didn't traverse the CurrentUser
-// resolver middleware (no principal on context).
+// ErrNoAuthClaims means the request didn't traverse the JWT middleware
+// (no claims on context).
 var ErrNoAuthClaims = errors.New("no auth claims on context")
 
-// ErrUserMissingID covers the case where a resolved principal somehow
-// carries a zero UUID — a server-side problem since the resolver
-// middleware must enforce it upstream.
+// ErrUserMissingID covers the case where the JWT subject isn't a
+// parseable uuid — a server-side problem since Issue always emits one.
 var ErrUserMissingID = errors.New("token has no user id")
 
-// Resolver reads the authenticated principal off the request context,
-// as placed by the shared middleware.CurrentUserMiddleware resolver
-// (reused across get_me and the offer endpoints).
+// Resolver reads the authenticated principal's uuid off the JWT claims
+// on the request context — no DB access happens here; that's the same
+// flow used by the offer endpoints (application/identity resolves
+// mutable profile data from the uuid).
 type Resolver struct{}
 
 // NewResolver constructs the resolver.
@@ -29,13 +28,15 @@ func NewResolver() *Resolver { return &Resolver{} }
 // All mutable profile data (phone, name) is fetched from the DB by the
 // use-case.
 func (r *Resolver) Resolve(ctx context.Context) (*GetMeDto, error) {
-	cu, ok := middleware.CurrentUserFromContext(ctx)
-	if !ok {
+	id, err := middleware.CurrentUserUUID(ctx)
+	switch {
+	case errors.Is(err, middleware.ErrNoAuthClaims):
 		return nil, ErrNoAuthClaims
-	}
-	if cu.UUID == uuid.Nil {
+	case errors.Is(err, middleware.ErrInvalidSubject):
 		return nil, ErrUserMissingID
+	case err != nil:
+		return nil, err
 	}
 
-	return &GetMeDto{Uuid: cu.UUID}, nil
+	return &GetMeDto{Uuid: id}, nil
 }

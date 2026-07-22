@@ -45,22 +45,25 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
+	currentUserUUID, err := custommw.CurrentUserUUID(r.Context())
+	if err != nil {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
 
 	res, err := h.useCase.Handle(r.Context(), getoffer.Query{
-		UUID:     id,
-		AgencyID: cu.AgencyID,
+		UUID:            id,
+		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrOfferNotFound) {
+		switch {
+		case errors.Is(err, service.ErrActorNotFound):
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+		case errors.Is(err, service.ErrOfferNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
-			return
+		default:
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		}
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

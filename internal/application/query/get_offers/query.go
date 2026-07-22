@@ -3,15 +3,20 @@
 // caller's own agency).
 package getoffers
 
-import "api/internal/domain/enum"
+import (
+	"api/internal/domain/enum"
 
-// Query carries the requested filters plus the caller's own agency.
-// AgencyID is required: the list is always scoped to it, regardless of
-// role — ROLE_USER and agency staff see the same set of offers.
+	"github.com/google/uuid"
+)
+
+// Query carries the requested filters plus the caller's immutable uuid.
+// The handler resolves the caller's own agency from that uuid itself —
+// the list is always scoped to it, regardless of role — ROLE_USER and
+// agency staff see the same set of offers.
 type Query struct {
-	AgencyID  int
-	Status    *enum.OfferStatus
-	CreatedBy *int
-	Limit     int
-	Offset    int
+	CurrentUserUUID uuid.UUID
+	Status          *enum.OfferStatus
+	CreatedBy       *int
+	Limit           int
+	Offset          int
 }

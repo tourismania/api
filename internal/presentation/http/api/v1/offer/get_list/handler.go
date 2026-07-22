@@ -1,11 +1,13 @@
 package listoffershttp
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	getoffers "api/internal/application/query/get_offers"
 	"api/internal/domain/enum"
+	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -48,8 +50,8 @@ func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
 //	@Security     Bearer
 //	@Router       /api/v1/offers [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
+	currentUserUUID, err := custommw.CurrentUserUUID(r.Context())
+	if err != nil {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
@@ -88,13 +90,17 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.useCase.Handle(r.Context(), getoffers.Query{
-		AgencyID:  cu.AgencyID,
-		Status:    status,
-		CreatedBy: createdBy,
-		Limit:     limit,
-		Offset:    offset,
+		CurrentUserUUID: currentUserUUID,
+		Status:          status,
+		CreatedBy:       createdBy,
+		Limit:           limit,
+		Offset:          offset,
 	})
 	if err != nil {
+		if errors.Is(err, service.ErrActorNotFound) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+			return
+		}
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

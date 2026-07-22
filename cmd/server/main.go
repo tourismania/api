@@ -63,7 +63,6 @@ func run() error {
 		UpdateOffer:        container.Http.UpdateOffer,
 		DeleteOffer:        container.Http.DeleteOffer,
 		JWT:                container.JWT,
-		Users:              container.Users,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 		RateLimit:          cfg.RateLimit.RequestsPerMinute,
 	}

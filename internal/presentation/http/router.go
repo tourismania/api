@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"api/internal/domain/enum"
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
@@ -41,9 +40,6 @@ type Server struct {
 	UpdateOffer       *updateofferhttp.Handler
 	DeleteOffer       *deleteofferhttp.Handler
 	JWT               *auth.Service
-	// Users resolves the authenticated principal (id/agency/roles) for
-	// custommw.CurrentUserMiddleware — reused by get_me and offers.
-	Users custommw.UserFinder
 
 	// RateLimit is the per-IP cap in requests per minute for the airports endpoint.
 	RateLimit int
@@ -103,10 +99,12 @@ func (s Server) Build() http.Handler {
 		// offer, regardless of agency. No auth middleware at all.
 		api.Get("/public/offers/{uuid}", s.GetPublishedOffer.Handle)
 
-		// Everything else requires a valid JWT and a resolved principal.
+		// Everything else requires a valid JWT. Resolving the principal's
+		// mutable profile (agency_id, roles) from its uuid is always done
+		// application-side (see application/identity) — there is no
+		// middleware here that touches the DB.
 		api.Group(func(priv chi.Router) {
 			priv.Use(custommw.JWT(s.JWT))
-			priv.Use(custommw.CurrentUserMiddleware(s.Users))
 
 			// Users
 			priv.Post("/users", s.CreateUser.Handle)
@@ -120,12 +118,12 @@ func (s Server) Build() http.Handler {
 			priv.Get("/offers", s.GetOffers.Handle)
 			priv.Get("/offers/{uuid}", s.GetOffer.Handle)
 
-			// Offer writes: agent/super admin, own agency only (enforced
-			// by the domain OfferManager — no cross-agency bypass).
-			agentOrAdmin := custommw.RequireRole(enum.RoleAgent, enum.RoleSuperAdmin)
-			priv.With(agentOrAdmin).Post("/offers", s.CreateOffer.Handle)
-			priv.With(agentOrAdmin).Patch("/offers/{uuid}", s.UpdateOffer.Handle)
-			priv.With(agentOrAdmin).Delete("/offers/{uuid}", s.DeleteOffer.Handle)
+			// Offer writes: agent/super admin, own agency only. Both the
+			// role and the ownership check are enforced by the domain
+			// OfferManager, not by router-level middleware.
+			priv.Post("/offers", s.CreateOffer.Handle)
+			priv.Patch("/offers/{uuid}", s.UpdateOffer.Handle)
+			priv.Delete("/offers/{uuid}", s.DeleteOffer.Handle)
 		})
 	})
 

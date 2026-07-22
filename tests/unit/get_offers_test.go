@@ -7,6 +7,7 @@ import (
 	getoffers "api/internal/application/query/get_offers"
 	"api/internal/domain/enum"
 	"api/internal/domain/repository"
+	"api/internal/domain/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,9 +27,9 @@ func (s *stubOfferLister) List(_ context.Context, f repository.OfferFilter) (rep
 
 func TestGetOffers_AlwaysScopedToCallerOwnAgency(t *testing.T) {
 	lister := &stubOfferLister{}
-	h := getoffers.NewHandler(lister)
+	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
-	_, err := h.Handle(context.Background(), getoffers.Query{AgencyID: 1})
+	_, err := h.Handle(context.Background(), getoffers.Query{})
 
 	require.NoError(t, err)
 	require.NotNil(t, lister.gotFilter.AgencyID)
@@ -38,12 +39,11 @@ func TestGetOffers_AlwaysScopedToCallerOwnAgency(t *testing.T) {
 
 func TestGetOffers_StatusFilterPassedThrough(t *testing.T) {
 	lister := &stubOfferLister{}
-	h := getoffers.NewHandler(lister)
+	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
 	published := enum.OfferStatusPublished
 	_, err := h.Handle(context.Background(), getoffers.Query{
-		AgencyID: 1,
-		Status:   &published,
+		Status: &published,
 	})
 
 	require.NoError(t, err)
@@ -53,11 +53,10 @@ func TestGetOffers_StatusFilterPassedThrough(t *testing.T) {
 
 func TestGetOffers_CreatedByFilterPassedThrough(t *testing.T) {
 	lister := &stubOfferLister{}
-	h := getoffers.NewHandler(lister)
+	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
 	createdBy := 42
 	_, err := h.Handle(context.Background(), getoffers.Query{
-		AgencyID:  1,
 		CreatedBy: &createdBy,
 	})
 
@@ -68,11 +67,20 @@ func TestGetOffers_CreatedByFilterPassedThrough(t *testing.T) {
 
 func TestGetOffers_MapsResultToOfferResults(t *testing.T) {
 	lister := &stubOfferLister{result: repository.OfferListResult{TotalCount: 1}}
-	h := getoffers.NewHandler(lister)
+	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
-	res, err := h.Handle(context.Background(), getoffers.Query{AgencyID: 1})
+	res, err := h.Handle(context.Background(), getoffers.Query{})
 
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, res.TotalCount)
 	assert.Empty(t, res.Offers)
+}
+
+func TestGetOffers_ActorNotFound_ReturnsErrActorNotFound(t *testing.T) {
+	lister := &stubOfferLister{}
+	h := getoffers.NewHandler(lister, stubUserFinder{record: nil})
+
+	_, err := h.Handle(context.Background(), getoffers.Query{})
+
+	assert.ErrorIs(t, err, service.ErrActorNotFound)
 }

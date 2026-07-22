@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"api/internal/application/identity"
 	"api/internal/domain/entity"
 	"api/internal/domain/service"
 
@@ -25,22 +26,30 @@ type OfferFinder interface {
 // caller sees it regardless of status as long as it belongs to their
 // agency; any other agency's offer is reported as not found. Published
 // offers of other agencies are served separately by get_published_offer.
+// The caller's own agency is resolved from its uuid via
+// application/identity, not presentation-layer middleware.
 type Handler struct {
 	offers OfferFinder
+	users  identity.UserFinder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offers OfferFinder) *Handler {
-	return &Handler{offers: offers}
+func NewHandler(offers OfferFinder, users identity.UserFinder) *Handler {
+	return &Handler{offers: offers, users: users}
 }
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
+	actor, err := identity.Resolve(ctx, h.users, q.CurrentUserUUID)
+	if err != nil {
+		return Result{}, err
+	}
+
 	offer, err := h.offers.FindByUUID(ctx, q.UUID)
 	if err != nil {
 		return Result{}, fmt.Errorf("find offer: %w", err)
 	}
-	if offer == nil || offer.AgencyID != q.AgencyID {
+	if offer == nil || offer.AgencyID != actor.AgencyID {
 		// A different agency's offer is reported the same as not-found —
 		// 1 user = 1 agency, no bypass, existence is never leaked.
 		return Result{}, service.ErrOfferNotFound

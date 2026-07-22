@@ -3,6 +3,7 @@ package deleteoffer
 import (
 	"context"
 
+	"api/internal/application/identity"
 	"api/internal/domain/service"
 )
 
@@ -12,22 +13,27 @@ type UseCase interface {
 }
 
 // Handler executes the DeleteOffer command by delegating to the domain
-// OfferManager service, which enforces agency ownership.
+// OfferManager service, which enforces agency ownership and the write
+// role. The acting principal is resolved from its uuid via
+// application/identity, not presentation-layer middleware.
 type Handler struct {
 	offerManager *service.OfferManager
+	users        identity.UserFinder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *service.OfferManager) *Handler {
-	return &Handler{offerManager: offerManager}
+func NewHandler(offerManager *service.OfferManager, users identity.UserFinder) *Handler {
+	return &Handler{offerManager: offerManager, users: users}
 }
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
-	if err := h.offerManager.Delete(ctx, cmd.UUID, service.Actor{
-		UserID:   cmd.CurrentUserID,
-		AgencyID: cmd.AgencyID,
-	}); err != nil {
+	actor, err := identity.Resolve(ctx, h.users, cmd.CurrentUserUUID)
+	if err != nil {
+		return Result{}, err
+	}
+
+	if err := h.offerManager.Delete(ctx, cmd.UUID, actor); err != nil {
 		return Result{}, err
 	}
 	return Result{}, nil

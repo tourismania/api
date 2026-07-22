@@ -42,7 +42,6 @@ import (
 	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
 	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
-	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,9 +57,6 @@ type Container struct {
 	Kafka    *kafka.Producer
 	JWT      *auth.Service
 	Validate *validator.Validate
-	// Users resolves the authenticated principal for
-	// custommw.CurrentUserMiddleware — reused by get_me and offers.
-	Users custommw.UserFinder
 
 	// App groups application-layer use-case handlers (write + read sides).
 	App struct {
@@ -158,11 +154,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, agencyRepo, rightsDescriber)
-	createOfferApp := createoffercmd.NewHandler(offerManager)
-	updateOfferApp := updateoffercmd.NewHandler(offerManager)
-	deleteOfferApp := deleteoffercmd.NewHandler(offerManager)
-	getOfferApp := getofferq.NewHandler(offerRepo)
-	getOffersApp := getoffersq.NewHandler(offerRepo)
+	createOfferApp := createoffercmd.NewHandler(offerManager, userRepo)
+	updateOfferApp := updateoffercmd.NewHandler(offerManager, userRepo)
+	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userRepo)
+	getOfferApp := getofferq.NewHandler(offerRepo, userRepo)
+	getOffersApp := getoffersq.NewHandler(offerRepo, userRepo)
 	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo)
 
 	// Validation.
@@ -187,7 +183,6 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 		Kafka:    producer,
 		JWT:      jwtSvc,
 		Validate: validate,
-		Users:    userRepo,
 	}
 
 	c.App.CreateUser = createUserApp

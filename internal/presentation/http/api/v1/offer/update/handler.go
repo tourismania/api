@@ -59,8 +59,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu, ok := custommw.CurrentUserFromContext(r.Context())
-	if !ok {
+	currentUserUUID, err := custommw.CurrentUserUUID(r.Context())
+	if err != nil {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
@@ -72,15 +72,18 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.useCase.Handle(r.Context(), updateoffer.Command{
-		UUID:          id,
-		Title:         req.Title,
-		Description:   req.Description,
-		Status:        status,
-		CurrentUserID: cu.ID,
-		AgencyID:      cu.AgencyID,
+		UUID:            id,
+		Title:           req.Title,
+		Description:     req.Description,
+		Status:          status,
+		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
 		switch {
+		case errors.Is(err, service.ErrActorNotFound):
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+		case errors.Is(err, service.ErrInsufficientRole):
+			httpx.WriteError(w, http.StatusForbidden, "insufficient role")
 		case errors.Is(err, service.ErrOfferNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
 		case errors.Is(err, service.ErrOfferTitleInvalid),

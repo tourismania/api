@@ -2,19 +2,22 @@
 // result.
 package createoffer
 
-import "api/internal/domain/enum"
+import (
+	"api/internal/domain/enum"
+
+	"github.com/google/uuid"
+)
 
 // Command represents the intent to publish a new offer under the
-// caller's own agency. The request body never carries agency_id: it is
-// always derived server-side from the authenticated caller.
+// caller's own agency. The request body never carries agency_id: the
+// caller is identified only by CurrentUserUUID (the immutable uuid
+// carried in the JWT); the handler resolves agency_id and role from the
+// DB itself, so they always reflect the latest state rather than a
+// value trusted from presentation.
 type Command struct {
 	Title       string
 	Description string
 	Status      enum.OfferStatus
 
-	// Caller identity, resolved by presentation from JWT + DB. AgencyID
-	// is required — every user belongs to exactly one agency. The
-	// domain layer never touches HTTP/JWT directly.
-	CurrentUserID int
-	AgencyID      int
+	CurrentUserUUID uuid.UUID
 }

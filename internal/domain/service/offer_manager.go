@@ -9,6 +9,7 @@ import (
 	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 	"api/internal/domain/repository"
+	"api/internal/domain/valueobject"
 
 	"github.com/google/uuid"
 )
@@ -16,6 +17,13 @@ import (
 // ErrOfferNotFound is returned when an offer lookup finds no matching
 // non-deleted row.
 var ErrOfferNotFound = errors.New("offer not found")
+
+// ErrActorNotFound is returned when the identity resolved from a valid
+// JWT subject no longer has a matching user row — e.g. the account was
+// deleted after the token was issued. Application-layer handlers use
+// this whenever they resolve the acting principal by uuid before
+// delegating to a domain service.
+var ErrActorNotFound = errors.New("actor not found")
 
 // ErrOfferTitleInvalid is returned when the title is empty or exceeds
 // entity.OfferTitleMaxLength.
@@ -29,18 +37,19 @@ var ErrOfferStatusInvalid = errors.New("invalid offer status")
 // an offer for a reason the caller could not predict.
 var ErrOfferNotPersisted = errors.New("offer was not persisted")
 
-// Actor is the identity of the user performing an offer operation. It is
-// a plain domain value — no HTTP/JWT knowledge leaks in here. AgencyID
-// is required: every user belongs to exactly one agency (1 user = 1
-// agency, enforced at the database level).
-type Actor struct {
-	UserID   int
-	AgencyID int
-}
+// ErrInsufficientRole is returned when the actor is authenticated (and,
+// for Update/Delete, may even belong to the right agency) but lacks the
+// role required to write an offer. Unlike ErrOfferNotFound this never
+// depends on any specific offer's existence, so returning it does not
+// leak anything about a particular resource.
+var ErrInsufficientRole = errors.New("actor lacks the role required to manage offers")
 
 // OfferManager orchestrates offer lifecycle: creation, update and soft
-// deletion. It enforces invariants and strict agency ownership — an
-// offer may only be managed by an actor belonging to its owning agency.
+// deletion. It enforces invariants, strict agency ownership, and the
+// role required to write an offer — an offer may only be managed by an
+// actor belonging to its owning agency and carrying ROLE_AGENT or
+// ROLE_SUPER_ADMIN. Reads have no role restriction (see
+// application/query/get_offer(s)).
 type OfferManager struct {
 	offers   repository.OfferRepository
 	agencies repository.AgencyRepository
@@ -53,7 +62,10 @@ func NewOfferManager(offers repository.OfferRepository, agencies repository.Agen
 
 // Insert creates a new offer under the actor's own agency. AgencyID is
 // never taken from caller input — it is always derived from the actor.
-func (m *OfferManager) Insert(ctx context.Context, title, description string, status enum.OfferStatus, actor Actor) (entity.Offer, error) {
+func (m *OfferManager) Insert(ctx context.Context, title, description string, status enum.OfferStatus, actor valueobject.Actor) (entity.Offer, error) {
+	if !canWriteOffers(actor) {
+		return entity.Offer{}, ErrInsufficientRole
+	}
 	if err := validateOfferTitle(title); err != nil {
 		return entity.Offer{}, err
 	}
@@ -98,7 +110,10 @@ func (m *OfferManager) Insert(ctx context.Context, title, description string, st
 // Update applies partial changes to an existing offer. Only non-nil
 // fields are modified. Ownership is enforced: the actor must belong to
 // the offer's agency.
-func (m *OfferManager) Update(ctx context.Context, id uuid.UUID, title, description *string, status *enum.OfferStatus, actor Actor) (entity.Offer, error) {
+func (m *OfferManager) Update(ctx context.Context, id uuid.UUID, title, description *string, status *enum.OfferStatus, actor valueobject.Actor) (entity.Offer, error) {
+	if !canWriteOffers(actor) {
+		return entity.Offer{}, ErrInsufficientRole
+	}
 	offer, err := m.findOwned(ctx, id, actor)
 	if err != nil {
 		return entity.Offer{}, err
@@ -129,7 +144,10 @@ func (m *OfferManager) Update(ctx context.Context, id uuid.UUID, title, descript
 
 // Delete soft-deletes an offer. Ownership is enforced the same way as
 // Update.
-func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor Actor) error {
+func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor valueobject.Actor) error {
+	if !canWriteOffers(actor) {
+		return ErrInsufficientRole
+	}
 	if _, err := m.findOwned(ctx, id, actor); err != nil {
 		return err
 	}
@@ -143,7 +161,7 @@ func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor Actor) er
 // owning agency. 1 user = 1 agency: there is no role-based bypass. An
 // offer of another agency is reported as ErrOfferNotFound, not a
 // forbidden error — for the actor it simply does not exist.
-func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor Actor) (*entity.Offer, error) {
+func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor valueobject.Actor) (*entity.Offer, error) {
 	offer, err := m.offers.FindByUUID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("find offer: %w", err)
@@ -152,6 +170,12 @@ func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor Actor)
 		return nil, ErrOfferNotFound
 	}
 	return offer, nil
+}
+
+// canWriteOffers reports whether the actor's roles permit creating,
+// updating or deleting offers.
+func canWriteOffers(actor valueobject.Actor) bool {
+	return actor.HasRole(enum.RoleAgent) || actor.HasRole(enum.RoleSuperAdmin)
 }
 
 func validateOfferTitle(title string) error {

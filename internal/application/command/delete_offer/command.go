@@ -6,12 +6,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Command represents the intent to soft-delete an existing offer.
+// Command represents the intent to soft-delete an existing offer. The
+// caller is identified only by CurrentUserUUID; the handler resolves
+// agency_id/role from the DB.
 type Command struct {
 	UUID uuid.UUID
 
-	// Caller identity, resolved by presentation from JWT + DB. AgencyID
-	// is required — every user belongs to exactly one agency.
-	CurrentUserID int
-	AgencyID      int
+	CurrentUserUUID uuid.UUID
 }

@@ -4,10 +4,11 @@ package getoffer
 
 import "github.com/google/uuid"
 
-// Query carries the requested offer identifier plus the caller's own
-// agency. AgencyID is required: this use-case backs the private
-// endpoint only, reachable exclusively by authenticated principals.
+// Query carries the requested offer identifier plus the caller's
+// immutable uuid. The handler resolves the caller's own agency from
+// that uuid itself — this use-case backs the private endpoint only,
+// reachable exclusively by authenticated principals.
 type Query struct {
-	UUID     uuid.UUID
-	AgencyID int
+	UUID            uuid.UUID
+	CurrentUserUUID uuid.UUID
 }

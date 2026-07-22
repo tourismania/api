@@ -19,6 +19,7 @@ import (
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/entity"
 	"api/internal/domain/enum"
+	"api/internal/domain/repository"
 	"api/internal/domain/service"
 	"api/internal/infrastructure/auth"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
@@ -59,7 +60,10 @@ func newTestJWTService(t *testing.T) *auth.Service {
 	return svc
 }
 
-// stubUserFinder implements custommw.UserFinder for tests.
+// stubUserFinder implements application/identity.UserFinder for tests —
+// role and agency_id are now resolved application-side (not by any
+// presentation-layer middleware), so these HTTP tests wire the real
+// application handlers and drive the whole resolve → authorize flow.
 type stubUserFinder struct {
 	record *entity.UserRecord
 }
@@ -68,25 +72,45 @@ func (s stubUserFinder) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.User
 	return s.record, nil
 }
 
-// stubCreateOfferUseCase implements createoffer.UseCase.
-type stubCreateOfferUseCase struct {
-	called bool
+// stubOfferRepo is a minimal repository.OfferRepository test double. Its
+// List method also satisfies getoffers.OfferLister (identical
+// signature), so the same instance backs both the domain OfferManager
+// (write side) and the list query in these full-stack tests.
+type stubOfferRepo struct {
+	storeID   int
+	gotFilter repository.OfferFilter
 }
 
-func (s *stubCreateOfferUseCase) Handle(_ context.Context, _ createoffer.Command) (createoffer.Result, error) {
-	s.called = true
-	return createoffer.Result{ID: 1, UUID: uuid.New()}, nil
+func (s *stubOfferRepo) Store(_ context.Context, _ entity.Offer) (int, error) {
+	return s.storeID, nil
 }
 
-// stubGetOffersUseCase implements getoffers.UseCase.
-type stubGetOffersUseCase struct {
-	gotQuery getoffers.Query
+func (s *stubOfferRepo) FindByUUID(_ context.Context, _ uuid.UUID) (*entity.Offer, error) {
+	return nil, nil
 }
 
-func (s *stubGetOffersUseCase) Handle(_ context.Context, q getoffers.Query) (getoffers.Result, error) {
-	s.gotQuery = q
-	return getoffers.Result{}, nil
+func (s *stubOfferRepo) List(_ context.Context, f repository.OfferFilter) (repository.OfferListResult, error) {
+	s.gotFilter = f
+	return repository.OfferListResult{}, nil
 }
+
+func (s *stubOfferRepo) Update(_ context.Context, _ entity.Offer) error { return nil }
+
+func (s *stubOfferRepo) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
+
+// stubAgencyRepo is a minimal repository.AgencyRepository test double —
+// every agency looked up is reported active.
+type stubAgencyRepo struct{}
+
+func (s stubAgencyRepo) Store(_ context.Context, _ entity.Agency) (int, error) { return 0, nil }
+
+func (s stubAgencyRepo) FindByID(_ context.Context, id int) (*entity.Agency, error) {
+	return &entity.Agency{ID: id, Status: enum.AgencyStatusActive}, nil
+}
+
+func (s stubAgencyRepo) SetStatus(_ context.Context, _ int, _ enum.AgencyStatus) error { return nil }
+
+func (s stubAgencyRepo) Exists(_ context.Context, _ int) (bool, error) { return true, nil }
 
 // stubGetPublishedOfferUseCase implements getpublishedoffer.UseCase.
 type stubGetPublishedOfferUseCase struct {
@@ -100,12 +124,22 @@ func (s *stubGetPublishedOfferUseCase) Handle(_ context.Context, _ getpublishedo
 
 // newOffersTestRouter mirrors the production router split: a fully
 // anonymous public endpoint for published offers, and a private group
-// (JWT + CurrentUser) for offer reads/writes, with writes additionally
-// gated by RequireRole.
-func newOffersTestRouter(jwtSvc *auth.Service, users custommw.UserFinder, createUC createoffer.UseCase, listUC getoffers.UseCase, publicUC getpublishedoffer.UseCase) http.Handler {
+// (JWT only) for offer reads/writes. Unlike before, there is no
+// middleware resolving the principal or gating by role — both the
+// ownership check and the write-role gate live in the domain
+// OfferManager, reached through the real application command/query
+// handlers wired here.
+func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	createH := createofferhttp.NewHandler(createUC, validate)
-	listH := listoffershttp.NewHandler(listUC, validate)
+
+	offerManager := service.NewOfferManager(offers, stubAgencyRepo{})
+
+	createApp := createoffer.NewHandler(offerManager, users)
+	createH := createofferhttp.NewHandler(createApp, validate)
+
+	listApp := getoffers.NewHandler(offers, users)
+	listH := listoffershttp.NewHandler(listApp, validate)
+
 	publicH := getpublicofferhttp.NewHandler(publicUC)
 
 	r := chi.NewRouter()
@@ -114,12 +148,9 @@ func newOffersTestRouter(jwtSvc *auth.Service, users custommw.UserFinder, create
 
 		api.Group(func(priv chi.Router) {
 			priv.Use(custommw.JWT(jwtSvc))
-			priv.Use(custommw.CurrentUserMiddleware(users))
 
 			priv.Get("/offers", listH.Handle)
-
-			agentOrAdmin := custommw.RequireRole(enum.RoleAgent, enum.RoleSuperAdmin)
-			priv.With(agentOrAdmin).Post("/offers", createH.Handle)
+			priv.Post("/offers", createH.Handle)
 		})
 	})
 	return r
@@ -127,15 +158,14 @@ func newOffersTestRouter(jwtSvc *auth.Service, users custommw.UserFinder, create
 
 func TestOffersHTTP_CreateOffer_NoToken_Returns401(t *testing.T) {
 	jwtSvc := newTestJWTService(t)
-	uc := &stubCreateOfferUseCase{}
-	r := newOffersTestRouter(jwtSvc, stubUserFinder{}, uc, &stubGetOffersUseCase{}, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{}
+	r := newOffersTestRouter(jwtSvc, offers, stubUserFinder{}, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(`{}`))
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.False(t, uc.called)
 }
 
 func TestOffersHTTP_CreateOffer_RoleUser_Returns403(t *testing.T) {
@@ -147,8 +177,8 @@ func TestOffersHTTP_CreateOffer_RoleUser_Returns403(t *testing.T) {
 	users := stubUserFinder{record: &entity.UserRecord{
 		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleUser)}, AgencyID: 1,
 	}}
-	uc := &stubCreateOfferUseCase{}
-	r := newOffersTestRouter(jwtSvc, users, uc, &stubGetOffersUseCase{}, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{}
+	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers",
 		strings.NewReader(`{"title":"Test","description":"d","status":"draft"}`))
@@ -157,8 +187,7 @@ func TestOffersHTTP_CreateOffer_RoleUser_Returns403(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	assert.False(t, uc.called, "the use-case must never run when the role guard rejects the request")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "the domain OfferManager must reject the write before persisting anything")
 }
 
 func TestOffersHTTP_CreateOffer_RoleAgent_Returns201(t *testing.T) {
@@ -170,8 +199,8 @@ func TestOffersHTTP_CreateOffer_RoleAgent_Returns201(t *testing.T) {
 	users := stubUserFinder{record: &entity.UserRecord{
 		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 3,
 	}}
-	uc := &stubCreateOfferUseCase{}
-	r := newOffersTestRouter(jwtSvc, users, uc, &stubGetOffersUseCase{}, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{storeID: 1}
+	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers",
 		strings.NewReader(`{"title":"Test","description":"d","status":"draft"}`))
@@ -181,13 +210,12 @@ func TestOffersHTTP_CreateOffer_RoleAgent_Returns201(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
-	assert.True(t, uc.called)
 }
 
 func TestOffersHTTP_ListOffers_NoToken_Returns401(t *testing.T) {
 	jwtSvc := newTestJWTService(t)
-	listUC := &stubGetOffersUseCase{}
-	r := newOffersTestRouter(jwtSvc, stubUserFinder{}, &stubCreateOfferUseCase{}, listUC, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{}
+	r := newOffersTestRouter(jwtSvc, offers, stubUserFinder{}, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/offers", nil)
 	rr := httptest.NewRecorder()
@@ -208,8 +236,8 @@ func TestOffersHTTP_ListOffers_RoleUser_ScopesToOwnAgency(t *testing.T) {
 	users := stubUserFinder{record: &entity.UserRecord{
 		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleUser)}, AgencyID: 2,
 	}}
-	listUC := &stubGetOffersUseCase{}
-	r := newOffersTestRouter(jwtSvc, users, &stubCreateOfferUseCase{}, listUC, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{}
+	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/offers", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -217,7 +245,8 @@ func TestOffersHTTP_ListOffers_RoleUser_ScopesToOwnAgency(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, 2, listUC.gotQuery.AgencyID)
+	require.NotNil(t, offers.gotFilter.AgencyID)
+	assert.Equal(t, 2, *offers.gotFilter.AgencyID)
 }
 
 func TestOffersHTTP_ListOffers_RoleAgent_ScopesToOwnAgency(t *testing.T) {
@@ -229,8 +258,8 @@ func TestOffersHTTP_ListOffers_RoleAgent_ScopesToOwnAgency(t *testing.T) {
 	users := stubUserFinder{record: &entity.UserRecord{
 		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 7,
 	}}
-	listUC := &stubGetOffersUseCase{}
-	r := newOffersTestRouter(jwtSvc, users, &stubCreateOfferUseCase{}, listUC, &stubGetPublishedOfferUseCase{})
+	offers := &stubOfferRepo{}
+	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/offers", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -238,14 +267,15 @@ func TestOffersHTTP_ListOffers_RoleAgent_ScopesToOwnAgency(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, 7, listUC.gotQuery.AgencyID)
+	require.NotNil(t, offers.gotFilter.AgencyID)
+	assert.Equal(t, 7, *offers.gotFilter.AgencyID)
 }
 
 func TestOffersHTTP_GetPublicOffer_Published_Returns200NoAuth(t *testing.T) {
 	jwtSvc := newTestJWTService(t)
 	id := uuid.New()
 	publicUC := &stubGetPublishedOfferUseCase{result: getpublishedoffer.Result{ID: 1, UUID: id, AgencyID: 5}}
-	r := newOffersTestRouter(jwtSvc, stubUserFinder{}, &stubCreateOfferUseCase{}, &stubGetOffersUseCase{}, publicUC)
+	r := newOffersTestRouter(jwtSvc, &stubOfferRepo{}, stubUserFinder{}, publicUC)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+id.String(), nil)
 	rr := httptest.NewRecorder()
@@ -258,7 +288,7 @@ func TestOffersHTTP_GetPublicOffer_NotPublished_Returns404(t *testing.T) {
 	jwtSvc := newTestJWTService(t)
 	id := uuid.New()
 	publicUC := &stubGetPublishedOfferUseCase{err: service.ErrOfferNotFound}
-	r := newOffersTestRouter(jwtSvc, stubUserFinder{}, &stubCreateOfferUseCase{}, &stubGetOffersUseCase{}, publicUC)
+	r := newOffersTestRouter(jwtSvc, &stubOfferRepo{}, stubUserFinder{}, publicUC)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+id.String(), nil)
 	rr := httptest.NewRecorder()

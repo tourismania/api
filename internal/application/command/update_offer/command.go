@@ -9,15 +9,13 @@ import (
 )
 
 // Command represents the intent to partially update an existing offer.
-// Only non-nil fields are applied.
+// Only non-nil fields are applied. The caller is identified only by
+// CurrentUserUUID; the handler resolves agency_id/role from the DB.
 type Command struct {
 	UUID        uuid.UUID
 	Title       *string
 	Description *string
 	Status      *enum.OfferStatus
 
-	// Caller identity, resolved by presentation from JWT + DB. AgencyID
-	// is required — every user belongs to exactly one agency.
-	CurrentUserID int
-	AgencyID      int
+	CurrentUserUUID uuid.UUID
 }

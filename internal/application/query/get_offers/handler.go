@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"api/internal/application/identity"
 	"api/internal/domain/repository"
 )
 
@@ -20,21 +21,28 @@ type OfferLister interface {
 
 // Handler orchestrates the offer listing use-case. The list is always
 // scoped to the caller's own agency, any status — the role has no
-// bearing on visibility, only on write access (enforced separately by
-// RequireRole at the presentation boundary).
+// bearing on visibility, only on write access (enforced by the domain
+// OfferManager). The caller's own agency is resolved from its uuid via
+// application/identity, not presentation-layer middleware.
 type Handler struct {
 	offers OfferLister
+	users  identity.UserFinder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offers OfferLister) *Handler {
-	return &Handler{offers: offers}
+func NewHandler(offers OfferLister, users identity.UserFinder) *Handler {
+	return &Handler{offers: offers, users: users}
 }
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
+	actor, err := identity.Resolve(ctx, h.users, q.CurrentUserUUID)
+	if err != nil {
+		return Result{}, err
+	}
+
 	filter := repository.OfferFilter{
-		AgencyID:  &q.AgencyID,
+		AgencyID:  &actor.AgencyID,
 		Status:    q.Status,
 		CreatedBy: q.CreatedBy,
 		Limit:     q.Limit,
