@@ -10,6 +10,12 @@ import (
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
+	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
+	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
+	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -23,11 +29,17 @@ import (
 // Server holds every HTTP-layer dependency and builds the final handler.
 // It is the single place that knows the URL → handler mapping — easy to audit.
 type Server struct {
-	Login      *loginhttp.Handler
-	CreateUser *createuserhttp.Handler
-	GetMe      *getmehttp.Handler
-	Airports   *searchairporthttp.Handler
-	JWT        *auth.Service
+	Login             *loginhttp.Handler
+	CreateUser        *createuserhttp.Handler
+	GetMe             *getmehttp.Handler
+	Airports          *searchairporthttp.Handler
+	CreateOffer       *createofferhttp.Handler
+	GetOffer          *getofferhttp.Handler
+	GetOffers         *listoffershttp.Handler
+	GetPublishedOffer *getpublicofferhttp.Handler
+	UpdateOffer       *updateofferhttp.Handler
+	DeleteOffer       *deleteofferhttp.Handler
+	JWT               *auth.Service
 
 	// RateLimit is the per-IP cap in requests per minute for the airports endpoint.
 	RateLimit int
@@ -81,16 +93,42 @@ func (s Server) Build() http.Handler {
 	// Public auth endpoint.
 	r.Post("/api/login", s.Login.Handle)
 
-	// Versioned, JWT-guarded API surface.
+	// Versioned API surface.
 	r.With(limiter.Handler).Route("/api/v1", func(api chi.Router) {
-		api.Use(custommw.JWT(s.JWT))
+		// Fully anonymous "share link": only ever returns a published
+		// offer, regardless of agency. No auth middleware at all.
+		api.Get("/public/offers/{uuid}", s.GetPublishedOffer.Handle)
 
-		// Users
-		api.Post("/users", s.CreateUser.Handle)
-		api.Get("/users/me", s.GetMe.Handle)
+		// Everything else requires a valid JWT. CurrentUserUUID is a
+		// second, genuine middleware — not a bare helper — that runs
+		// right after JWT and extracts the principal's immutable uuid
+		// onto context (a pure token read). Resolving mutable profile
+		// data (agency_id, roles) from that uuid is always done
+		// domain-side (see domain/service.UserFinder) — no middleware
+		// here touches the DB.
+		api.Group(func(priv chi.Router) {
+			priv.Use(custommw.JWT(s.JWT))
+			priv.Use(custommw.CurrentUserUUID)
 
-		// Airports
-		api.Get("/airports", s.Airports.Handle)
+			// Users
+			priv.Post("/users", s.CreateUser.Handle)
+			priv.Get("/users/me", s.GetMe.Handle)
+
+			// Airports
+			priv.Get("/airports", s.Airports.Handle)
+
+			// Offer reads: any authenticated principal, scoped to their
+			// own agency, any status. Role has no effect on visibility.
+			priv.Get("/offers", s.GetOffers.Handle)
+			priv.Get("/offers/{uuid}", s.GetOffer.Handle)
+
+			// Offer writes: agent/super admin, own agency only. Both the
+			// role and the ownership check are enforced by the domain
+			// OfferManager, not by router-level middleware.
+			priv.Post("/offers", s.CreateOffer.Handle)
+			priv.Patch("/offers/{uuid}", s.UpdateOffer.Handle)
+			priv.Delete("/offers/{uuid}", s.DeleteOffer.Handle)
+		})
 	})
 
 	// Liveness/readiness.
