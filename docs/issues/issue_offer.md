@@ -56,6 +56,8 @@
 - **`403`** — авторизован, но роль без права записи (`ROLE_USER` на `POST`/`PATCH`/`DELETE`) — отдаёт доменный `OfferManager` (`ErrInsufficientRole`), не HTTP-мидлварь.
 - **`404`** — offer не найден **или** принадлежит не тому агентству, что у пользователя (существование чужого offer не раскрываем). То же для не-`published` на публичной ручке.
 
+Presentation не проверяет `service.Err*` напрямую — application-хендлер переводит их в `application/apperror.{ErrUnauthenticated,ErrForbidden,ErrNotFound,ErrValidation}` (`apperror.FromDomainError`), и только по этим сентинелам presentation выбирает HTTP-код (см. Application ниже).
+
 ## Scope
 
 ### Домен (`internal/domain/`)
@@ -63,8 +65,9 @@
 - `entity/offer.go` — `Offer{ ID, UUID, Title, Description, AgencyID, CreatedBy, Status, CreatedAt, UpdatedAt, DeletedAt }`. Метод `IsPublished()` (учитывает только `published`).
 - `enum/offer_status.go` — `OfferStatus` (`draft` / `ready` / `published`).
 - `repository/offer_repository.go` — интерфейс: `Store`, `FindByUUID`, `List(OfferFilter)`, `Update`, `SoftDelete`. `OfferFilter{ AgencyID, Status, CreatedBy, Limit, Offset }` (`AgencyID` заполняется слоями выше из identity, наружу как query-параметр не выставляется).
-- `service/offer_manager.go` — единый `OfferManager{ Insert, Update, Delete }`: инварианты, проверка активности агентства, роль на запись (`ROLE_AGENT`/`ROLE_SUPER_ADMIN`, иначе `ErrInsufficientRole` — проверяется первым, до похода в репозиторий, т.к. не зависит от конкретного offer), владение по агентству (строгое равенство `offer.AgencyID == actor.AgencyID`, **без ветки для `ROLE_SUPER_ADMIN`**). При несовпадении агентства → `ErrOfferNotFound` (не `Forbidden`: чужой offer для пользователя не существует). Sentinel-ошибки: `ErrOfferNotFound`, `ErrInsufficientRole`, `ErrActorNotFound`, `ErrAgencyInactive`, `ErrOfferInvalid`, …
-  - `valueobject/actor.go` — `Actor{ UserID int, AgencyID int, Roles []enum.Role }` вынесен из `domain/service` в `domain/valueobject`: это идентичность `entity.User`, а не деталь одного менеджера — переиспользуется любым доменным сервисом, которому нужно знать «кто выполняет операцию» (не только offers). `AgencyID` обязательный `int` (не `*int`), т.к. `agency_id` пользователя `NOT NULL`. `HasRole(role)` — метод value object'а.
+- `service/offer_manager.go` — единый `OfferManager{ Insert, Update, Delete, FindOwned }`: инварианты, проверка активности агентства, роль на запись (`ROLE_AGENT`/`ROLE_SUPER_ADMIN`, иначе `ErrInsufficientRole` — проверяется первым, до похода в репозиторий, т.к. не зависит от конкретного offer), владение по агентству (строгое равенство `offer.AgencyID == actor.AgencyID`, **без ветки для `ROLE_SUPER_ADMIN`**). При несовпадении агентства → `ErrOfferNotFound` (не `Forbidden`: чужой offer для пользователя не существует). `FindOwned` — экспортированный метод, единая точка сверки владения: `Update`/`Delete` используют его внутри перед записью, а read-хендлер `get_offer` вызывает его же напрямую вместо повторной проверки `offer.AgencyID != actor.AgencyID` на Application-слое. Sentinel-ошибки: `ErrOfferNotFound`, `ErrInsufficientRole`, `ErrActorNotFound`, `ErrAgencyInactive`, `ErrOfferInvalid`, …
+  - `valueobject/actor.go` — `Actor{ UserID int, AgencyID int, Roles []enum.Role }` вынесен из `domain/service` в `domain/valueobject`: это идентичность `entity.User`, а не деталь одного менеджера — переиспользуется любым доменным сервисом, которому нужно знать «кто выполняет операцию» (не только offers). `AgencyID` обязательный `int` (не `*int`), т.к. `agency_id` пользователя `NOT NULL`. `HasRole(role)` — через `slices.Contains(a.Roles, role)`.
+  - `service/user_finder.go` — `UserFinder{ users repository.UserRepository }`, метод `Resolve(ctx, uuid) (valueobject.Actor, error)`. Резолвинг identity (загрузка user-записи по uuid + проекция `[]string → []enum.Role`) — доменная логика, поэтому это доменный сервис рядом с `OfferManager`, а не функция/интерфейс в `application/` (как было изначально): используется всеми пятью offer-хендлерами ниже, а через `repository.UserRepository.FindByUuid` — и `get_me`.
 
 ### Infrastructure (`internal/infrastructure/persistence/postgres/`)
 
@@ -74,16 +77,16 @@
 
 ### Application (CQRS, `internal/application/`)
 
-Идентичность (`agency_id`, `roles`) больше не приходит из presentation готовой — Command/Query несут только неизменяемый `CurrentUserUUID uuid.UUID` (из `Claims.Subject`), а сам handler резолвит `Actor`/`agency_id` из БД через общий порт `application/identity.UserFinder` (`application/identity.Resolve`, переиспользуется всеми ниже + `get_me`). Не найден пользователь по `uuid` (аккаунт удалён после выдачи токена) → `service.ErrActorNotFound` (`401`).
+Идентичность (`agency_id`, `roles`) больше не приходит из presentation готовой — Command/Query несут только неизменяемый `CurrentUserUUID uuid.UUID` (из `Claims.Subject`), а сам handler резолвит `Actor`/`agency_id` через доменный `*service.UserFinder` (конкретный тип, тем же образом, что и `*service.OfferManager` — не интерфейс, объявленный в Application). Каждый handler переводит результат вызова домена через `apperror.FromDomainError` перед возвратом: `service.ErrActorNotFound` → `apperror.ErrUnauthenticated`, `service.ErrInsufficientRole` → `apperror.ErrForbidden`, `service.ErrOfferNotFound` → `apperror.ErrNotFound`, `service.Err{OfferTitleInvalid,OfferStatusInvalid,AgencyNotFound,AgencyInactive}` → `apperror.ErrValidation` — presentation (см. ниже) видит только эти `apperror.Err*`.
 
 **command:**
 
-- `create_offer`, `update_offer`, `delete_offer`. `Command{ ..., CurrentUserUUID uuid.UUID }`. Handler резолвит `Actor` через `identity.Resolve` и передаёt его в `OfferManager` — роль и владение проверяет домен, не presentation.
+- `create_offer`, `update_offer`, `delete_offer`. `Command{ ..., CurrentUserUUID uuid.UUID }`. Handler резолвит `Actor` через `userFinder.Resolve` и передаёт его в `OfferManager` — роль и владение проверяет домен, не presentation.
 
 **query:**
 
 - `get_offers` — список для авторизованного пользователя. `Query{ CurrentUserUUID uuid.UUID, Status *OfferStatus, CreatedBy *int, Limit, Offset }`; результат — элементы + `TotalCount`. Handler резолвит `agency_id` из `CurrentUserUUID` и скоупит `agency_id = actor.AgencyID`, любые статусы. Роль на выборку не влияет (`ROLE_USER` и агенты видят одинаковый список своего агентства).
-- `get_offer` — приватное получение одного offer по `uuid`. `Query{ UUID, CurrentUserUUID uuid.UUID }`. Возвращает offer любого статуса, если `offer.AgencyID == actor.AgencyID`; иначе `ErrOfferNotFound`.
+- `get_offer` — приватное получение одного offer по `uuid`. `Query{ UUID, CurrentUserUUID uuid.UUID }`. Handler не сравнивает `offer.AgencyID`/`actor.AgencyID` сам — вызывает `offerManager.FindOwned(ctx, uuid, actor)`, ту же точку проверки владения, что использует запись; при несовпадении агентства `FindOwned` возвращает `ErrOfferNotFound`.
 - `get_published_offer` — **(новая)** публичное получение одного offer по `uuid`. `Query{ UUID }`, без identity вообще (даже uuid не нужен). Возвращает offer только если `published`; иначе `ErrOfferNotFound`.
 
 ### Presentation (HTTP, `internal/presentation/http/`)
@@ -95,15 +98,15 @@
 - Регистрация маршрутов в `router.go`; роутер разделён на:
   - **публичную группу** (без auth) — `GET /api/v1/public/offers/{uuid}` (N4);
   - **приватную группу** (только `JWT`) — `GET /offers` (N2), `GET /offers/{uuid}` (N3), а также `POST`/`PATCH`/`DELETE` (N1, N5, N6). Нет отдельной write-подгруппы с ролевым guard'ом на уровне роутера — роль на запись проверяет доменный `OfferManager` (см. Домен выше).
-- Хендлер достаёт из HTTP-запроса только `uuid` (`custommw.CurrentUserUUID(ctx)`, чистое чтение JWT claims, без похода в БД) и передаёт его в Command/Query; резолвинг `agency_id`/`roles` — задача application-слоя.
+- Хендлер читает `uuid` из контекста (`custommw.CurrentUserUUIDFromContext(ctx)`, `bool`, не `error` — извлечение и её собственный `401` уже сделала мидлварь ниже) и передаёт его в Command/Query; резолвинг `agency_id`/`roles` — задача domain-слоя.
 - Сборка зависимостей — в `config/container.go`.
 
 ### Авторизация (middleware)
 
-- **Никакой мидлвари, резолвящей пользователя из БД, нет.** `custommw.JWT` валидирует токен и кладёт `Claims` (только `Subject` — uuid) в контекст; `custommw.CurrentUserUUID(ctx)` — чистое извлечение uuid из claims, без похода в БД. Резолвинг `agency_id`/`roles` из уже это uuid — обязанность application-слоя (`application/identity.Resolve`, см. Application выше), переиспользуется также в `get_me`.
+- **Никакой мидлвари, резолвящей пользователя из БД, нет.** Приватная группа монтирует ДВЕ настоящие мидлвари подряд: `custommw.JWT` (валидирует токен, кладёт `Claims` — только `Subject`, uuid — в контекст) и следом `custommw.CurrentUserUUID` — тоже полноценная `func(http.Handler) http.Handler`, а не голый хелпер: парсит `Claims.Subject`, сама пишет `401` при отсутствии/невалидности и кладёт готовый `uuid.UUID` в контекст. Так каждый из пяти offer-хендлеров не повторяет одну и ту же ветку «распарсить uuid → 401» — читает готовое значение через `custommw.CurrentUserUUIDFromContext`. Резолвинг `agency_id`/`roles` из этого uuid — обязанность domain-слоя (`service.UserFinder.Resolve`, см. Домен выше), переиспользуется также в `get_me`.
 - Роль на запись (`ROLE_AGENT`/`ROLE_SUPER_ADMIN`) проверяет не HTTP-guard, а доменный `OfferManager` — нет отдельного `RequireRole`-мидлваря для offers.
 - Публичная ручка (N4) auth-middleware не использует (полностью анонимна). Отдельный `OptionalJWT`/`OptionalCurrentUser` не нужен — публичное и приватное чтение разнесены по разным эндпоинтам.
-- `entity.UserRecord` дополняется полем `ID int` (внутренний numeric id) — нужно для `Actor.UserID` в identity.
+- `entity.UserRecord` дополняется полем `ID int` (внутренний numeric id) — нужно для `Actor.UserID`. `repository.UserRepository.FindByUuid` возвращает `(nil, nil)`, если строки нет (не sentinel-ошибку) — тот же не-найдено-контракт, что у `OfferRepository.FindByUUID`/`AgencyRepository.FindByID`.
 
 ### Миграция
 
@@ -126,9 +129,12 @@
 - [x] Добавлены описание статусов offer в документацию
 - [x] Смена `status` свободная через тело; создание сразу в `published` и снятие с публикации работают; недопустимое значение статуса → `400`.
 - [x] Soft delete: удалённые offer исключены из всех чтений (проверено integration-тестом `TestOfferRepository_SoftDelete_ExcludesFromFindByUUID` вживую на Postgres).
-- [x] Идентичность резолвится application-слоем (`application/identity.Resolve`) по `uuid` из JWT — переиспользуется `create_offer`/`update_offer`/`delete_offer`/`get_offer`/`get_offers`/`get_me`; никакой мидлвари, ходящей в БД, нет.
+- [x] Идентичность резолвится доменным сервисом (`service.UserFinder.Resolve`) по `uuid` из JWT — переиспользуется `create_offer`/`update_offer`/`delete_offer`/`get_offer`/`get_offers`/`get_me`; никакой мидлвари, ходящей в БД, нет.
+- [x] `CurrentUserUUID` — настоящая мидлварь (не хелпер), монтируется после `JWT`; хендлеры читают уже готовый uuid через `CurrentUserUUIDFromContext`, без повторяющейся в каждом хендлере ветки parse+401.
+- [x] Владение offer сверяется в одном месте — `OfferManager.FindOwned` — используется и записью (`Update`/`Delete`), и чтением (`get_offer`); Application-слой не дублирует сравнение `AgencyID`.
+- [x] Domain-ошибки (`service.Err*`) не пересекают границу Application → Presentation напрямую: каждый offer-handler переводит их в `application/apperror.{ErrUnauthenticated,ErrForbidden,ErrNotFound,ErrValidation}`; presentation switch'ится только по `apperror.Err*`, не импортирует `domain/service`.
 - [x] Swagger сгенерирован (`make swag`); `README.md` (Endpoints + «Роли и права») обновлён.
-- [x] Критический путь покрыт: unit `OfferManager`/`create_offer`/`update_offer`/`delete_offer`/`get_offer`/`get_offers`/`get_published_offer` (мок-репозитории, включая `ErrInsufficientRole`/`ErrActorNotFound`) + application e2e с реальными handler'ами (`401`/`403`/`201`/публичный `200`+`404`). `go test ./...` (включая `integration`, живой Postgres в Docker) — зелёные; `migrate up/down` для `015_create_offers` проверен вживую; `go build ./...`, `go vet ./...` — зелёные; `golangci-lint run ./...` без новых замечаний (1 не связанная с этим issue преэкзистирующая находка — deprecated `jwt.ParseRSAPrivateKeyFromPEMWithPassword`).
+- [x] Критический путь покрыт: unit `OfferManager`/`create_offer`/`update_offer`/`delete_offer`/`get_offer`/`get_offers`/`get_published_offer` (мок-репозитории, включая `apperror.ErrForbidden`/`apperror.ErrUnauthenticated`, домен по-прежнему через `service.Err*`) + application e2e с реальными handler'ами (`401`/`403`/`201`/публичный `200`+`404`). `go test ./...` (включая `integration`, живой Postgres в Docker) — зелёные; `migrate up/down/up` для `015_create_offers` проверен вживую повторно; `go build ./...`, `go vet ./...` — зелёные; `golangci-lint run ./...` без новых замечаний (1 не связанная с этим issue преэкзистирующая находка — deprecated `jwt.ParseRSAPrivateKeyFromPEMWithPassword`, файл не затронут этой веткой).
 
 ## Negative constraints (чего НЕ делаем)
 

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"api/internal/application/apperror"
 	getoffers "api/internal/application/query/get_offers"
 	"api/internal/domain/enum"
 	"api/internal/domain/repository"
-	"api/internal/domain/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,11 +76,11 @@ func TestGetOffers_MapsResultToOfferResults(t *testing.T) {
 	assert.Empty(t, res.Offers)
 }
 
-func TestGetOffers_ActorNotFound_ReturnsErrActorNotFound(t *testing.T) {
+func TestGetOffers_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
 	lister := &stubOfferLister{}
-	h := getoffers.NewHandler(lister, stubUserFinder{record: nil})
+	h := getoffers.NewHandler(lister, noUserFound())
 
 	_, err := h.Handle(context.Background(), getoffers.Query{})
 
-	assert.ErrorIs(t, err, service.ErrActorNotFound)
+	assert.ErrorIs(t, err, apperror.ErrUnauthenticated)
 }

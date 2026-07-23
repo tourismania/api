@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"api/internal/application/apperror"
 	getoffer "api/internal/application/query/get_offer"
 	"api/internal/domain/entity"
 	"api/internal/domain/enum"
@@ -14,19 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubOfferFinder is a hand-written test double for the getoffer.OfferFinder port.
-type stubOfferFinder struct {
-	offer *entity.Offer
-	err   error
-}
-
-func (s stubOfferFinder) FindByUUID(_ context.Context, _ uuid.UUID) (*entity.Offer, error) {
-	return s.offer, s.err
-}
-
-// stubUserFinder is a hand-written test double for the
-// application/identity.UserFinder port, shared by tests that resolve
-// the acting principal from its uuid.
+// stubUserFinder is a hand-written test double for the domain
+// repository.UserRepository port, shared by tests that resolve the
+// acting principal from its uuid via service.NewUserFinder. Store is a
+// no-op: these tests only ever exercise the read path.
 type stubUserFinder struct {
 	record *entity.UserRecord
 	err    error
@@ -36,13 +28,22 @@ func (s stubUserFinder) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.User
 	return s.record, s.err
 }
 
-func userRecordWithAgency(agencyID int) stubUserFinder {
-	return stubUserFinder{record: &entity.UserRecord{ID: 1, AgencyID: agencyID}}
+func (s stubUserFinder) Store(_ context.Context, _ entity.User, _ string) (*int, error) {
+	return nil, nil
+}
+
+func userRecordWithAgency(agencyID int) *service.UserFinder {
+	return service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 1, AgencyID: agencyID}})
+}
+
+func noUserFound() *service.UserFinder {
+	return service.NewUserFinder(stubUserFinder{record: nil})
 }
 
 func TestGetOffer_MatchingAgency_SeesDraftOffer(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusDraft}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer}, userRecordWithAgency(7))
+	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: offer}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: offer.UUID,
@@ -54,7 +55,8 @@ func TestGetOffer_MatchingAgency_SeesDraftOffer(t *testing.T) {
 
 func TestGetOffer_MatchingAgency_SeesPublishedOffer(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer}, userRecordWithAgency(7))
+	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: offer}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: offer.UUID,
@@ -66,13 +68,14 @@ func TestGetOffer_MatchingAgency_SeesPublishedOffer(t *testing.T) {
 
 func TestGetOffer_DifferentAgency_DraftOffer_NotFound(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusDraft}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer}, userRecordWithAgency(1))
+	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: offer}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: offer.UUID,
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferNotFound)
+	assert.ErrorIs(t, err, apperror.ErrNotFound)
 }
 
 func TestGetOffer_DifferentAgency_PublishedOffer_StillNotFound(t *testing.T) {
@@ -80,31 +83,34 @@ func TestGetOffer_DifferentAgency_PublishedOffer_StillNotFound(t *testing.T) {
 	// invisible on the private endpoint — get_published_offer serves
 	// cross-agency published reads separately, with no identity at all.
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
-	h := getoffer.NewHandler(stubOfferFinder{offer: offer}, userRecordWithAgency(1))
+	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: offer}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: offer.UUID,
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferNotFound)
+	assert.ErrorIs(t, err, apperror.ErrNotFound)
 }
 
-func TestGetOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
-	h := getoffer.NewHandler(stubOfferFinder{offer: nil}, userRecordWithAgency(1))
+func TestGetOffer_NotFound_ReturnsErrNotFound(t *testing.T) {
+	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: nil}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: uuid.New(),
 	})
 
-	assert.ErrorIs(t, err, service.ErrOfferNotFound)
+	assert.ErrorIs(t, err, apperror.ErrNotFound)
 }
 
-func TestGetOffer_ActorNotFound_ReturnsErrActorNotFound(t *testing.T) {
-	h := getoffer.NewHandler(stubOfferFinder{}, stubUserFinder{record: nil})
+func TestGetOffer_ActorNotFound_ReturnsErrUnauthenticated(t *testing.T) {
+	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, noUserFound())
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: uuid.New(),
 	})
 
-	assert.ErrorIs(t, err, service.ErrActorNotFound)
+	assert.ErrorIs(t, err, apperror.ErrUnauthenticated)
 }

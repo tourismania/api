@@ -14,6 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubOfferFinder is a hand-written test double for the
+// getpublishedoffer.OfferFinder port.
+type stubOfferFinder struct {
+	offer *entity.Offer
+	err   error
+}
+
+func (s stubOfferFinder) FindByUUID(_ context.Context, _ uuid.UUID) (*entity.Offer, error) {
+	return s.offer, s.err
+}
+
 func TestGetPublishedOffer_Published_Visible(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
 	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer})

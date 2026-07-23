@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
+	"api/internal/application/apperror"
 	updateoffer "api/internal/application/command/update_offer"
 	"api/internal/domain/enum"
-	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -59,8 +59,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUserUUID, err := custommw.CurrentUserUUID(r.Context())
-	if err != nil {
+	currentUserUUID, ok := custommw.CurrentUserUUIDFromContext(r.Context())
+	if !ok {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
@@ -80,14 +80,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrActorNotFound):
+		case errors.Is(err, apperror.ErrUnauthenticated):
 			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-		case errors.Is(err, service.ErrInsufficientRole):
+		case errors.Is(err, apperror.ErrForbidden):
 			httpx.WriteError(w, http.StatusForbidden, "insufficient role")
-		case errors.Is(err, service.ErrOfferNotFound):
+		case errors.Is(err, apperror.ErrNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
-		case errors.Is(err, service.ErrOfferTitleInvalid),
-			errors.Is(err, service.ErrOfferStatusInvalid):
+		case errors.Is(err, apperror.ErrValidation):
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		default:
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())

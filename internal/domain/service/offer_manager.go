@@ -114,7 +114,7 @@ func (m *OfferManager) Update(ctx context.Context, id uuid.UUID, title, descript
 	if !canWriteOffers(actor) {
 		return entity.Offer{}, ErrInsufficientRole
 	}
-	offer, err := m.findOwned(ctx, id, actor)
+	offer, err := m.FindOwned(ctx, id, actor)
 	if err != nil {
 		return entity.Offer{}, err
 	}
@@ -148,7 +148,7 @@ func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor valueobje
 	if !canWriteOffers(actor) {
 		return ErrInsufficientRole
 	}
-	if _, err := m.findOwned(ctx, id, actor); err != nil {
+	if _, err := m.FindOwned(ctx, id, actor); err != nil {
 		return err
 	}
 	if err := m.offers.SoftDelete(ctx, id); err != nil {
@@ -157,11 +157,15 @@ func (m *OfferManager) Delete(ctx context.Context, id uuid.UUID, actor valueobje
 	return nil
 }
 
-// findOwned fetches an offer and verifies the actor belongs to its
+// FindOwned fetches an offer and verifies the actor belongs to its
 // owning agency. 1 user = 1 agency: there is no role-based bypass. An
 // offer of another agency is reported as ErrOfferNotFound, not a
-// forbidden error — for the actor it simply does not exist.
-func (m *OfferManager) findOwned(ctx context.Context, id uuid.UUID, actor valueobject.Actor) (*entity.Offer, error) {
+// forbidden error — for the actor it simply does not exist. This is the
+// single authority for "can this actor see/touch this offer": Update and
+// Delete use it internally before applying a write, and the read-side
+// get_offer use-case calls it directly instead of re-implementing the
+// same ownership comparison.
+func (m *OfferManager) FindOwned(ctx context.Context, id uuid.UUID, actor valueobject.Actor) (*entity.Offer, error) {
 	offer, err := m.offers.FindByUUID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("find offer: %w", err)

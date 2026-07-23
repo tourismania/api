@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"api/internal/application/apperror"
 	getoffers "api/internal/application/query/get_offers"
 	"api/internal/domain/enum"
-	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -50,8 +50,8 @@ func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
 //	@Security     Bearer
 //	@Router       /api/v1/offers [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	currentUserUUID, err := custommw.CurrentUserUUID(r.Context())
-	if err != nil {
+	currentUserUUID, ok := custommw.CurrentUserUUIDFromContext(r.Context())
+	if !ok {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
@@ -97,7 +97,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Offset:          offset,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrActorNotFound) {
+		if errors.Is(err, apperror.ErrUnauthenticated) {
 			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 			return
 		}

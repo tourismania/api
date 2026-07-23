@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"api/internal/application/identity"
+	"api/internal/application/apperror"
 	"api/internal/domain/repository"
+	"api/internal/domain/service"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -23,22 +24,22 @@ type OfferLister interface {
 // scoped to the caller's own agency, any status — the role has no
 // bearing on visibility, only on write access (enforced by the domain
 // OfferManager). The caller's own agency is resolved from its uuid via
-// application/identity, not presentation-layer middleware.
+// service.UserFinder, not presentation-layer middleware.
 type Handler struct {
-	offers OfferLister
-	users  identity.UserFinder
+	offers     OfferLister
+	userFinder *service.UserFinder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offers OfferLister, users identity.UserFinder) *Handler {
-	return &Handler{offers: offers, users: users}
+func NewHandler(offers OfferLister, userFinder *service.UserFinder) *Handler {
+	return &Handler{offers: offers, userFinder: userFinder}
 }
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
-	actor, err := identity.Resolve(ctx, h.users, q.CurrentUserUUID)
+	actor, err := h.userFinder.Resolve(ctx, q.CurrentUserUUID)
 	if err != nil {
-		return Result{}, err
+		return Result{}, apperror.FromDomainError(err)
 	}
 
 	filter := repository.OfferFilter{

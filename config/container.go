@@ -130,6 +130,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// Offer domain wiring.
 	offerRepo := pgrepo.NewOfferRepository(queries)
 	offerManager := service.NewOfferManager(offerRepo, agencyRepo)
+	userFinder := service.NewUserFinder(userRepo)
 
 	// Airport domain wiring.
 	airportRepo := pgrepo.NewAirportRepository(queries, pool)
@@ -154,11 +155,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, agencyRepo, rightsDescriber)
-	createOfferApp := createoffercmd.NewHandler(offerManager, userRepo)
-	updateOfferApp := updateoffercmd.NewHandler(offerManager, userRepo)
-	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userRepo)
-	getOfferApp := getofferq.NewHandler(offerRepo, userRepo)
-	getOffersApp := getoffersq.NewHandler(offerRepo, userRepo)
+	createOfferApp := createoffercmd.NewHandler(offerManager, userFinder)
+	updateOfferApp := updateoffercmd.NewHandler(offerManager, userFinder)
+	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userFinder)
+	getOfferApp := getofferq.NewHandler(offerManager, userFinder)
+	getOffersApp := getoffersq.NewHandler(offerRepo, userFinder)
 	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo)
 
 	// Validation.
@@ -167,7 +168,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// HTTP handlers.
 	loginH := loginhttp.NewHandler(queries, hasher, jwtSvc, validate)
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
-	getMeH := getmehttp.NewHandler(getMeApp, getmehttp.NewResolver())
+	getMeH := getmehttp.NewHandler(getMeApp)
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)

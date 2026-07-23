@@ -1,6 +1,10 @@
 package valueobject
 
-import "api/internal/domain/enum"
+import (
+	"slices"
+
+	"api/internal/domain/enum"
+)
 
 // Actor is the identity of the user performing a domain operation. It
 // belongs to entity.User's identity, not to any single Manager: every
@@ -19,10 +23,5 @@ type Actor struct {
 
 // HasRole reports whether the actor carries the given role.
 func (a Actor) HasRole(role enum.Role) bool {
-	for _, r := range a.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a.Roles, role)
 }

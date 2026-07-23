@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"api/internal/application/apperror"
 	createoffer "api/internal/application/command/create_offer"
 	"api/internal/domain/entity"
 	"api/internal/domain/enum"
@@ -18,7 +19,7 @@ func TestCreateOffer_RoleAgent_CreatesUnderCallerAgency(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
 	mgr := service.NewOfferManager(offers, agencies)
-	users := stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}}
+	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
 	h := createoffer.NewHandler(mgr, users)
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
@@ -37,7 +38,7 @@ func TestCreateOffer_RoleAgent_CreatesUnderCallerAgency(t *testing.T) {
 func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 	offers := &mockOfferRepo{}
 	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	users := stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}}
+	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}})
 	h := createoffer.NewHandler(mgr, users)
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -47,12 +48,12 @@ func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 		CurrentUserUUID: uuid.New(),
 	})
 
-	assert.ErrorIs(t, err, service.ErrInsufficientRole)
+	assert.ErrorIs(t, err, apperror.ErrForbidden)
 }
 
-func TestCreateOffer_ActorNotFound_ReturnsErrActorNotFound(t *testing.T) {
+func TestCreateOffer_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{})
-	h := createoffer.NewHandler(mgr, stubUserFinder{record: nil})
+	h := createoffer.NewHandler(mgr, noUserFound())
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
@@ -61,5 +62,5 @@ func TestCreateOffer_ActorNotFound_ReturnsErrActorNotFound(t *testing.T) {
 		CurrentUserUUID: uuid.New(),
 	})
 
-	assert.ErrorIs(t, err, service.ErrActorNotFound)
+	assert.ErrorIs(t, err, apperror.ErrUnauthenticated)
 }

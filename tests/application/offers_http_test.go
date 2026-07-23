@@ -60,16 +60,21 @@ func newTestJWTService(t *testing.T) *auth.Service {
 	return svc
 }
 
-// stubUserFinder implements application/identity.UserFinder for tests —
-// role and agency_id are now resolved application-side (not by any
-// presentation-layer middleware), so these HTTP tests wire the real
-// application handlers and drive the whole resolve → authorize flow.
+// stubUserFinder implements the domain repository.UserRepository port for
+// tests — role and agency_id are resolved by domain/service.UserFinder,
+// not by any presentation-layer middleware, so these HTTP tests wire the
+// real application handlers and drive the whole resolve → authorize
+// flow. Store is a no-op: these tests only exercise the read path.
 type stubUserFinder struct {
 	record *entity.UserRecord
 }
 
 func (s stubUserFinder) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.UserRecord, error) {
 	return s.record, nil
+}
+
+func (s stubUserFinder) Store(_ context.Context, _ entity.User, _ string) (*int, error) {
+	return nil, nil
 }
 
 // stubOfferRepo is a minimal repository.OfferRepository test double. Its
@@ -124,20 +129,21 @@ func (s *stubGetPublishedOfferUseCase) Handle(_ context.Context, _ getpublishedo
 
 // newOffersTestRouter mirrors the production router split: a fully
 // anonymous public endpoint for published offers, and a private group
-// (JWT only) for offer reads/writes. Unlike before, there is no
-// middleware resolving the principal or gating by role — both the
-// ownership check and the write-role gate live in the domain
+// (JWT + CurrentUserUUID) for offer reads/writes. There is no middleware
+// resolving the principal's mutable profile or gating by role — both
+// the ownership check and the write-role gate live in the domain
 // OfferManager, reached through the real application command/query
 // handlers wired here.
 func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	offerManager := service.NewOfferManager(offers, stubAgencyRepo{})
+	userFinder := service.NewUserFinder(users)
 
-	createApp := createoffer.NewHandler(offerManager, users)
+	createApp := createoffer.NewHandler(offerManager, userFinder)
 	createH := createofferhttp.NewHandler(createApp, validate)
 
-	listApp := getoffers.NewHandler(offers, users)
+	listApp := getoffers.NewHandler(offers, userFinder)
 	listH := listoffershttp.NewHandler(listApp, validate)
 
 	publicH := getpublicofferhttp.NewHandler(publicUC)
@@ -148,6 +154,7 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 
 		api.Group(func(priv chi.Router) {
 			priv.Use(custommw.JWT(jwtSvc))
+			priv.Use(custommw.CurrentUserUUID)
 
 			priv.Get("/offers", listH.Handle)
 			priv.Post("/offers", createH.Handle)

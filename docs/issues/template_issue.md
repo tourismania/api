@@ -46,6 +46,8 @@
 - **`403`** — авторизован, но роль без нужного права. *По умолчанию проверяется доменным сервисом (`ErrInsufficientRole`-подобный сентинел), не отдельным router-level guard'ом — держит авторизацию рядом с остальными инвариантами сущности и не требует резолвить роль в мидлвари.*
 - **`404`** — сущность не найдена **или** принадлежит не тому владельцу (существование чужой сущности не раскрываем) — *используется, если владение проверяется на уровне агентства/пользователя, а не просто ролью; в этом случае это `ErrXNotFound`, а не отдельный `Forbidden`-сентинел.*
 
+*Presentation-слой не проверяет доменные сентинелы (`service.Err*`) напрямую — это разрывало бы границу Application → Domain (presentation узнавал бы о конкретных доменных ошибках). Application-хендлер перехватывает их и переводит в маленький фиксированный набор `application/apperror` (`ErrUnauthenticated`/`ErrForbidden`/`ErrNotFound`/`ErrValidation`, см. `apperror.FromDomainError`); presentation switch'ится только по ним. Так presentation вообще не импортирует `domain/service`.*
+
 ## Scope
 
 ### Домен (`internal/domain/`)
@@ -53,8 +55,9 @@
 - `entity/[name].go` — `[Entity]{ Field1, Field2, ... }`. *Явно указать какие поля required (не указатели), какие optional (указатели) — и почему.*
 - `enum/[name]_status.go` — *если применимо.*
 - `repository/[name]_repository.go` — интерфейс: `Store`, `FindByX`, `List(Filter)`, `Update`, `SoftDelete`/`Delete`. `[Name]Filter{ ... }`.
-- `service/[name]_manager.go` — *единый менеджер жизненного цикла, инварианты, проверка владения и (если применимо) роли на запись. Явно указать: есть ли роль-based bypass владения (обычно НЕТ), какой сентинел возвращается при несовпадении владельца (`NotFound` vs `Forbidden` — выбор влияет на то, раскрывается ли существование чужой записи), какой сентинел — при недостаточной роли (`ErrInsufficientRole`-подобный, не зависит от конкретной записи, поэтому его можно проверять первым, до похода в репозиторий).*
-  - `valueobject/actor.go` (не `service.Actor`) — *identity — `Actor{ UserID int, [Owner]ID int, Roles []enum.Role }`. Живёт в `domain/valueobject`, а не внутри одного `service`-пакета: это идентичность `entity.User`, переиспользуемая любым доменным сервисом, которому нужно знать «кто выполняет операцию» — не только этой сущностью. Указать какие поля required int, какие *int, и обосновать через инвариант из «Контекста».*
+- `service/[name]_manager.go` — *единый менеджер жизненного цикла, инварианты, проверка владения и (если применимо) роли на запись. Явно указать: есть ли роль-based bypass владения (обычно НЕТ), какой сентинел возвращается при несовпадении владельца (`NotFound` vs `Forbidden` — выбор влияет на то, раскрывается ли существование чужой записи), какой сентинел — при недостаточной роли (`ErrInsufficientRole`-подобный, не зависит от конкретной записи, поэтому его можно проверять первым, до похода в репозиторий). Метод проверки владения (аналог `FindOwned`) — экспортировать: он единая точка сверки владения, используется и внутри write-методов (`Update`/`Delete`), и напрямую read-хендлером (`get_[name]`) — сравнение `record.OwnerID != actor.OwnerID` не дублируется на Application-слое.*
+  - `valueobject/actor.go` (не `service.Actor`) — *identity — `Actor{ UserID int, [Owner]ID int, Roles []enum.Role }`. Живёт в `domain/valueobject`, а не внутри одного `service`-пакета: это идентичность `entity.User`, переиспользуемая любым доменным сервисом, которому нужно знать «кто выполняет операцию» — не только этой сущностью. Указать какие поля required int, какие *int, и обосновать через инвариант из «Контекста». `HasRole` — через `slices.Contains`, не ручной цикл.*
+  - `service/user_finder.go` (домен, не Application) — *резолвит `Actor` из uuid: `UserFinder{ users repository.UserRepository }`, метод `Resolve(ctx, uuid) (valueobject.Actor, error)`. Построение `Actor` из строки ролей — бизнес-логика (проекция `[]string → []enum.Role`), поэтому это доменный сервис рядом с `[name]_manager.go`, а не функция в Application-слое — тем более не интерфейс, объявленный внутри Application. Требует, чтобы `domain/repository.[Owner]Repository` (или отдельный `UserRepository`) декларировал `FindByUuid(ctx, uuid) (*entity.[Owner]Record, error)`, возвращающий `(nil, nil)`, если строки нет — не sentinel-ошибку.*
 
 ### Infrastructure (`internal/infrastructure/persistence/postgres/`)
 
@@ -64,7 +67,7 @@
 
 ### Application (CQRS, `internal/application/`)
 
-*Identity в Command/Query — только неизменяемый `CurrentUserUUID uuid.UUID` (из JWT `Claims.Subject`), никогда готовый `[Owner]ID`/роли. Handler резолвит `Actor`/`[owner]_id` сам через общий порт `application/identity.UserFinder` (`application/identity.Resolve`, переиспользуется всеми ниже + `get_me`) — так это всегда актуальное состояние БД, а не значение, закешированное где-то на пути запроса. Не найден пользователь по uuid (аккаунт удалён после выдачи токена) → `ErrActorNotFound` (`401`).*
+*Identity в Command/Query — только неизменяемый `CurrentUserUUID uuid.UUID` (из JWT `Claims.Subject`), никогда готовый `[Owner]ID`/роли. Handler резолвит `Actor`/`[owner]_id` сам через доменный `*service.UserFinder` (см. Домен выше; конкретный тип, а не интерфейс, объявленный в Application — так же, как Handler уже зависит от конкретного `*service.[Name]Manager`) — так это всегда актуальное состояние БД, а не значение, закешированное где-то на пути запроса. Не найден пользователь по uuid (аккаунт удалён после выдачи токена) → `ErrActorNotFound`. Каждый Handler переводит результат домена (успех или ошибку) через `application/apperror.FromDomainError` перед возвратом — presentation получает только `apperror.Err*`, не `service.Err*` (см. `403`/`404` выше).*
 
 **command:**
 
@@ -82,7 +85,7 @@
 
 - Тело `POST`/`PATCH`: [какие поля принимает тело, какие выводятся из identity на сервере и НЕ принимаются из тела].
 - Query-параметры списка: [список] — *явно перечислить, каких параметров НЕТ (например `agency_id`, если скоуп навязывается application-слоем).*
-- Хендлер достаёт из запроса только `uuid` (`custommw.CurrentUserUUID(ctx)` — чистое чтение JWT claims, без похода в БД) и передаёт его в Command/Query как есть; резолвинг `[owner]_id`/ролей из этого uuid — задача application-слоя, не presentation.
+- Хендлер читает `uuid` из контекста (`custommw.CurrentUserUUIDFromContext(ctx)`, `bool` вместо `error` — извлечение и его 401 уже сделала мидлварь ниже, хендлеру нечего перепроверять) и передаёт его в Command/Query как есть; резолвинг `[owner]_id`/ролей из этого uuid — задача domain-слоя (`service.UserFinder`), не presentation.
 - Регистрация маршрутов в `router.go`; роутер разделён на:
   - **публичную группу** (без auth) — *если есть анонимные ручки, перечислить.*
   - **приватную группу** (только `JWT`) — *перечислить. По умолчанию БЕЗ отдельной write-подгруппы с ролевым guard'ом на уровне роутера — роль на запись проверяет доменный сервис (см. Домен выше), не HTTP-мидлварь.*
@@ -90,7 +93,7 @@
 
 ### Авторизация (middleware)
 
-- *По умолчанию НИКАКАЯ мидлварь не ходит в БД.* `JWT` валидирует токен и кладёт `Claims` (только `Subject` — uuid) в контекст; `CurrentUserUUID(ctx)` — чистое извлечение uuid, без DB-запроса. Резолвинг `agency_id`/roles по этому uuid — обязанность application-слоя (`application/identity.Resolve`), не presentation-мидлвари. *Если это правило нарушается для нового кейса — обосновать явно, почему резолвинг не может жить в application-слое.*
+- *По умолчанию НИКАКАЯ мидлварь не ходит в БД.* Приватная группа монтирует ДВЕ настоящие мидлвари подряд — `JWT` (валидирует токен, кладёт `Claims`, только `Subject` — uuid, в контекст) и следом `CurrentUserUUID` (парсит `Claims.Subject` в `uuid.UUID`, сама пишет `401` при невалидном/отсутствующем uuid, кладёт готовый `uuid.UUID` в контекст). Обе — `func(http.Handler) http.Handler`, а не голые хелперы: централизация здесь означает, что каждый хендлер не повторяет свою же ветку «распарсить → 401» — он просто читает уже готовое значение через `CurrentUserUUIDFromContext(ctx) (uuid.UUID, bool)`. Резолвинг `agency_id`/roles по этому uuid — обязанность домена (`service.UserFinder`), не presentation-мидлвари. *Если это правило нарушается для нового кейса — обосновать явно, почему резолвинг не может жить в domain-слое.*
 - *Нужен ли новый паттерн (`OptionalJWT`/`OptionalCurrentUser`)? По умолчанию — НЕТ, если публичное и приватное чтение можно развести по разным эндпоинтам (проще и безопаснее, чем один хендлер с двумя режимами).*
 
 ### Миграция

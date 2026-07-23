@@ -99,12 +99,16 @@ func (s Server) Build() http.Handler {
 		// offer, regardless of agency. No auth middleware at all.
 		api.Get("/public/offers/{uuid}", s.GetPublishedOffer.Handle)
 
-		// Everything else requires a valid JWT. Resolving the principal's
-		// mutable profile (agency_id, roles) from its uuid is always done
-		// application-side (see application/identity) — there is no
-		// middleware here that touches the DB.
+		// Everything else requires a valid JWT. CurrentUserUUID is a
+		// second, genuine middleware — not a bare helper — that runs
+		// right after JWT and extracts the principal's immutable uuid
+		// onto context (a pure token read). Resolving mutable profile
+		// data (agency_id, roles) from that uuid is always done
+		// domain-side (see domain/service.UserFinder) — no middleware
+		// here touches the DB.
 		api.Group(func(priv chi.Router) {
 			priv.Use(custommw.JWT(s.JWT))
+			priv.Use(custommw.CurrentUserUUID)
 
 			// Users
 			priv.Post("/users", s.CreateUser.Handle)

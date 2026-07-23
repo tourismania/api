@@ -17,13 +17,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Compile-time check: UserRepository must satisfy the UserFinder port
-// expected by the get_me use-case. Declared here to avoid an import
-// cycle (application ← infrastructure is not allowed).
-var _ interface {
-	FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error)
-} = (*UserRepository)(nil)
-
 const (
 	defaultPhone    = "799999999"
 	birthdayYear    = 1994
@@ -89,13 +82,16 @@ func (r *UserRepository) Store(
 	return &out, nil
 }
 
-// FindByUuid fetches a user record by primary key. Satisfies the UserFinder
-// port defined in the get_me application package.
+// FindByUuid fetches a user record by primary key. Satisfies the domain
+// repository.UserRepository port. Returns (nil, nil) when no row
+// matches, matching the not-found convention used by every other finder
+// in this package (e.g. OfferRepository.FindByUUID) — callers decide
+// what "not found" means for their own use case.
 func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error) {
 	u, err := r.queries.GetUserByUuid(ctx, uuid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("user %s not found", uuid.String())
+			return nil, nil
 		}
 		return nil, fmt.Errorf("find user by uuid: %w", err)
 	}
