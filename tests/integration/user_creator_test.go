@@ -11,6 +11,7 @@ import (
 	"api/internal/domain/event"
 	"api/internal/domain/service"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +49,10 @@ func (r *nilStoringRepo) Store(_ context.Context, u entity.User, hash string) (*
 	return nil, nil
 }
 
+func (r *nilStoringRepo) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.UserRecord, error) {
+	return nil, nil
+}
+
 // inMemoryBus captures publishes for assertion.
 type inMemoryBus struct{ events []event.DomainEvent }
 
@@ -79,6 +84,10 @@ type repoOK struct{}
 func (repoOK) Store(_ context.Context, _ entity.User, _ string) (*int, error) {
 	id := 42
 	return &id, nil
+}
+
+func (repoOK) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.UserRecord, error) {
+	return nil, nil
 }
 
 // publishErrBus simulates kafka being unreachable.

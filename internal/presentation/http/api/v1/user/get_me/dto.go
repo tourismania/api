@@ -3,13 +3,6 @@ package getmehttp
 
 import "github.com/google/uuid"
 
-// GetMeDto is the transport view of the authenticated user, populated by
-// the resolver from JWT claims. Only the immutable identity is carried
-// here; mutable data comes from the DB inside the use-case.
-type GetMeDto struct {
-	Uuid uuid.UUID
-}
-
 // GetMeResponse is what we serialise back to the client.
 type GetMeResponse struct {
 	Uuid      uuid.UUID `json:"uuid"`

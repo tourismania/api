@@ -23,6 +23,7 @@ type User struct {
 // intentionally separate from User (the write aggregate) to keep the
 // read and write paths independent.
 type UserRecord struct {
+	ID        int
 	Uuid      uuid.UUID
 	Email     string
 	Phone     string

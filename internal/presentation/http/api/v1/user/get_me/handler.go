@@ -4,19 +4,20 @@ import (
 	"errors"
 	"net/http"
 
+	"api/internal/application/apperror"
 	getme "api/internal/application/query/get_me"
 	"api/internal/presentation/http/httpx"
+	custommw "api/internal/presentation/http/middleware"
 )
 
 // Handler renders the authenticated user as a JSON document.
 type Handler struct {
-	useCase  getme.UseCase
-	resolver *Resolver
+	useCase getme.UseCase
 }
 
 // NewHandler constructs the handler.
-func NewHandler(uc getme.UseCase, resolver *Resolver) *Handler {
-	return &Handler{useCase: uc, resolver: resolver}
+func NewHandler(uc getme.UseCase) *Handler {
+	return &Handler{useCase: uc}
 }
 
 // Handle is the http.HandlerFunc.
@@ -27,27 +28,24 @@ func NewHandler(uc getme.UseCase, resolver *Resolver) *Handler {
 //	@Produce      json
 //	@Success      200  {object}  GetMeResponse
 //	@Failure      401  {object}  httpx.ErrorBody
-//	@Failure      404  {object}  httpx.ErrorBody
 //	@Failure      500  {object}  httpx.ErrorBody
 //	@Security     Bearer
 //	@Router       /api/v1/users/me [get]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	dto, err := h.resolver.Resolve(r.Context())
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrNoAuthClaims):
-			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
-		case errors.Is(err, ErrUserMissingID):
-			httpx.WriteError(w, http.StatusInternalServerError, "token missing user id")
-		default:
-			httpx.WriteError(w, http.StatusNotFound, "user not found")
-		}
+	currentUserUUID, ok := custommw.CurrentUserUUIDFromContext(r.Context())
+	if !ok {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		return
 	}
 
-	res, err := h.useCase.Handle(r.Context(), getme.Query{Uuid: dto.Uuid})
+	res, err := h.useCase.Handle(r.Context(), getme.Query{Uuid: currentUserUUID})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		switch {
+		case errors.Is(err, apperror.ErrUnauthenticated):
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+		default:
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
 

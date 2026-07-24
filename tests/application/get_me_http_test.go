@@ -23,7 +23,7 @@ func TestGetMe_RequiresAuth(t *testing.T) {
 	var jwtSvc *auth.Service // nil is fine; never reached.
 
 	// nil use-case: the middleware rejects before the handler is invoked.
-	handler := getmehttp2.NewHandler(nil, getmehttp2.NewResolver())
+	handler := getmehttp2.NewHandler(nil)
 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(api chi.Router) {

@@ -15,6 +15,7 @@ import (
 )
 
 // mockAgencyRepo is a hand-written test double for repository.AgencyRepository.
+// Reused by offer_manager_test.go: OfferManager consults AgencyRepository too.
 type mockAgencyRepo struct {
 	storeID      int
 	storeErr     error
@@ -26,6 +27,12 @@ type mockAgencyRepo struct {
 	setStatusErr error
 	setStatusID  int
 	setStatusTo  enum.AgencyStatus
+
+	// findByIDAgency/findByIDErr let callers other than AgencyManager
+	// (e.g. OfferManager) stub a specific FindByID response. Zero value
+	// preserves the original "not found" behaviour.
+	findByIDAgency *entity.Agency
+	findByIDErr    error
 }
 
 func (m *mockAgencyRepo) Store(_ context.Context, a entity.Agency) (int, error) {
@@ -34,7 +41,7 @@ func (m *mockAgencyRepo) Store(_ context.Context, a entity.Agency) (int, error) 
 }
 
 func (m *mockAgencyRepo) FindByID(_ context.Context, _ int) (*entity.Agency, error) {
-	return nil, nil
+	return m.findByIDAgency, m.findByIDErr
 }
 
 func (m *mockAgencyRepo) SetStatus(_ context.Context, id int, status enum.AgencyStatus) error {

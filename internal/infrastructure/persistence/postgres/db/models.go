@@ -36,3 +36,17 @@ type Agency struct {
 	CreatedAt time.Time
 	DeletedAt *time.Time
 }
+
+// Offer is the sqlc-style row representation of the offers table.
+type Offer struct {
+	ID          int32
+	Uuid        uuid.UUID
+	Title       string
+	Description string
+	AgencyID    int32
+	CreatedBy   int32
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   *time.Time
+}

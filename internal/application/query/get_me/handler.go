@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"api/internal/application/apperror"
 	"api/internal/domain/entity"
 	"api/internal/domain/service"
 
@@ -43,6 +44,11 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	user, err := h.users.FindByUuid(ctx, q.Uuid)
 	if err != nil {
 		return Result{}, fmt.Errorf("get user: %w", err)
+	}
+	if user == nil {
+		// The uuid comes straight from a valid JWT's Claims.Subject, but
+		// the account may have been deleted after the token was issued.
+		return Result{}, apperror.FromDomainError(service.ErrActorNotFound)
 	}
 
 	agency, err := h.agencies.FindByID(ctx, user.AgencyID)
