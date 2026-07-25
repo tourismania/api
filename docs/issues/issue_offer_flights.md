@@ -72,10 +72,6 @@
   }
   ```
 - `repository/airport_repository.go` — расширить существующий интерфейс методом массовой проверки существования, например `FindByICAOs(ctx context.Context, icaos []string) ([]entity.Airport, error)` (сейчас есть только `Search`/`Upsert`, точечного лукапа по `icao` нет).
-- **Новый транзакционный механизм** (в кодовой базе сейчас нет паттерна транзакций между репозиториями — `OfferRepository.Store` делает одиночный `INSERT`, что недостаточно, если офер и его flights должны создаваться атомарно):
-  - `repository/tx_manager.go`: `type TxManager interface { WithinTx(ctx context.Context, fn func(ctx context.Context) error) error }` — объявлен в домене (без импорта `pgx`), чтобы `service`-слой мог зависеть от него, не зная о Postgres.
-  - `internal/infrastructure/persistence/postgres/txmanager/` — реализация на `pgxpool.Pool.BeginTx`; активная `pgx.Tx` кладётся в `context.Context` (приватный ключ пакета). Репозитории (`OfferRepository`, `OfferFlightRepository`) при выполнении sqlc-запросов достают tx из контекста, если он там есть, иначе используют пул напрямую — sqlc уже генерирует `Queries` через интерфейс `DBTX` (`Exec`/`Query`/`QueryRow`), которому удовлетворяют и `pgxpool.Pool`, и `pgx.Tx`, так что переключение прозрачно.
-  - Переиспользуется будущими multi-repository записями (`hotels`, `trips` по тому же `Offer`), поэтому не привязывается к одним offer'ам.
 - `service/offer_flight_manager.go`:
   ```go
   type OfferFlightManager struct {
@@ -99,10 +95,11 @@
 - `repository/offer_flight_repository.go` — реализация `domain/repository.OfferFlightRepository`.
 - `queries/offer_flights.sql` (+ `make sqlc`) — insert/select для `offer_flights`, `queries/offer_flight_segments.sql` — insert/select для `offer_flight_segments` (упорядочены по `sequence`).
 - `mapper/offer_flight_mapper.go` — маппинг `model.OfferFlight`/`model.OfferFlightSegment` ↔ `entity.Flight`/`entity.FlightSegment`.
-- `txmanager/` — см. выше.
+- `txmanager/` — реализация порта `application/txmanager.TxManager` (см. Application ниже) на `pgxpool.Pool.BeginTx`; активная `pgx.Tx` кладётся в `context.Context` (приватный ключ пакета). Репозитории (`OfferRepository`, `OfferFlightRepository`) при выполнении sqlc-запросов достают tx из контекста, если он там есть, иначе используют пул напрямую — sqlc уже генерирует `Queries` через интерфейс `DBTX` (`Exec`/`Query`/`QueryRow`), которому удовлетворяют и `pgxpool.Pool`, и `pgx.Tx`, так что переключение прозрачно.
 
 ### Application (CQRS, `internal/application/`)
 
+- **Новый порт `application/txmanager`** (по образцу уже существующего `application/apperror` — небольшой самостоятельный пакет верхнего уровня в Application, не внутри конкретного `command/*`): `type TxManager interface { WithinTx(ctx context.Context, fn func(ctx context.Context) error) error }`. Живёт в Application, а не в домене — атомарность между `OfferRepository.Store`/`Update` и `OfferFlightRepository.ReplaceForOffer` нужна только на уровне оркестрации use case'а (`create_offer`/`update_offer`); ни `OfferManager`, ни `OfferFlightManager` сами `WithinTx` не вызывают и о его существовании не знают — транзакцию открывает Handler. Реализация — `internal/infrastructure/persistence/postgres/txmanager/` (см. Infrastructure выше). Переиспользуется будущими multi-repository записями (`hotels`, `trips` по тому же `Offer`), поэтому не привязывается к одним offer'ам.
 - `command/create_offer`: `Command.Flights []FlightInput` (или сырые `[]entity.FlightSegment`-группы — решается на этапе реализации). Пустой/отсутствующий список — офер создаётся без перелётов. `Handler.Handle` оборачивает **и** `offerManager.Insert`, **и** (если `Flights` непуст) `offerFlightManager.ReplaceForOffer` в один `txManager.WithinTx` — иначе офер может быть создан без перелётов при сбое второго шага.
 - `command/update_offer`: `Command.Flights *[]FlightInput` — **указатель на слайс**, как и `Title`/`Description`/`Status`: `nil` = ключ `flights` в PATCH отсутствовал → не трогаем; ненулевой (в т.ч. `&[]FlightInput{}`) → полная замена *после* сравнения с текущим состоянием (если идентично — no-op, даже транзакция не открывается). `Handler.Handle` оборачивает `offerManager.Update` и (при `Flights != nil`) `offerFlightManager.ReplaceForOffer` в общий `txManager.WithinTx`.
 - `query/get_offer`, `query/get_published_offer` — `Result` дополняется `Flights []entity.Flight` (подгружаются через `offerFlightRepository.FindByOfferID` после `FindOwned`/поиска офера). **`query/get_offers` (список) не меняется** — flights в список не подмешиваются, чтобы не тянуть сегменты на каждый офер страницы (N+1); для просмотра перелётов клиент идёт в детальную ручку.
@@ -184,5 +181,5 @@
 - Не поддерживаем частичное обновление отдельного flight по id внутри `PATCH` — только полная замена всего списка `flights` офера (после сравнения на отличия).
 - `flights` не добавляется в ответ `GET /offers` (список) и в ответы `POST`/`PATCH /offers` — только в детальные `GET /offers/{uuid}` / `GET /public/offers/{uuid}`.
 - `OfferFlightManager` не проверяет роль/владение — это исключительно ответственность `OfferManager`, вызываемого раньше в том же Handler.
-- Домен без внешних импортов (`TxManager` — интерфейс в домене, `pgx` — только в infrastructure); никаких `log.Fatal`/`os.Exit` вне `main()`; DI только в `config/container.go`.
+- Домен без внешних импортов (`pgx` — только в infrastructure); `TxManager` — интерфейс в Application (`application/txmanager`), не в домене — домен о существовании транзакций не знает. Никаких `log.Fatal`/`os.Exit` вне `main()`; DI только в `config/container.go`.
 - Файлы в `db/` и `docs/swagger` (генерируемые) вручную не редактируются.
