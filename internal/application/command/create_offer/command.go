@@ -3,6 +3,7 @@
 package createoffer
 
 import (
+	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
@@ -18,6 +19,10 @@ type Command struct {
 	Title       string
 	Description string
 	Status      enum.OfferStatus
+	// Flights is one group of segments per flight, first-to-last within
+	// each group. A nil/empty slice means the offer is created without
+	// flights.
+	Flights [][]entity.FlightSegment
 
 	CurrentUserUUID uuid.UUID
 }

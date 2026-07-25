@@ -3,6 +3,8 @@ package getpublishedoffer
 import (
 	"time"
 
+	"api/internal/domain/entity"
+
 	"github.com/google/uuid"
 )
 
@@ -16,4 +18,5 @@ type Result struct {
 	AgencyID    int
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Flights     []entity.Flight
 }

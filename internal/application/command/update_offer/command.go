@@ -3,6 +3,7 @@
 package updateoffer
 
 import (
+	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
@@ -16,6 +17,13 @@ type Command struct {
 	Title       *string
 	Description *string
 	Status      *enum.OfferStatus
+	// Flights is a pointer to a slice of segment groups (one group per
+	// flight), mirroring Title/Description/Status: nil means the
+	// "flights" key was absent from the request and existing flights are
+	// left untouched; a non-nil value (including an empty slice) fully
+	// replaces the offer's flights after a content diff against what is
+	// already stored.
+	Flights *[][]entity.FlightSegment
 
 	CurrentUserUUID uuid.UUID
 }

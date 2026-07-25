@@ -3,6 +3,7 @@ package getoffer
 import (
 	"time"
 
+	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
@@ -20,4 +21,5 @@ type Result struct {
 	Status      enum.OfferStatus
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Flights     []entity.Flight
 }

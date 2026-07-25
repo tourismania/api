@@ -6,6 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	getoffer "api/internal/application/query/get_offer"
+	"api/internal/domain/entity"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -28,7 +29,7 @@ func NewHandler(uc getoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Get an offer
-//	@Description  Returns a single offer by uuid, scoped to the caller's own agency (any status). An offer belonging to another agency is reported as not found.
+//	@Description  Returns a single offer by uuid, scoped to the caller's own agency (any status), including its flights with computed total/layover durations. An offer belonging to another agency is reported as not found.
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        uuid  path      string  true  "Offer UUID"
@@ -81,5 +82,44 @@ func toResponse(res getoffer.Result) OfferResponse {
 		Status:      res.Status.String(),
 		CreatedAt:   res.CreatedAt,
 		UpdatedAt:   res.UpdatedAt,
+		Flights:     toFlightResponses(res.Flights),
 	}
+}
+
+// toFlightResponses computes the wire projection of each flight —
+// total duration, per-segment duration and layovers — from the raw
+// entity.Flight, which never carries them stored.
+func toFlightResponses(flights []entity.Flight) []FlightResponse {
+	out := make([]FlightResponse, 0, len(flights))
+	for _, f := range flights {
+		segments := make([]FlightSegmentResponse, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segments = append(segments, FlightSegmentResponse{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+				DurationSeconds:      int64(s.Duration().Seconds()),
+			})
+		}
+
+		layoverEntities := f.Layovers()
+		layovers := make([]LayoverResponse, 0, len(layoverEntities))
+		for _, l := range layoverEntities {
+			layovers = append(layovers, LayoverResponse{
+				AirportICAO:     l.AirportICAO,
+				DurationSeconds: int64(l.Duration.Seconds()),
+			})
+		}
+
+		out = append(out, FlightResponse{
+			ID:                   f.ID,
+			DepartureAirportICAO: f.DepartureAirportICAO(),
+			ArrivalAirportICAO:   f.ArrivalAirportICAO(),
+			TotalDurationSeconds: int64(f.TotalDuration().Seconds()),
+			Segments:             segments,
+			Layovers:             layovers,
+		})
+	}
+	return out
 }

@@ -113,11 +113,11 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 | POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
-| POST  | /api/v1/offers   | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Создать offer (agency_id выводится из агентства текущего пользователя) |
-| GET   | /api/v1/offers   | JWT (любая роль) | Список offer своего агентства (пагинация + фильтры, любой статус) |
-| GET   | /api/v1/offers/{uuid} | JWT (любая роль) | Получить один offer своего агентства (любой статус); чужое агентство → `404` |
-| GET   | /api/v1/public/offers/{uuid} | public | Получить опубликованный offer по `uuid` без авторизации; не-`published` → `404` |
-| PATCH | /api/v1/offers/{uuid} | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Частичное обновление offer (title/description/status) |
+| POST  | /api/v1/offers   | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Создать offer (agency_id выводится из агентства текущего пользователя); опциональный ключ `flights` создаёт перелёты атомарно вместе с offer |
+| GET   | /api/v1/offers   | JWT (любая роль) | Список offer своего агентства (пагинация + фильтры, любой статус); `flights` в ответ не подмешивается |
+| GET   | /api/v1/offers/{uuid} | JWT (любая роль) | Получить один offer своего агентства (любой статус) вместе с `flights`; чужое агентство → `404` |
+| GET   | /api/v1/public/offers/{uuid} | public | Получить опубликованный offer по `uuid` без авторизации, вместе с `flights`; не-`published` → `404` |
+| PATCH | /api/v1/offers/{uuid} | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Частичное обновление offer (title/description/status/flights) |
 | DELETE| /api/v1/offers/{uuid} | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Soft delete offer |
 | GET   | /api/doc         | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
@@ -127,6 +127,8 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 **Видимость offer (read-side):** `GET /api/v1/offers` и `GET /api/v1/offers/{uuid}` — приватные эндпоинты (нужен JWT), список/offer скоупится строго на агентство текущего пользователя, любой статус; роль на видимость не влияет — `ROLE_USER` видит то же, что и `ROLE_AGENT`/`ROLE_SUPER_ADMIN` в пределах своего агентства. Offer другого агентства для приватных ручек не существует (`404`) — 1 пользователь = 1 агентство, кросс-агентского доступа нет даже у `ROLE_SUPER_ADMIN`. `GET /api/v1/public/offers/{uuid}` — отдельная, полностью анонимная ручка («ссылка, которой делятся с клиентом»): без токена, видит только `published` (независимо от агентства), иначе `404`.
 
 **Владение по агентству (write-side):** создавать/изменять/удалять offer может только `ROLE_AGENT` или `ROLE_SUPER_ADMIN`, принадлежащий **тому же** агентству, что и offer (`offer.agency_id == user.agency_id`); чужое агентство → `404` (не раскрываем существование чужого offer), недостаточная роль (`ROLE_USER`) → `403`. Особого режима для `ROLE_SUPER_ADMIN` нет — 1 пользователь = 1 агентство касается всех ролей одинаково.
+
+**Перелёты (`flights`) offer (issue №20):** новых маршрутов не добавляется — перелёты сохраняются и читаются через существующие `POST`/`PATCH`/`GET .../offers`. Каждый flight — упорядоченный список сегментов (`departure_airport_icao`/`arrival_airport_icao`/`departure_at`/`arrival_at`); аэропорт прилёта сегмента N обязан совпадать с аэропортом вылета сегмента N+1, пересадка между сегментами — строго `> 0`. В `POST` ключ `flights` опционален (список groups сегментов); offer и его flights создаются в одной транзакции — при ошибке валидации flights offer не создаётся. В `PATCH` ключ `flights` — указатель на список, как `title`/`description`/`status`: отсутствует в теле → перелёты не трогаются; `flights: []` → все перелёты офера удаляются; непустой список → полная замена (diff-then-replace: идентичный набор — no-op, БД не трогается). В детальных `GET .../offers/{uuid}` ответ содержит вычисленные `total_duration_seconds` (на весь flight) и `layovers` (по одному на каждую пересадку, с `duration_seconds`) — эти величины не хранятся в БД, а пересчитываются на лету при каждом чтении.
 
 ## Отладка (Debugger)
 

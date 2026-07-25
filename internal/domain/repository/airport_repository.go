@@ -24,4 +24,8 @@ type AirportSearchResult struct {
 type AirportRepository interface {
 	Search(ctx context.Context, f AirportFilter) (AirportSearchResult, error)
 	Upsert(ctx context.Context, icao string, iata *string, name string, lat, lon float64, elevationFt *int, cityID int) error
+	// FindByICAOs returns the airports matching any of the given icaos.
+	// Unknown icaos are simply absent from the result — callers compare
+	// len(result) against len(icaos) (or index by ICAO) to detect them.
+	FindByICAOs(ctx context.Context, icaos []string) ([]entity.Airport, error)
 }

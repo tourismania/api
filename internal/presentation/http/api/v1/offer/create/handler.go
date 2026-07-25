@@ -6,6 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	createoffer "api/internal/application/command/create_offer"
+	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -27,7 +28,7 @@ func NewHandler(uc createoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Create an offer
-//	@Description  Publishes a new offer under the caller's own agency. Requires ROLE_AGENT or ROLE_SUPER_ADMIN.
+//	@Description  Publishes a new offer under the caller's own agency. Requires ROLE_AGENT or ROLE_SUPER_ADMIN. Optional "flights" key attaches one or more flights (each an ordered list of nonstop segments) atomically with offer creation.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -60,6 +61,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Title:           req.Title,
 		Description:     req.Description,
 		Status:          enum.OfferStatus(req.Status),
+		Flights:         toFlightSegmentGroups(req.Flights),
 		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
@@ -76,4 +78,26 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, CreateOfferResponse{ID: res.ID, UUID: res.UUID})
+}
+
+// toFlightSegmentGroups converts the request DTO into the plain segment
+// groups the CreateOffer command expects, one group per flight.
+func toFlightSegmentGroups(in []FlightInput) [][]entity.FlightSegment {
+	if len(in) == 0 {
+		return nil
+	}
+	groups := make([][]entity.FlightSegment, 0, len(in))
+	for _, f := range in {
+		segs := make([]entity.FlightSegment, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segs = append(segs, entity.FlightSegment{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+			})
+		}
+		groups = append(groups, segs)
+	}
+	return groups
 }

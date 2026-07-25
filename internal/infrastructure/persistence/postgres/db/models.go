@@ -50,3 +50,22 @@ type Offer struct {
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
 }
+
+// OfferFlight is the sqlc-style row representation of the offer_flights
+// table.
+type OfferFlight struct {
+	ID      int32
+	OfferID int32
+}
+
+// OfferFlightSegment is the sqlc-style row representation of the
+// offer_flight_segments table.
+type OfferFlightSegment struct {
+	ID                   int32
+	FlightID             int32
+	Sequence             int16
+	DepartureAirportICAO string
+	ArrivalAirportICAO   string
+	DepartureAt          time.Time
+	ArrivalAt            time.Time
+}

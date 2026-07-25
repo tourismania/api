@@ -6,6 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	updateoffer "api/internal/application/command/update_offer"
+	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -29,7 +30,7 @@ func NewHandler(uc updateoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Update an offer
-//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found.
+//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found. "flights" follows the same optional-field convention: absent leaves flights untouched, present (including []) fully replaces them.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -71,11 +72,18 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
+	var flights *[][]entity.FlightSegment
+	if req.Flights != nil {
+		groups := toFlightSegmentGroups(*req.Flights)
+		flights = &groups
+	}
+
 	res, err := h.useCase.Handle(r.Context(), updateoffer.Command{
 		UUID:            id,
 		Title:           req.Title,
 		Description:     req.Description,
 		Status:          status,
+		Flights:         flights,
 		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
@@ -95,4 +103,23 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, UpdateOfferResponse{ID: res.ID, UUID: res.UUID})
+}
+
+// toFlightSegmentGroups converts the request DTO into the plain segment
+// groups the UpdateOffer command expects, one group per flight.
+func toFlightSegmentGroups(in []FlightInput) [][]entity.FlightSegment {
+	groups := make([][]entity.FlightSegment, 0, len(in))
+	for _, f := range in {
+		segs := make([]entity.FlightSegment, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segs = append(segs, entity.FlightSegment{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+			})
+		}
+		groups = append(groups, segs)
+	}
+	return groups
 }
