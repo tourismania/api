@@ -25,6 +25,14 @@ type UseCase interface {
 // never sees a domain/service sentinel directly. Creating the offer and
 // (if any) its flights is wrapped in a single txManager.WithinTx so an
 // offer is never left without the flights it was created with.
+//
+// offerManager/offerFlightManager/userFinder — конкретные доменные
+// сервисы (*service.X), а не интерфейсы: они не подменяются другой
+// реализацией, поэтому абстракция не нужна (единый паттерн для всех
+// Command/Query Handler'ов в проекте). txManager — наоборот, интерфейс
+// application/txmanager.TxManager: это порт с двумя реализациями
+// (реальный Postgres-менеджер в infrastructure и no-op в юнит-тестах),
+// поэтому ему, в отличие от доменных сервисов, необходима абстракция.
 type Handler struct {
 	offerManager       *service.OfferManager
 	offerFlightManager *service.OfferFlightManager
@@ -77,17 +85,33 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 // buildFlights validates each segment group's structural invariants via
 // factory.NewFlight before any database write happens, so a malformed
 // flight never even opens a transaction.
-func buildFlights(groups [][]entity.FlightSegment) ([]entity.Flight, error) {
+func buildFlights(groups [][]FlightSegmentInput) ([]entity.Flight, error) {
 	if len(groups) == 0 {
 		return nil, nil
 	}
 	flights := make([]entity.Flight, 0, len(groups))
 	for _, segs := range groups {
-		f, err := factory.NewFlight(segs)
+		f, err := factory.NewFlight(toDomainSegments(segs))
 		if err != nil {
 			return nil, err
 		}
 		flights = append(flights, f)
 	}
 	return flights, nil
+}
+
+// toDomainSegments конвертирует Application-DTO сегментов в доменный
+// entity.FlightSegment. Только Handler знает про domain/entity —
+// presentation оперирует исключительно FlightSegmentInput.
+func toDomainSegments(in []FlightSegmentInput) []entity.FlightSegment {
+	segs := make([]entity.FlightSegment, 0, len(in))
+	for _, s := range in {
+		segs = append(segs, entity.FlightSegment{
+			DepartureAirportICAO: s.DepartureAirportICAO,
+			ArrivalAirportICAO:   s.ArrivalAirportICAO,
+			DepartureAt:          s.DepartureAt,
+			ArrivalAt:            s.ArrivalAt,
+		})
+	}
+	return segs
 }

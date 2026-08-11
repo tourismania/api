@@ -3,11 +3,24 @@
 package createoffer
 
 import (
-	"api/internal/domain/entity"
+	"time"
+
 	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
+
+// FlightSegmentInput — DTO одного перелётного сегмента на границе
+// Application-слоя. Презентационный слой конвертирует свой собственный
+// DTO в этот тип и ничего не знает про domain/entity: сборка
+// entity.FlightSegment/entity.Flight и их валидация происходят уже
+// внутри Handler.
+type FlightSegmentInput struct {
+	DepartureAirportICAO string
+	ArrivalAirportICAO   string
+	DepartureAt          time.Time
+	ArrivalAt            time.Time
+}
 
 // Command represents the intent to publish a new offer under the
 // caller's own agency. The request body never carries agency_id: the
@@ -22,7 +35,7 @@ type Command struct {
 	// Flights is one group of segments per flight, first-to-last within
 	// each group. A nil/empty slice means the offer is created without
 	// flights.
-	Flights [][]entity.FlightSegment
+	Flights [][]FlightSegmentInput
 
 	CurrentUserUUID uuid.UUID
 }

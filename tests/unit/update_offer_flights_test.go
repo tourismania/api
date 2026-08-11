@@ -43,7 +43,7 @@ func TestUpdateOffer_FlightsEmptySlice_ClearsFlights(t *testing.T) {
 	flightMgr := service.NewOfferFlightManager(flightRepo, &mockAirportRepo{})
 	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
-	empty := [][]entity.FlightSegment{}
+	empty := [][]updateoffer.FlightSegmentInput{}
 	_, err := h.Handle(context.Background(), updateoffer.Command{
 		UUID:            existing.UUID,
 		Flights:         &empty,
@@ -64,7 +64,7 @@ func TestUpdateOffer_FlightsChanged_Replaces(t *testing.T) {
 	flightMgr := service.NewOfferFlightManager(flightRepo, &mockAirportRepo{})
 	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
-	newFlights := [][]entity.FlightSegment{
+	newFlights := [][]updateoffer.FlightSegmentInput{
 		{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "EDDF", DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)}},
 	}
 	_, err := h.Handle(context.Background(), updateoffer.Command{
@@ -87,7 +87,7 @@ func TestUpdateOffer_FlightsIdenticalToStored_IsNoOp(t *testing.T) {
 	flightMgr := service.NewOfferFlightManager(flightRepo, &mockAirportRepo{})
 	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
-	sameFlights := [][]entity.FlightSegment{
+	sameFlights := [][]updateoffer.FlightSegmentInput{
 		{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)}},
 	}
 	_, err := h.Handle(context.Background(), updateoffer.Command{
@@ -107,7 +107,7 @@ func TestUpdateOffer_InvalidFlightStructure_ReturnsValidationError(t *testing.T)
 	flightMgr := service.NewOfferFlightManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
 	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
-	invalid := [][]entity.FlightSegment{{}}
+	invalid := [][]updateoffer.FlightSegmentInput{{}}
 	_, err := h.Handle(context.Background(), updateoffer.Command{
 		UUID:            existing.UUID,
 		Flights:         &invalid,

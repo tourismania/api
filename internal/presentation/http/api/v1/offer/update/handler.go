@@ -6,7 +6,6 @@ import (
 
 	"api/internal/application/apperror"
 	updateoffer "api/internal/application/command/update_offer"
-	"api/internal/domain/entity"
 	"api/internal/domain/enum"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -72,7 +71,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
-	var flights *[][]entity.FlightSegment
+	var flights *[][]updateoffer.FlightSegmentInput
 	if req.Flights != nil {
 		groups := toFlightSegmentGroups(*req.Flights)
 		flights = &groups
@@ -105,14 +104,17 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, UpdateOfferResponse{ID: res.ID, UUID: res.UUID})
 }
 
-// toFlightSegmentGroups converts the request DTO into the plain segment
-// groups the UpdateOffer command expects, one group per flight.
-func toFlightSegmentGroups(in []FlightInput) [][]entity.FlightSegment {
-	groups := make([][]entity.FlightSegment, 0, len(in))
+// toFlightSegmentGroups конвертирует presentation-DTO запроса в
+// Application-DTO (updateoffer.FlightSegmentInput), по одной группе на
+// перелёт. Presentation-слой ничего не знает про domain/entity — сборку
+// доменных entity.FlightSegment/entity.Flight и их валидацию делает уже
+// updateoffer.Handler.
+func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput {
+	groups := make([][]updateoffer.FlightSegmentInput, 0, len(in))
 	for _, f := range in {
-		segs := make([]entity.FlightSegment, 0, len(f.Segments))
+		segs := make([]updateoffer.FlightSegmentInput, 0, len(f.Segments))
 		for _, s := range f.Segments {
-			segs = append(segs, entity.FlightSegment{
+			segs = append(segs, updateoffer.FlightSegmentInput{
 				DepartureAirportICAO: s.DepartureAirportICAO,
 				ArrivalAirportICAO:   s.ArrivalAirportICAO,
 				DepartureAt:          s.DepartureAt,

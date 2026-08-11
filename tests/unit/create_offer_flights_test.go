@@ -33,7 +33,7 @@ func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 		Title:       "Title",
 		Description: "desc",
 		Status:      enum.OfferStatusDraft,
-		Flights: [][]entity.FlightSegment{
+		Flights: [][]createoffer.FlightSegmentInput{
 			{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}},
 		},
 		CurrentUserUUID: uuid.New(),
@@ -76,7 +76,7 @@ func TestCreateOffer_InvalidFlightStructure_ReturnsValidationError_NeverStoresOf
 		Description: "desc",
 		Status:      enum.OfferStatusDraft,
 		// Empty segments list violates factory.NewFlight's structural invariant.
-		Flights:         [][]entity.FlightSegment{{}},
+		Flights:         [][]createoffer.FlightSegmentInput{{}},
 		CurrentUserUUID: uuid.New(),
 	})
 
@@ -96,7 +96,7 @@ func TestCreateOffer_UnknownAirport_ReturnsValidationError(t *testing.T) {
 		Title:       "Title",
 		Description: "desc",
 		Status:      enum.OfferStatusDraft,
-		Flights: [][]entity.FlightSegment{
+		Flights: [][]createoffer.FlightSegmentInput{
 			{{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}},
 		},
 		CurrentUserUUID: uuid.New(),

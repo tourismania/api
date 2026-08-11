@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	getpublishedoffer "api/internal/application/query/get_published_offer"
-	"api/internal/domain/entity"
 	"api/internal/domain/service"
 	"api/internal/presentation/http/httpx"
 
@@ -65,10 +64,12 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// toFlightResponses computes the wire projection of each flight —
-// total duration, per-segment duration and layovers — from the raw
-// entity.Flight, which never carries them stored.
-func toFlightResponses(flights []entity.Flight) []FlightResponse {
+// toFlightResponses переносит уже готовую проекцию
+// getpublishedoffer.FlightResult в wire-DTO: только копирование полей,
+// без обращения к domain-типам и без вызова доменного поведения —
+// вычисление длительностей и пересадок сделано в Application-слое
+// (getpublishedoffer.Handler.toFlightResults).
+func toFlightResponses(flights []getpublishedoffer.FlightResult) []FlightResponse {
 	out := make([]FlightResponse, 0, len(flights))
 	for _, f := range flights {
 		segments := make([]FlightSegmentResponse, 0, len(f.Segments))
@@ -78,24 +79,23 @@ func toFlightResponses(flights []entity.Flight) []FlightResponse {
 				ArrivalAirportICAO:   s.ArrivalAirportICAO,
 				DepartureAt:          s.DepartureAt,
 				ArrivalAt:            s.ArrivalAt,
-				DurationSeconds:      int64(s.Duration().Seconds()),
+				DurationSeconds:      s.DurationSeconds,
 			})
 		}
 
-		layoverEntities := f.Layovers()
-		layovers := make([]LayoverResponse, 0, len(layoverEntities))
-		for _, l := range layoverEntities {
+		layovers := make([]LayoverResponse, 0, len(f.Layovers))
+		for _, l := range f.Layovers {
 			layovers = append(layovers, LayoverResponse{
 				AirportICAO:     l.AirportICAO,
-				DurationSeconds: int64(l.Duration.Seconds()),
+				DurationSeconds: l.DurationSeconds,
 			})
 		}
 
 		out = append(out, FlightResponse{
 			ID:                   f.ID,
-			DepartureAirportICAO: f.DepartureAirportICAO(),
-			ArrivalAirportICAO:   f.ArrivalAirportICAO(),
-			TotalDurationSeconds: int64(f.TotalDuration().Seconds()),
+			DepartureAirportICAO: f.DepartureAirportICAO,
+			ArrivalAirportICAO:   f.ArrivalAirportICAO,
+			TotalDurationSeconds: f.TotalDurationSeconds,
 			Segments:             segments,
 			Layovers:             layovers,
 		})

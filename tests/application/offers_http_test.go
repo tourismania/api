@@ -420,11 +420,21 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesComputedDurations(t *test
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	publicUC := &stubGetPublishedOfferUseCase{result: getpublishedoffer.Result{
 		ID: 1, UUID: id, AgencyID: 5,
-		Flights: []entity.Flight{{
-			ID: 1,
-			Segments: []entity.FlightSegment{
-				{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
-				{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(6 * time.Hour)},
+		// Result carries an already-computed projection (see
+		// getpublishedoffer.Handler.toFlightResults) — this stub bypasses
+		// the real handler, so the durations/layover below are supplied
+		// pre-computed rather than derived from entity.Flight.
+		Flights: []getpublishedoffer.FlightResult{{
+			ID:                   1,
+			DepartureAirportICAO: "UUEE",
+			ArrivalAirportICAO:   "LFPG",
+			TotalDurationSeconds: 21600,
+			Segments: []getpublishedoffer.FlightSegmentResult{
+				{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour), DurationSeconds: 7200},
+				{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(6 * time.Hour), DurationSeconds: 10800},
+			},
+			Layovers: []getpublishedoffer.LayoverResult{
+				{AirportICAO: "UUDD", DurationSeconds: 3600},
 			},
 		}},
 	}}

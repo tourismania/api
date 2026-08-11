@@ -66,6 +66,46 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		Status:      offer.Status,
 		CreatedAt:   offer.CreatedAt,
 		UpdatedAt:   offer.UpdatedAt,
-		Flights:     flights,
+		Flights:     toFlightResults(flights),
 	}, nil
+}
+
+// toFlightResults считает суммарную длительность, длительность каждого
+// сегмента и пересадки через доменные методы entity.Flight (они нигде
+// не хранятся, а вычисляются на лету) и превращает их в плоский
+// FlightResult. Это единственное место, где вызывается доменное
+// поведение полёта — presentation получает уже готовые числа.
+func toFlightResults(flights []entity.Flight) []FlightResult {
+	out := make([]FlightResult, 0, len(flights))
+	for _, f := range flights {
+		segments := make([]FlightSegmentResult, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segments = append(segments, FlightSegmentResult{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+				DurationSeconds:      int64(s.Duration().Seconds()),
+			})
+		}
+
+		layoverEntities := f.Layovers()
+		layovers := make([]LayoverResult, 0, len(layoverEntities))
+		for _, l := range layoverEntities {
+			layovers = append(layovers, LayoverResult{
+				AirportICAO:     l.AirportICAO,
+				DurationSeconds: int64(l.Duration.Seconds()),
+			})
+		}
+
+		out = append(out, FlightResult{
+			ID:                   f.ID,
+			DepartureAirportICAO: f.DepartureAirportICAO(),
+			ArrivalAirportICAO:   f.ArrivalAirportICAO(),
+			TotalDurationSeconds: int64(f.TotalDuration().Seconds()),
+			Segments:             segments,
+			Layovers:             layovers,
+		})
+	}
+	return out
 }

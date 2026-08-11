@@ -3,11 +3,24 @@
 package updateoffer
 
 import (
-	"api/internal/domain/entity"
+	"time"
+
 	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
+
+// FlightSegmentInput — DTO одного перелётного сегмента на границе
+// Application-слоя. Презентационный слой конвертирует свой собственный
+// DTO в этот тип и ничего не знает про domain/entity: сборка
+// entity.FlightSegment/entity.Flight и их валидация происходят уже
+// внутри Handler.
+type FlightSegmentInput struct {
+	DepartureAirportICAO string
+	ArrivalAirportICAO   string
+	DepartureAt          time.Time
+	ArrivalAt            time.Time
+}
 
 // Command represents the intent to partially update an existing offer.
 // Only non-nil fields are applied. The caller is identified only by
@@ -23,7 +36,7 @@ type Command struct {
 	// left untouched; a non-nil value (including an empty slice) fully
 	// replaces the offer's flights after a content diff against what is
 	// already stored.
-	Flights *[][]entity.FlightSegment
+	Flights *[][]FlightSegmentInput
 
 	CurrentUserUUID uuid.UUID
 }
