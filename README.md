@@ -119,7 +119,7 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 | GET   | /api/v1/public/offers/{uuid} | public | Получить опубликованный offer по `uuid` без авторизации, вместе с `flights`; не-`published` → `404` |
 | PATCH | /api/v1/offers/{uuid} | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Частичное обновление offer (title/description/status/flights) |
 | DELETE| /api/v1/offers/{uuid} | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Soft delete offer |
-| GET   | /api/doc         | public | Swagger UI                       |
+| GET   | /api/docs        | public | Swagger UI                       |
 | GET   | /healthz         | public | Healthcheck                      |
 
 **Статусы offer:** `draft` (черновик, редактируется) → `ready` (заполнен и сохранён, но агент ещё не решил публиковать) → `published` (виден всем). `draft` и `ready` видны только пользователям своего агентства (любая роль); переход между статусами свободный, делается через `PATCH .../offers/{uuid}` (`status`).
@@ -287,10 +287,25 @@ go test ./tests/application/...
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
-swag init -g cmd/server/main.go -o docs
+swag init -g cmd/server/main.go -o docs/swagger
+# или make swag
 ```
 
-После генерации Swagger UI будет доступен на `/api/doc`.
+После генерации Swagger UI будет доступен на `/api/docs`.
+
+### Тестирование через Postman/Insomnia
+
+- **Актуальный контракт целиком:** `docs/swagger/swagger.json` импортируется
+  напрямую (`File → Import`) и в Postman, и в Insomnia — оба поддерживают
+  OpenAPI/Swagger 2.0 нативно, без конвертации. Пересобирается через `make
+  swag` вместе с кодом, так что коллекцию достаточно переимпортировать после
+  правки хендлера — расхождений с реальным API не возникает.
+- **Готовые бизнес-сценарии** (в том числе граничные случаи вроде
+  `flights: []`, невалидной хронологии перелёта, недостаточной роли) —
+  [`docs/curls/`](docs/curls/README.md): набор `curl`-команд, которые можно
+  прогнать как bash-скрипт или вставить по одной через "Import → Raw text
+  (paste as cURL)".
+- Чек-лист сценариев по доменам — [`docs/test_cases/test_cases.md`](docs/test_cases/test_cases.md).
 
 ## Ключевые архитектурные принципы
 
