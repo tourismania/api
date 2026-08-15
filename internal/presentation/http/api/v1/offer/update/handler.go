@@ -29,7 +29,7 @@ func NewHandler(uc updateoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Update an offer
-//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found.
+//	@Description  Partially updates an offer. Only an agent/super admin belonging to the offer's own agency may update it — 1 user = 1 agency, no cross-agency access. An offer belonging to another agency is reported as not found. "flights" follows the same optional-field convention: absent leaves flights untouched, present (including []) fully replaces them.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -52,7 +52,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req UpdateOfferRequest
 	if err := httpx.DecodeJSON(r, &req, h.validate); err != nil {
 		if errors.Is(err, httpx.ErrBadJSON) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+			httpx.WriteDecodeError(w, err)
 			return
 		}
 		httpx.WriteValidationError(w, err)
@@ -71,11 +71,18 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
+	var flights *[][]updateoffer.FlightSegmentInput
+	if req.Flights != nil {
+		groups := toFlightSegmentGroups(*req.Flights)
+		flights = &groups
+	}
+
 	res, err := h.useCase.Handle(r.Context(), updateoffer.Command{
 		UUID:            id,
 		Title:           req.Title,
 		Description:     req.Description,
 		Status:          status,
+		Flights:         flights,
 		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
@@ -95,4 +102,26 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, UpdateOfferResponse{ID: res.ID, UUID: res.UUID})
+}
+
+// toFlightSegmentGroups конвертирует presentation-DTO запроса в
+// Application-DTO (updateoffer.FlightSegmentInput), по одной группе на
+// перелёт. Presentation-слой ничего не знает про domain/entity — сборку
+// доменных entity.FlightSegment/entity.Flight и их валидацию делает уже
+// updateoffer.Handler.
+func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput {
+	groups := make([][]updateoffer.FlightSegmentInput, 0, len(in))
+	for _, f := range in {
+		segs := make([]updateoffer.FlightSegmentInput, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segs = append(segs, updateoffer.FlightSegmentInput{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+			})
+		}
+		groups = append(groups, segs)
+	}
+	return groups
 }

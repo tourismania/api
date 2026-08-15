@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"api/internal/domain/factory"
 	"api/internal/domain/service"
 )
 
@@ -26,7 +27,12 @@ func FromDomainError(err error) error {
 	case errors.Is(err, service.ErrOfferTitleInvalid),
 		errors.Is(err, service.ErrOfferStatusInvalid),
 		errors.Is(err, service.ErrAgencyNotFound),
-		errors.Is(err, service.ErrAgencyInactive):
+		errors.Is(err, service.ErrAgencyInactive),
+		errors.Is(err, service.ErrFlightAirportNotFound),
+		errors.Is(err, factory.ErrFlightSegmentsEmpty),
+		errors.Is(err, factory.ErrFlightSegmentChronologyInvalid),
+		errors.Is(err, factory.ErrFlightSegmentDiscontinuous),
+		errors.Is(err, factory.ErrFlightLayoverNonPositive):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())
 	default:
 		return err

@@ -9,7 +9,13 @@ tmp_dir = "tmp"
   # точки остановки "прыгают" или вообще не срабатывают
   cmd = "go build -gcflags='all=-N -l' -o ./tmp/server ./cmd/server"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", "docker", "docs", "config/jwt"]
+  # "docs" сюда специально не входит: docs/swagger/docs.go — единственный
+  # .go-файл в docs/, импортируется в cmd/server/main.go (_ "api/docs/swagger"),
+  # и должен триггерить пересборку после `make swag` — иначе Swagger UI
+  # живого dev-сервера продолжает отдавать старую, скомпилированную в
+  # бинарник схему (наблюдалось: новый ключ "flights" не появлялся в UI
+  # после make swag, пока air не перезапускался вручную).
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", "docker", "config/jwt"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false

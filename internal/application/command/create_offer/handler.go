@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"api/internal/application/apperror"
+	"api/internal/application/txmanager"
+	"api/internal/domain/entity"
+	"api/internal/domain/factory"
 	"api/internal/domain/service"
 )
 
@@ -19,15 +22,32 @@ type UseCase interface {
 // the domain service.UserFinder, not to presentation-layer middleware,
 // so it always reflects the latest DB state. Every domain error is
 // translated to apperror before it leaves this handler — presentation
-// never sees a domain/service sentinel directly.
+// never sees a domain/service sentinel directly. Creating the offer and
+// (if any) its flights is wrapped in a single txManager.WithinTx so an
+// offer is never left without the flights it was created with.
+//
+// offerManager/offerFlightManager/userFinder — конкретные доменные
+// сервисы (*service.X), а не интерфейсы: они не подменяются другой
+// реализацией, поэтому абстракция не нужна (единый паттерн для всех
+// Command/Query Handler'ов в проекте). txManager — наоборот, интерфейс
+// application/txmanager.TxManager: это порт с двумя реализациями
+// (реальный Postgres-менеджер в infrastructure и no-op в юнит-тестах),
+// поэтому ему, в отличие от доменных сервисов, необходима абстракция.
 type Handler struct {
-	offerManager *service.OfferManager
-	userFinder   *service.UserFinder
+	offerManager       *service.OfferManager
+	offerFlightManager *service.OfferFlightManager
+	userFinder         *service.UserFinder
+	txManager          txmanager.TxManager
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *service.OfferManager, userFinder *service.UserFinder) *Handler {
-	return &Handler{offerManager: offerManager, userFinder: userFinder}
+func NewHandler(offerManager *service.OfferManager, offerFlightManager *service.OfferFlightManager, userFinder *service.UserFinder, txManager txmanager.TxManager) *Handler {
+	return &Handler{
+		offerManager:       offerManager,
+		offerFlightManager: offerFlightManager,
+		userFinder:         userFinder,
+		txManager:          txManager,
+	}
 }
 
 // Handle satisfies UseCase.
@@ -37,9 +57,61 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	offer, err := h.offerManager.Insert(ctx, cmd.Title, cmd.Description, cmd.Status, actor)
+	flights, err := buildFlights(cmd.Flights)
 	if err != nil {
 		return Result{}, apperror.FromDomainError(err)
 	}
-	return Result{ID: offer.ID, UUID: offer.UUID}, nil
+
+	var result Result
+	err = h.txManager.WithinTx(ctx, func(txCtx context.Context) error {
+		offer, err := h.offerManager.Insert(txCtx, cmd.Title, cmd.Description, cmd.Status, actor)
+		if err != nil {
+			return err
+		}
+		if len(flights) > 0 {
+			if err := h.offerFlightManager.ReplaceForOffer(txCtx, offer.ID, flights); err != nil {
+				return err
+			}
+		}
+		result = Result{ID: offer.ID, UUID: offer.UUID}
+		return nil
+	})
+	if err != nil {
+		return Result{}, apperror.FromDomainError(err)
+	}
+	return result, nil
+}
+
+// buildFlights validates each segment group's structural invariants via
+// factory.NewFlight before any database write happens, so a malformed
+// flight never even opens a transaction.
+func buildFlights(groups [][]FlightSegmentInput) ([]entity.Flight, error) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+	flights := make([]entity.Flight, 0, len(groups))
+	for _, segs := range groups {
+		f, err := factory.NewFlight(toDomainSegments(segs))
+		if err != nil {
+			return nil, err
+		}
+		flights = append(flights, f)
+	}
+	return flights, nil
+}
+
+// toDomainSegments конвертирует Application-DTO сегментов в доменный
+// entity.FlightSegment. Только Handler знает про domain/entity —
+// presentation оперирует исключительно FlightSegmentInput.
+func toDomainSegments(in []FlightSegmentInput) []entity.FlightSegment {
+	segs := make([]entity.FlightSegment, 0, len(in))
+	for _, s := range in {
+		segs = append(segs, entity.FlightSegment{
+			DepartureAirportICAO: s.DepartureAirportICAO,
+			ArrivalAirportICAO:   s.ArrivalAirportICAO,
+			DepartureAt:          s.DepartureAt,
+			ArrivalAt:            s.ArrivalAt,
+		})
+	}
+	return segs
 }

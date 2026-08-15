@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	syncairports "api/internal/application/command/sync_airports"
+	"api/internal/domain/entity"
 	domainrepo "api/internal/domain/repository"
 
 	"github.com/stretchr/testify/assert"
@@ -72,6 +73,10 @@ func (*fakeAirportRepo) Search(context.Context, domainrepo.AirportFilter) (domai
 func (f *fakeAirportRepo) Upsert(_ context.Context, icao string, _ *string, _ string, _, _ float64, _ *int, cityID int) error {
 	f.calls = append(f.calls, airportUpsertCall{icao: icao, cityID: cityID})
 	return nil
+}
+
+func (*fakeAirportRepo) FindByICAOs(context.Context, []string) ([]entity.Airport, error) {
+	return nil, nil
 }
 
 // TestHandler_SharedCityGroup_UsesOwnCityTranslationNotAnotherAirports is a

@@ -183,3 +183,8 @@
 - `OfferFlightManager` не проверяет роль/владение — это исключительно ответственность `OfferManager`, вызываемого раньше в том же Handler.
 - Домен без внешних импортов (`pgx` — только в infrastructure); `TxManager` — интерфейс в Application (`application/txmanager`), не в домене — домен о существовании транзакций не знает. Никаких `log.Fatal`/`os.Exit` вне `main()`; DI только в `config/container.go`.
 - Файлы в `db/` и `docs/swagger` (генерируемые) вручную не редактируются.
+- Presentation-слой не оперирует `domain/entity` напрямую: на write-стороне `Command.Flights` (`create_offer`/`update_offer`) — DTO `FlightSegmentInput` из самого Application-пакета, а не `entity.FlightSegment`; на read-стороне `Result.Flights` (`get_offer`/`get_published_offer`) — уже вычисленная проекция `FlightResult`/`FlightSegmentResult`/`LayoverResult` (длительности и пересадки посчитаны в Application через доменные методы `entity.Flight`), presentation делает только 1-в-1 копирование полей в wire-DTO.
+
+## История code review
+
+- PR №22, раунд 1 (2026-08-11): 4 замечания — (1) `entity.FlightSegment` в presentation вместо DTO Application-слоя (`create`/`update` handler.go); (2) вопрос про `*service.X` vs `txmanager.TxManager` в конструкторе Handler'а; (3) вычисление `TotalDuration`/`Layovers` (доменное поведение) в presentation вместо Application. Исправлено в dfbfd27: см. правило выше.

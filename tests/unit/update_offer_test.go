@@ -20,7 +20,7 @@ func TestUpdateOffer_RoleAgent_OwnAgency_AppliesChanges(t *testing.T) {
 	offers := &mockOfferRepo{findByUUIDOffer: existing}
 	mgr := service.NewOfferManager(offers, &mockAgencyRepo{})
 	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
-	h := updateoffer.NewHandler(mgr, users)
+	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"
 	_, err := h.Handle(context.Background(), updateoffer.Command{
@@ -37,7 +37,7 @@ func TestUpdateOffer_DifferentAgency_ReturnsNotFound(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
-	h := updateoffer.NewHandler(mgr, users)
+	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"
 	_, err := h.Handle(context.Background(), updateoffer.Command{
@@ -53,7 +53,7 @@ func TestUpdateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 5, Status: enum.OfferStatusDraft}
 	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
 	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}})
-	h := updateoffer.NewHandler(mgr, users)
+	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"
 	_, err := h.Handle(context.Background(), updateoffer.Command{
