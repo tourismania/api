@@ -52,7 +52,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req UpdateOfferRequest
 	if err := httpx.DecodeJSON(r, &req, h.validate); err != nil {
 		if errors.Is(err, httpx.ErrBadJSON) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+			httpx.WriteDecodeError(w, err)
 			return
 		}
 		httpx.WriteValidationError(w, err)
