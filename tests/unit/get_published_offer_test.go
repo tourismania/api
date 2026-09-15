@@ -27,7 +27,7 @@ func (s stubOfferFinder) FindByUUID(_ context.Context, _ uuid.UUID) (*entity.Off
 
 func TestGetPublishedOffer_Published_Visible(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusPublished}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer}, stubFlightFinder{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: offer.UUID})
 
@@ -38,7 +38,7 @@ func TestGetPublishedOffer_Published_Visible(t *testing.T) {
 
 func TestGetPublishedOffer_Draft_NotFound(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusDraft}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer}, stubFlightFinder{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: offer.UUID})
 
@@ -47,7 +47,7 @@ func TestGetPublishedOffer_Draft_NotFound(t *testing.T) {
 
 func TestGetPublishedOffer_Ready_NotFound(t *testing.T) {
 	offer := &entity.Offer{UUID: uuid.New(), AgencyID: 7, Status: enum.OfferStatusReady}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: offer}, stubFlightFinder{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: offer.UUID})
 
@@ -55,7 +55,7 @@ func TestGetPublishedOffer_Ready_NotFound(t *testing.T) {
 }
 
 func TestGetPublishedOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: nil})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: nil}, stubFlightFinder{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: uuid.New()})
 

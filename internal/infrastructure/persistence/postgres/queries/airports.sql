@@ -36,3 +36,12 @@ FROM q
 ORDER BY rank ASC, airport_name ASC
 LIMIT @limit_val::int
 OFFSET @offset_val::int;
+
+-- name: FindAirportsByICAOs :many
+SELECT a.icao, a.iata, a.name AS airport_name, a.location[1] AS lat, a.location[2] AS lon, a.elevation_ft,
+       c.id AS city_id, c.name AS city_name, c.state AS city_state, c.timezone AS city_timezone,
+       co.iso2 AS country_iso2, co.name AS country_name
+FROM airports a
+JOIN cities    c  ON c.id    = a.city_id
+JOIN countries co ON co.iso2 = c.country_iso2
+WHERE a.icao = ANY(@icaos::char(4)[]);

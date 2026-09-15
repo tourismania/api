@@ -85,3 +85,17 @@ ON CONFLICT (icao) DO UPDATE SET
 	}
 	return nil
 }
+
+// FindByICAOs returns the airports matching any of the given icaos.
+func (r *AirportRepository) FindByICAOs(ctx context.Context, icaos []string) ([]entity.Airport, error) {
+	rows, err := r.queries.FindAirportsByICAOs(ctx, icaos)
+	if err != nil {
+		return nil, fmt.Errorf("find airports by icao: %w", err)
+	}
+
+	airports := make([]entity.Airport, 0, len(rows))
+	for _, row := range rows {
+		airports = append(airports, mapper.ToAirportDomainFromICAORow(row))
+	}
+	return airports, nil
+}

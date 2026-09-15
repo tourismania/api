@@ -33,6 +33,7 @@ import (
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
+	pgtxmanager "api/internal/infrastructure/persistence/postgres/txmanager"
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
@@ -136,6 +137,12 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	airportRepo := pgrepo.NewAirportRepository(queries, pool)
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 
+	// Offer flight domain wiring (issue №20). TxManager makes offer +
+	// flight writes commit/roll back together across the two repositories.
+	offerFlightRepo := pgrepo.NewOfferFlightRepository(queries)
+	offerFlightManager := service.NewOfferFlightManager(offerFlightRepo, airportRepo)
+	txManager := pgtxmanager.New(pool)
+
 	countryRepo := pgrepo.NewCountryRepository(pool)
 	cityRepo := pgrepo.NewCityRepository(pool)
 
@@ -155,12 +162,12 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	deactivateAgencyApp := deactivateagencycmd.NewHandler(agencyManager)
 	activateAgencyApp := activateagencycmd.NewHandler(agencyManager)
 	getMeApp := getmeq.NewHandler(userRepo, agencyRepo, rightsDescriber)
-	createOfferApp := createoffercmd.NewHandler(offerManager, userFinder)
-	updateOfferApp := updateoffercmd.NewHandler(offerManager, userFinder)
+	createOfferApp := createoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
+	updateOfferApp := updateoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userFinder)
-	getOfferApp := getofferq.NewHandler(offerManager, userFinder)
+	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, userFinder)
 	getOffersApp := getoffersq.NewHandler(offerRepo, userFinder)
-	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo)
+	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())

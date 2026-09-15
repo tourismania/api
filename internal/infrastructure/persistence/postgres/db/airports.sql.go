@@ -117,3 +117,63 @@ func (q *Queries) SearchAirports(ctx context.Context, arg SearchAirportsParams) 
 	}
 	return result, nil
 }
+
+const findAirportsByICAOsSQL = `SELECT a.icao, a.iata, a.name AS airport_name, a.location[1] AS lat, a.location[2] AS lon, a.elevation_ft,
+       c.id AS city_id, c.name AS city_name, c.state AS city_state, c.timezone AS city_timezone,
+       co.iso2 AS country_iso2, co.name AS country_name
+FROM airports a
+JOIN cities    c  ON c.id    = a.city_id
+JOIN countries co ON co.iso2 = c.country_iso2
+WHERE a.icao = ANY($1::char(4)[])`
+
+// FindAirportsByICAOsRow is one row returned by FindAirportsByICAOs.
+type FindAirportsByICAOsRow struct {
+	Icao         string
+	Iata         *string
+	AirportName  string
+	Lon          *float64
+	Lat          *float64
+	ElevationFt  *int32
+	CityID       int32
+	CityName     string
+	CityState    *string
+	CityTimezone *string
+	CountryIso2  string
+	CountryName  string
+}
+
+// FindAirportsByICAOs returns the airports matching any of icaos.
+// Unknown icaos are simply absent from the result.
+func (q *Queries) FindAirportsByICAOs(ctx context.Context, icaos []string) ([]FindAirportsByICAOsRow, error) {
+	rows, err := q.db.Query(ctx, findAirportsByICAOsSQL, icaos)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []FindAirportsByICAOsRow
+	for rows.Next() {
+		var row FindAirportsByICAOsRow
+		if err := rows.Scan(
+			&row.Icao,
+			&row.Iata,
+			&row.AirportName,
+			&row.Lat,
+			&row.Lon,
+			&row.ElevationFt,
+			&row.CityID,
+			&row.CityName,
+			&row.CityState,
+			&row.CityTimezone,
+			&row.CountryIso2,
+			&row.CountryName,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}

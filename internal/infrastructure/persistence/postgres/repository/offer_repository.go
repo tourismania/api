@@ -29,7 +29,7 @@ var _ domainrepo.OfferRepository = (*OfferRepository)(nil)
 
 // Store inserts a new offer and returns its id.
 func (r *OfferRepository) Store(ctx context.Context, o entity.Offer) (int, error) {
-	id, err := r.queries.CreateOffer(ctx, db.CreateOfferParams{
+	id, err := queriesFor(ctx, r.queries).CreateOffer(ctx, db.CreateOfferParams{
 		Uuid:        o.UUID,
 		Title:       o.Title,
 		Description: o.Description,
@@ -47,7 +47,7 @@ func (r *OfferRepository) Store(ctx context.Context, o entity.Offer) (int, error
 
 // FindByUUID fetches a non-deleted offer by its public identifier.
 func (r *OfferRepository) FindByUUID(ctx context.Context, id uuid.UUID) (*entity.Offer, error) {
-	row, err := r.queries.GetOfferByUUID(ctx, id)
+	row, err := queriesFor(ctx, r.queries).GetOfferByUUID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -76,7 +76,7 @@ func (r *OfferRepository) List(ctx context.Context, f domainrepo.OfferFilter) (d
 		createdBy = &v
 	}
 
-	rows, err := r.queries.ListOffers(ctx, db.ListOffersParams{
+	rows, err := queriesFor(ctx, r.queries).ListOffers(ctx, db.ListOffersParams{
 		AgencyID:  agencyID,
 		Status:    status,
 		CreatedBy: createdBy,
@@ -98,7 +98,7 @@ func (r *OfferRepository) List(ctx context.Context, f domainrepo.OfferFilter) (d
 
 // Update persists changes to an existing offer's title/description/status.
 func (r *OfferRepository) Update(ctx context.Context, o entity.Offer) error {
-	if err := r.queries.UpdateOffer(ctx, db.UpdateOfferParams{
+	if err := queriesFor(ctx, r.queries).UpdateOffer(ctx, db.UpdateOfferParams{
 		Uuid:        o.UUID,
 		Title:       o.Title,
 		Description: o.Description,
@@ -112,7 +112,7 @@ func (r *OfferRepository) Update(ctx context.Context, o entity.Offer) error {
 
 // SoftDelete marks the offer as deleted.
 func (r *OfferRepository) SoftDelete(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.SoftDeleteOffer(ctx, id); err != nil {
+	if err := queriesFor(ctx, r.queries).SoftDeleteOffer(ctx, id); err != nil {
 		return fmt.Errorf("soft delete offer: %w", err)
 	}
 	return nil

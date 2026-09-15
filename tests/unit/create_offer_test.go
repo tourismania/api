@@ -20,7 +20,7 @@ func TestCreateOffer_RoleAgent_CreatesUnderCallerAgency(t *testing.T) {
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
 	mgr := service.NewOfferManager(offers, agencies)
 	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
-	h := createoffer.NewHandler(mgr, users)
+	h := createoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
@@ -39,7 +39,7 @@ func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 	offers := &mockOfferRepo{}
 	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}})
-	h := createoffer.NewHandler(mgr, users)
+	h := createoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
@@ -53,7 +53,7 @@ func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 
 func TestCreateOffer_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
 	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{})
-	h := createoffer.NewHandler(mgr, noUserFound())
+	h := createoffer.NewHandler(mgr, noFlightManager(), noUserFound(), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",

@@ -27,7 +27,7 @@ func NewHandler(uc createoffer.UseCase, v *validator.Validate) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Create an offer
-//	@Description  Publishes a new offer under the caller's own agency. Requires ROLE_AGENT or ROLE_SUPER_ADMIN.
+//	@Description  Publishes a new offer under the caller's own agency. Requires ROLE_AGENT or ROLE_SUPER_ADMIN. Optional "flights" key attaches one or more flights (each an ordered list of nonstop segments) atomically with offer creation.
 //	@Tags         Offers
 //	@Accept       json
 //	@Produce      json
@@ -43,7 +43,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req CreateOfferRequest
 	if err := httpx.DecodeJSON(r, &req, h.validate); err != nil {
 		if errors.Is(err, httpx.ErrBadJSON) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+			httpx.WriteDecodeError(w, err)
 			return
 		}
 		httpx.WriteValidationError(w, err)
@@ -60,6 +60,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Title:           req.Title,
 		Description:     req.Description,
 		Status:          enum.OfferStatus(req.Status),
+		Flights:         toFlightSegmentGroups(req.Flights),
 		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
@@ -76,4 +77,29 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, CreateOfferResponse{ID: res.ID, UUID: res.UUID})
+}
+
+// toFlightSegmentGroups конвертирует presentation-DTO запроса в
+// Application-DTO (createoffer.FlightSegmentInput), по одной группе на
+// перелёт. Presentation-слой ничего не знает про domain/entity — сборку
+// доменных entity.FlightSegment/entity.Flight и их валидацию делает уже
+// createoffer.Handler.
+func toFlightSegmentGroups(in []FlightInput) [][]createoffer.FlightSegmentInput {
+	if len(in) == 0 {
+		return nil
+	}
+	groups := make([][]createoffer.FlightSegmentInput, 0, len(in))
+	for _, f := range in {
+		segs := make([]createoffer.FlightSegmentInput, 0, len(f.Segments))
+		for _, s := range f.Segments {
+			segs = append(segs, createoffer.FlightSegmentInput{
+				DepartureAirportICAO: s.DepartureAirportICAO,
+				ArrivalAirportICAO:   s.ArrivalAirportICAO,
+				DepartureAt:          s.DepartureAt,
+				ArrivalAt:            s.ArrivalAt,
+			})
+		}
+		groups = append(groups, segs)
+	}
+	return groups
 }
