@@ -104,7 +104,7 @@ func (s Server) Build() http.Handler {
 		// right after JWT and extracts the principal's immutable uuid
 		// onto context (a pure token read). Resolving mutable profile
 		// data (agency_id, roles) from that uuid is always done
-		// domain-side (see domain/service.UserFinder) — no middleware
+		// domain-side (see domain user.Finder) — no middleware
 		// here touches the DB.
 		api.Group(func(priv chi.Router) {
 			priv.Use(custommw.JWT(s.JWT))
@@ -124,7 +124,7 @@ func (s Server) Build() http.Handler {
 
 			// Offer writes: agent/super admin, own agency only. Both the
 			// role and the ownership check are enforced by the domain
-			// OfferManager, not by router-level middleware.
+			// offer.Manager, not by router-level middleware.
 			priv.Post("/offers", s.CreateOffer.Handle)
 			priv.Patch("/offers/{uuid}", s.UpdateOffer.Handle)
 			priv.Delete("/offers/{uuid}", s.DeleteOffer.Handle)

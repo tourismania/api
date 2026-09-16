@@ -1,13 +1,12 @@
 package repository
 
 import (
+	"api/internal/domain/airport"
 	"api/internal/infrastructure/persistence/postgres/mapper"
 	"context"
 	"errors"
 	"fmt"
 
-	"api/internal/domain/entity"
-	domainrepo "api/internal/domain/repository"
 	"api/internal/infrastructure/persistence/postgres/db"
 
 	"github.com/jackc/pgx/v5"
@@ -15,7 +14,7 @@ import (
 )
 
 // Compile-time interface check.
-var _ domainrepo.AirportRepository = (*AirportRepository)(nil)
+var _ airport.Repository = (*AirportRepository)(nil)
 
 // AirportRepository persists domain airport aggregates via pgx/sqlc.
 type AirportRepository struct {
@@ -32,7 +31,7 @@ func NewAirportRepository(queries *db.Queries, pool *pgxpool.Pool) *AirportRepos
 }
 
 // Search executes the airport full-text search and maps results to domain entities.
-func (r *AirportRepository) Search(ctx context.Context, f domainrepo.AirportFilter) (domainrepo.AirportSearchResult, error) {
+func (r *AirportRepository) Search(ctx context.Context, f airport.Filter) (airport.SearchResult, error) {
 	searchLike := "%" + f.Search + "%"
 	searchPrefix := f.Search + "%"
 
@@ -45,19 +44,19 @@ func (r *AirportRepository) Search(ctx context.Context, f domainrepo.AirportFilt
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domainrepo.AirportSearchResult{}, nil
+			return airport.SearchResult{}, nil
 		}
-		return domainrepo.AirportSearchResult{}, fmt.Errorf("search airports: %w", err)
+		return airport.SearchResult{}, fmt.Errorf("search airports: %w", err)
 	}
 
-	airports := make([]entity.Airport, 0, len(rows))
+	airports := make([]airport.Airport, 0, len(rows))
 	var total int64
 	for _, row := range rows {
 		total = row.TotalCount
 		airports = append(airports, mapper.ToAirportDomain(row))
 	}
 
-	return domainrepo.AirportSearchResult{Airports: airports, TotalCount: total}, nil
+	return airport.SearchResult{Airports: airports, TotalCount: total}, nil
 }
 
 // Upsert inserts or updates an airport row by ICAO primary key.
@@ -87,13 +86,13 @@ ON CONFLICT (icao) DO UPDATE SET
 }
 
 // FindByICAOs returns the airports matching any of the given icaos.
-func (r *AirportRepository) FindByICAOs(ctx context.Context, icaos []string) ([]entity.Airport, error) {
+func (r *AirportRepository) FindByICAOs(ctx context.Context, icaos []string) ([]airport.Airport, error) {
 	rows, err := r.queries.FindAirportsByICAOs(ctx, icaos)
 	if err != nil {
 		return nil, fmt.Errorf("find airports by icao: %w", err)
 	}
 
-	airports := make([]entity.Airport, 0, len(rows))
+	airports := make([]airport.Airport, 0, len(rows))
 	for _, row := range rows {
 		airports = append(airports, mapper.ToAirportDomainFromICAORow(row))
 	}

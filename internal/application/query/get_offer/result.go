@@ -1,9 +1,8 @@
 package getoffer
 
 import (
+	"api/internal/domain/offer"
 	"time"
-
-	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +16,7 @@ type Result struct {
 	Description string
 	AgencyID    int
 	CreatedBy   int
-	Status      enum.OfferStatus
+	Status      offer.Status
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Flights     []FlightResult
@@ -25,7 +24,7 @@ type Result struct {
 
 // FlightResult — уже вычисленная проекция одного перелёта offer'а:
 // суммарная длительность и пересадки посчитаны здесь, в Application-
-// слое (через доменные методы entity.Flight), а не в presentation.
+// слое (через доменные методы offer.Flight), а не в presentation.
 // Presentation лишь копирует поля в свой wire-DTO, не обращаясь к
 // domain-типам и не вызывая доменное поведение напрямую.
 type FlightResult struct {

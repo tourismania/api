@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"api/internal/application/apperror"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -13,17 +14,17 @@ type UseCase interface {
 }
 
 // Handler executes the DeleteOffer command by delegating to the domain
-// OfferManager service, which enforces agency ownership and the write
+// offer.Manager service, which enforces agency ownership and the write
 // role. The acting principal is resolved from its uuid via
-// service.UserFinder, not presentation-layer middleware. Every domain
+// user.Finder, not presentation-layer middleware. Every domain
 // error is translated to apperror before it leaves this handler.
 type Handler struct {
-	offerManager *service.OfferManager
-	userFinder   *service.UserFinder
+	offerManager *offer.Manager
+	userFinder   *user.Finder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *service.OfferManager, userFinder *service.UserFinder) *Handler {
+func NewHandler(offerManager *offer.Manager, userFinder *user.Finder) *Handler {
 	return &Handler{offerManager: offerManager, userFinder: userFinder}
 }
 

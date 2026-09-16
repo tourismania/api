@@ -1,10 +1,8 @@
 package createuser
 
 import (
+	"api/internal/domain/user"
 	"context"
-
-	"api/internal/domain/entity"
-	"api/internal/domain/service"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -13,20 +11,20 @@ type UseCase interface {
 }
 
 // Handler executes the CreateUser command by delegating to the domain
-// UserCreator service. Keeping the handler thin preserves DDD: business
+// user.Creator service. Keeping the handler thin preserves DDD: business
 // invariants stay in the domain layer.
 type Handler struct {
-	userCreator *service.UserCreator
+	userCreator *user.Creator
 }
 
 // NewHandler constructs the handler.
-func NewHandler(userCreator *service.UserCreator) *Handler {
+func NewHandler(userCreator *user.Creator) *Handler {
 	return &Handler{userCreator: userCreator}
 }
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
-	id, err := h.userCreator.Create(ctx, entity.User{
+	id, err := h.userCreator.Create(ctx, user.User{
 		FirstName: cmd.FirstName,
 		LastName:  cmd.LastName,
 		Email:     cmd.Email,

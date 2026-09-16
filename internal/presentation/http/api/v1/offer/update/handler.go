@@ -6,7 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	updateoffer "api/internal/application/command/update_offer"
-	"api/internal/domain/enum"
+	"api/internal/domain/offer"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -65,9 +65,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var status *enum.OfferStatus
+	var status *offer.Status
 	if req.Status != nil {
-		s := enum.OfferStatus(*req.Status)
+		s := offer.Status(*req.Status)
 		status = &s
 	}
 
@@ -106,8 +106,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 // toFlightSegmentGroups конвертирует presentation-DTO запроса в
 // Application-DTO (updateoffer.FlightSegmentInput), по одной группе на
-// перелёт. Presentation-слой ничего не знает про domain/entity — сборку
-// доменных entity.FlightSegment/entity.Flight и их валидацию делает уже
+// перелёт. Presentation-слой ничего не знает про domain/offer — сборку
+// доменных offer.FlightSegment/offer.Flight и их валидацию делает уже
 // updateoffer.Handler.
 func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput {
 	groups := make([][]updateoffer.FlightSegmentInput, 0, len(in))

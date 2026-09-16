@@ -23,14 +23,12 @@ config/
   container.go        # Composition root (DI), единственное место сборки зависимостей
   jwt/                # RSA-ключи для JWT (private.pem / public.pem)
 internal/
-  domain/             # ЯДРО — не зависит ни от чего внешнего
-    entity/           # Доменные сущности (User и т.д.)
-    enum/             # Перечисления (Role и т.д.)
-    event/            # Доменные события и интерфейс Bus
-    factory/          # Фабрики для создания сложных объектов
-    repository/       # Интерфейсы репозиториев
-    service/          # Доменные сервисы (UserCreator, PasswordHasher и т.д.)
-    valueobject/      # Value objects
+  domain/             # ЯДРО — не зависит ни от чего внешнего; resource-first: 1 агрегат = 1 пакет
+    user/             # Агрегат пользователя: User, Record, Role, Actor, RightsDescribe, Repository, Creator, Finder, PasswordHasher, событие Registered
+    agency/           # Агрегат агентства: Agency, Status, Repository, Manager
+    airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
+    offer/            # Агрегат оффера: Offer, Status, Flight (+NewFlight), Repository, FlightRepository, Manager, FlightManager
+    event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
     command/          # Write-side: Command + Handler + Result
     query/            # Read-side: Query + Handler + Result
@@ -98,12 +96,15 @@ tests/
 
 ### Architecture
 
-- Доменная сущность ≠ ORM-модель: `domain/entity.User` vs `infrastructure/persistence/postgres/model.User`.
-- Репозиторий — интерфейс в домене, реализация в `infrastructure/`.
+- Domain-слой организован **resource-first**: один агрегат/bounded context = один пакет (`domain/user`, `domain/agency`, `domain/airport`, `domain/offer`). Внутри пакета — плоские файлы (`entity`, `repository`, `manager` и т.д. как файлы, а не подпакеты). Общее ядро (интерфейсы `DomainEvent`/`Bus`) — в `domain/event`.
+- Имена типов не дублируют имя пакета (без stutter): `user.Repository` (не `user.UserRepository`), `agency.Manager`, `offer.Status`, `user.Creator`. Имя самого агрегата совпадает с пакетом — это допустимый Go-идиоматический stutter: `user.User`, `offer.Offer`.
+- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user, airport}`; `agency` и `airport` ни от кого не зависят. Циклы запрещены.
+- Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
+- Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
 - CQRS: команды в `application/command/`, запросы в `application/query/`.
 - Доменные события публикуются через интерфейс `domain/event.Bus` (Kafka — одна из реализаций).
 - Все бизнес-эндпоинты — под `/api/v1/`.
-- **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не импортирует `domain/entity` и не вызывает методы доменных сущностей напрямую. Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
+- **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не работает с доменными сущностями и не вызывает их методы напрямую (из доменных пакетов ему доступны только enum-типы вроде `offer.Status` и sentinel-ошибки для маппинга в HTTP-статусы). Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
 
 ### CLI
 

@@ -6,8 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	getoffers "api/internal/application/query/get_offers"
-	"api/internal/domain/enum"
-	"api/internal/domain/repository"
+	"api/internal/domain/offer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,12 +14,12 @@ import (
 
 // stubOfferLister is a hand-written test double for the getoffers.OfferLister port.
 type stubOfferLister struct {
-	gotFilter repository.OfferFilter
-	result    repository.OfferListResult
+	gotFilter offer.Filter
+	result    offer.ListResult
 	err       error
 }
 
-func (s *stubOfferLister) List(_ context.Context, f repository.OfferFilter) (repository.OfferListResult, error) {
+func (s *stubOfferLister) List(_ context.Context, f offer.Filter) (offer.ListResult, error) {
 	s.gotFilter = f
 	return s.result, s.err
 }
@@ -41,14 +40,14 @@ func TestGetOffers_StatusFilterPassedThrough(t *testing.T) {
 	lister := &stubOfferLister{}
 	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
-	published := enum.OfferStatusPublished
+	published := offer.StatusPublished
 	_, err := h.Handle(context.Background(), getoffers.Query{
 		Status: &published,
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, lister.gotFilter.Status)
-	assert.Equal(t, enum.OfferStatusPublished, *lister.gotFilter.Status)
+	assert.Equal(t, offer.StatusPublished, *lister.gotFilter.Status)
 }
 
 func TestGetOffers_CreatedByFilterPassedThrough(t *testing.T) {
@@ -66,7 +65,7 @@ func TestGetOffers_CreatedByFilterPassedThrough(t *testing.T) {
 }
 
 func TestGetOffers_MapsResultToOfferResults(t *testing.T) {
-	lister := &stubOfferLister{result: repository.OfferListResult{TotalCount: 1}}
+	lister := &stubOfferLister{result: offer.ListResult{TotalCount: 1}}
 	h := getoffers.NewHandler(lister, userRecordWithAgency(1))
 
 	res, err := h.Handle(context.Background(), getoffers.Query{})

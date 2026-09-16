@@ -7,32 +7,32 @@ import (
 
 	"api/internal/application/apperror"
 	createoffer "api/internal/application/command/create_offer"
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	"api/internal/domain/service"
+	"api/internal/domain/airport"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func agentUserFinder(agencyID int) *service.UserFinder {
-	return service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: agencyID, Roles: []string{string(enum.RoleAgent)}}})
+func agentUserFinder(agencyID int) *user.Finder {
+	return user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: agencyID, Roles: []string{string(user.RoleAgent)}}})
 }
 
 func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	offers := &mockOfferRepo{storeID: 42}
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
-	mgr := service.NewOfferManager(offers, agencies)
+	mgr := offer.NewManager(offers, agencies)
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := service.NewOfferFlightManager(flightRepo, &mockAirportRepo{})
+	flightMgr := offer.NewFlightManager(flightRepo, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
 		Title:       "Title",
 		Description: "desc",
-		Status:      enum.OfferStatusDraft,
+		Status:      offer.StatusDraft,
 		Flights: [][]createoffer.FlightSegmentInput{
 			{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}},
 		},
@@ -49,15 +49,15 @@ func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 
 func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
-	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := service.NewOfferFlightManager(flightRepo, &mockAirportRepo{})
+	flightMgr := offer.NewFlightManager(flightRepo, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
 		Description:     "desc",
-		Status:          enum.OfferStatusDraft,
+		Status:          offer.StatusDraft,
 		CurrentUserUUID: uuid.New(),
 	})
 
@@ -67,35 +67,35 @@ func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 
 func TestCreateOffer_InvalidFlightStructure_ReturnsValidationError_NeverStoresOffer(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
-	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	flightMgr := service.NewOfferFlightManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightMgr := offer.NewFlightManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:       "Title",
 		Description: "desc",
-		Status:      enum.OfferStatusDraft,
-		// Empty segments list violates factory.NewFlight's structural invariant.
+		Status:      offer.StatusDraft,
+		// Empty segments list violates offer.NewFlight's structural invariant.
 		Flights:         [][]createoffer.FlightSegmentInput{{}},
 		CurrentUserUUID: uuid.New(),
 	})
 
 	assert.ErrorIs(t, err, apperror.ErrValidation)
-	assert.Equal(t, entity.Offer{}, offers.storedOffer, "structural validation must fail before any transaction opens")
+	assert.Equal(t, offer.Offer{}, offers.storedOffer, "structural validation must fail before any transaction opens")
 }
 
 func TestCreateOffer_UnknownAirport_ReturnsValidationError(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	offers := &mockOfferRepo{storeID: 1}
-	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	airports := &mockAirportRepo{findByICAOsAirports: []entity.Airport{}}
-	flightMgr := service.NewOfferFlightManager(&mockOfferFlightRepo{}, airports)
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	airports := &mockAirportRepo{findByICAOsAirports: []airport.Airport{}}
+	flightMgr := offer.NewFlightManager(&mockOfferFlightRepo{}, airports)
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:       "Title",
 		Description: "desc",
-		Status:      enum.OfferStatusDraft,
+		Status:      offer.StatusDraft,
 		Flights: [][]createoffer.FlightSegmentInput{
 			{{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}},
 		},

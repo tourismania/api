@@ -3,17 +3,16 @@
 package updateoffer
 
 import (
+	"api/internal/domain/offer"
 	"time"
-
-	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
 
 // FlightSegmentInput — DTO одного перелётного сегмента на границе
 // Application-слоя. Презентационный слой конвертирует свой собственный
-// DTO в этот тип и ничего не знает про domain/entity: сборка
-// entity.FlightSegment/entity.Flight и их валидация происходят уже
+// DTO в этот тип и ничего не знает про domain/offer: сборка
+// offer.FlightSegment/offer.Flight и их валидация происходят уже
 // внутри Handler.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
@@ -29,7 +28,7 @@ type Command struct {
 	UUID        uuid.UUID
 	Title       *string
 	Description *string
-	Status      *enum.OfferStatus
+	Status      *offer.Status
 	// Flights is a pointer to a slice of segment groups (one group per
 	// flight), mirroring Title/Description/Status: nil means the
 	// "flights" key was absent from the request and existing flights are

@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"api/internal/domain/entity"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/offer"
 	"api/internal/infrastructure/persistence/postgres/db"
 	"api/internal/infrastructure/persistence/postgres/mapper"
 
@@ -25,10 +24,10 @@ func NewOfferRepository(queries *db.Queries) *OfferRepository {
 }
 
 // Ensure compile-time interface compliance.
-var _ domainrepo.OfferRepository = (*OfferRepository)(nil)
+var _ offer.Repository = (*OfferRepository)(nil)
 
 // Store inserts a new offer and returns its id.
-func (r *OfferRepository) Store(ctx context.Context, o entity.Offer) (int, error) {
+func (r *OfferRepository) Store(ctx context.Context, o offer.Offer) (int, error) {
 	id, err := queriesFor(ctx, r.queries).CreateOffer(ctx, db.CreateOfferParams{
 		Uuid:        o.UUID,
 		Title:       o.Title,
@@ -46,7 +45,7 @@ func (r *OfferRepository) Store(ctx context.Context, o entity.Offer) (int, error
 }
 
 // FindByUUID fetches a non-deleted offer by its public identifier.
-func (r *OfferRepository) FindByUUID(ctx context.Context, id uuid.UUID) (*entity.Offer, error) {
+func (r *OfferRepository) FindByUUID(ctx context.Context, id uuid.UUID) (*offer.Offer, error) {
 	row, err := queriesFor(ctx, r.queries).GetOfferByUUID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -59,7 +58,7 @@ func (r *OfferRepository) FindByUUID(ctx context.Context, id uuid.UUID) (*entity
 }
 
 // List returns a filtered, paginated page of non-deleted offers.
-func (r *OfferRepository) List(ctx context.Context, f domainrepo.OfferFilter) (domainrepo.OfferListResult, error) {
+func (r *OfferRepository) List(ctx context.Context, f offer.Filter) (offer.ListResult, error) {
 	var agencyID *int32
 	if f.AgencyID != nil {
 		v := int32(*f.AgencyID)
@@ -84,20 +83,20 @@ func (r *OfferRepository) List(ctx context.Context, f domainrepo.OfferFilter) (d
 		OffsetVal: int32(f.Offset),
 	})
 	if err != nil {
-		return domainrepo.OfferListResult{}, fmt.Errorf("list offers: %w", err)
+		return offer.ListResult{}, fmt.Errorf("list offers: %w", err)
 	}
 
-	offers := make([]entity.Offer, 0, len(rows))
+	offers := make([]offer.Offer, 0, len(rows))
 	var total int64
 	for _, row := range rows {
 		offers = append(offers, mapper.ToOfferDomainFromListRow(row))
 		total = row.TotalCount
 	}
-	return domainrepo.OfferListResult{Offers: offers, TotalCount: total}, nil
+	return offer.ListResult{Offers: offers, TotalCount: total}, nil
 }
 
 // Update persists changes to an existing offer's title/description/status.
-func (r *OfferRepository) Update(ctx context.Context, o entity.Offer) error {
+func (r *OfferRepository) Update(ctx context.Context, o offer.Offer) error {
 	if err := queriesFor(ctx, r.queries).UpdateOffer(ctx, db.UpdateOfferParams{
 		Uuid:        o.UUID,
 		Title:       o.Title,

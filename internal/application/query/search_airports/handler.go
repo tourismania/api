@@ -1,10 +1,9 @@
 package searchairports
 
 import (
+	"api/internal/domain/airport"
 	"context"
 	"fmt"
-
-	"api/internal/domain/repository"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -15,7 +14,7 @@ type UseCase interface {
 // AirportSearcher is the read-port consumed by this use-case.
 // Defined here to invert the dependency: infrastructure implements this.
 type AirportSearcher interface {
-	Search(ctx context.Context, f repository.AirportFilter) (repository.AirportSearchResult, error)
+	Search(ctx context.Context, f airport.Filter) (airport.SearchResult, error)
 }
 
 // Handler orchestrates the airport search use-case.
@@ -30,7 +29,7 @@ func NewHandler(airports AirportSearcher) *Handler {
 
 // Handle satisfies UseCase.
 func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
-	res, err := h.airports.Search(ctx, repository.AirportFilter{
+	res, err := h.airports.Search(ctx, airport.Filter{
 		Search: q.Search,
 		Limit:  q.Limit,
 		Offset: q.Offset,

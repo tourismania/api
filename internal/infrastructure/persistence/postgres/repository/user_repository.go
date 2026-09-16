@@ -9,8 +9,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"api/internal/domain/entity"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/user"
 	"api/internal/infrastructure/persistence/postgres/db"
 
 	"github.com/google/uuid"
@@ -35,7 +34,7 @@ func NewUserRepository(queries *db.Queries) *UserRepository {
 }
 
 // Ensure compile-time interface compliance.
-var _ domainrepo.UserRepository = (*UserRepository)(nil)
+var _ user.Repository = (*UserRepository)(nil)
 
 // Store materialises a domain user into the canonical row shape and
 // inserts it. Defaults mirror the original Doctrine code: UUID is
@@ -43,7 +42,7 @@ var _ domainrepo.UserRepository = (*UserRepository)(nil)
 // "799999999", birthday gets a deterministic 1994/random-day stamp.
 func (r *UserRepository) Store(
 	ctx context.Context,
-	user entity.User,
+	user user.User,
 	hashPassword string,
 ) (*int, error) {
 	if hashPassword == "" {
@@ -83,11 +82,11 @@ func (r *UserRepository) Store(
 }
 
 // FindByUuid fetches a user record by primary key. Satisfies the domain
-// repository.UserRepository port. Returns (nil, nil) when no row
+// user.Repository port. Returns (nil, nil) when no row
 // matches, matching the not-found convention used by every other finder
 // in this package (e.g. OfferRepository.FindByUUID) — callers decide
 // what "not found" means for their own use case.
-func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entity.UserRecord, error) {
+func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*user.Record, error) {
 	u, err := r.queries.GetUserByUuid(ctx, uuid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -95,7 +94,7 @@ func (r *UserRepository) FindByUuid(ctx context.Context, uuid uuid.UUID) (*entit
 		}
 		return nil, fmt.Errorf("find user by uuid: %w", err)
 	}
-	return &entity.UserRecord{
+	return &user.Record{
 		ID:        int(u.ID),
 		Uuid:      u.Uuid,
 		Email:     u.Email,

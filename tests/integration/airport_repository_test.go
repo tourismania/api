@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/airport"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -36,7 +36,7 @@ func newAirportRepo(t *testing.T) *pgrepo.AirportRepository {
 
 func TestAirportRepository_Search_ByName(t *testing.T) {
 	repo := newAirportRepo(t)
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
+	res, err := repo.Search(context.Background(), airport.Filter{
 		Search: "Moscow",
 		Limit:  10,
 		Offset: 0,
@@ -47,7 +47,7 @@ func TestAirportRepository_Search_ByName(t *testing.T) {
 
 func TestAirportRepository_Search_ByIATA_ExactFirst(t *testing.T) {
 	repo := newAirportRepo(t)
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
+	res, err := repo.Search(context.Background(), airport.Filter{
 		Search: "SVO",
 		Limit:  10,
 		Offset: 0,
@@ -60,7 +60,7 @@ func TestAirportRepository_Search_ByIATA_ExactFirst(t *testing.T) {
 
 func TestAirportRepository_Search_ByICAO_ExactFirst(t *testing.T) {
 	repo := newAirportRepo(t)
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
+	res, err := repo.Search(context.Background(), airport.Filter{
 		Search: "UUEE",
 		Limit:  10,
 		Offset: 0,
@@ -72,7 +72,7 @@ func TestAirportRepository_Search_ByICAO_ExactFirst(t *testing.T) {
 
 func TestAirportRepository_Search_Pagination(t *testing.T) {
 	repo := newAirportRepo(t)
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
+	res, err := repo.Search(context.Background(), airport.Filter{
 		Search: "Moscow",
 		Limit:  2,
 		Offset: 2,
@@ -84,7 +84,7 @@ func TestAirportRepository_Search_Pagination(t *testing.T) {
 
 func TestAirportRepository_Search_Unaccent(t *testing.T) {
 	repo := newAirportRepo(t)
-	res, err := repo.Search(context.Background(), domainrepo.AirportFilter{
+	res, err := repo.Search(context.Background(), airport.Filter{
 		Search: "Zurich",
 		Limit:  10,
 		Offset: 0,

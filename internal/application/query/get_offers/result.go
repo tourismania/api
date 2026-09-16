@@ -1,9 +1,8 @@
 package getoffers
 
 import (
+	"api/internal/domain/offer"
 	"time"
-
-	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
@@ -16,7 +15,7 @@ type OfferResult struct {
 	Description string
 	AgencyID    int
 	CreatedBy   int
-	Status      enum.OfferStatus
+	Status      offer.Status
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
