@@ -1,12 +1,12 @@
-package offer
+package flight
 
 import "context"
 
-// FlightRepository persists the Flight child aggregate of an
-// Offer. 1 entity = 1 repository; Flight is a child of Offer, so every
+// Repository persists the Flight child aggregate of an Offer.
+// 1 entity = 1 repository; Flight is a child of Offer, so every
 // method is scoped by offerID rather than exposing a standalone Flight
 // identifier lookup.
-type FlightRepository interface {
+type Repository interface {
 	// FindByOfferID returns the offer's flights in the order they were
 	// saved (flights by ascending id, segments within a flight by
 	// ascending sequence).

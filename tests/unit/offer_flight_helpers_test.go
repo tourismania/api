@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"api/internal/domain/airport"
-	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"context"
 )
 
@@ -17,22 +17,22 @@ func (noopTxManager) WithinTx(ctx context.Context, fn func(ctx context.Context) 
 }
 
 // mockOfferFlightRepo is a hand-written test double for
-// offer.FlightRepository.
+// flight.Repository.
 type mockOfferFlightRepo struct {
-	findByOfferIDFlights []offer.Flight
+	findByOfferIDFlights []flight.Flight
 	findByOfferIDErr     error
 
 	replaceErr      error
 	replaceCalled   bool
 	replacedOfferID int
-	replacedFlights []offer.Flight
+	replacedFlights []flight.Flight
 }
 
-func (m *mockOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]offer.Flight, error) {
+func (m *mockOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
 	return m.findByOfferIDFlights, m.findByOfferIDErr
 }
 
-func (m *mockOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []offer.Flight) error {
+func (m *mockOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []flight.Flight) error {
 	m.replaceCalled = true
 	m.replacedOfferID = offerID
 	m.replacedFlights = flights
@@ -71,19 +71,19 @@ func (m *mockAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airp
 	return airports, nil
 }
 
-// noFlightManager wires an offer.FlightManager over empty/permissive
+// noFlightManager wires an flight.Manager over empty/permissive
 // mocks — every icao "exists", nothing was stored before.
-func noFlightManager() *offer.FlightManager {
-	return offer.NewFlightManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+func noFlightManager() *flight.Manager {
+	return flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
 }
 
 // stubFlightFinder is a hand-written test double shared by get_offer's
 // and get_published_offer's structurally identical FlightFinder ports.
 type stubFlightFinder struct {
-	flights []offer.Flight
+	flights []flight.Flight
 	err     error
 }
 
-func (s stubFlightFinder) FindByOfferID(_ context.Context, _ int) ([]offer.Flight, error) {
+func (s stubFlightFinder) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
 	return s.flights, s.err
 }

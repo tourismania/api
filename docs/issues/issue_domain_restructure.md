@@ -31,8 +31,8 @@ internal/domain/
             # Repository, Creator, Finder, PasswordHasher, событие Registered
   agency/   # Agency, Status, Repository, Manager
   airport/  # Airport, City, Country, Location, Repository, CityRepository, CountryRepository
-  offer/    # Offer, Status, Flight/FlightSegment/Layover (+NewFlight),
-            # Repository, FlightRepository, Manager, FlightManager
+  offer/    # Корень агрегата: Offer, Status, Repository, Manager
+    flight/ # Дочерний агрегат: Flight, Segment, Layover, New, Repository, Manager
   event/    # Общее ядро: интерфейсы DomainEvent и Bus
 ```
 
@@ -40,7 +40,8 @@ internal/domain/
 
 ```
 user    → agency, event
-offer   → agency, user, airport
+offer   → agency, user
+offer/flight → airport
 agency  → (ничего)
 airport → (ничего)
 event   → (ничего)
@@ -66,11 +67,11 @@ event   → (ничего)
 | `repository.AirportRepository/CityRepository/CountryRepository` | `airport.Repository/CityRepository/CountryRepository` |
 | `repository.AirportFilter` / `AirportSearchResult` | `airport.Filter` / `airport.SearchResult` |
 | `entity.Offer`, `enum.OfferStatus*`, `entity.OfferTitleMaxLength` | `offer.Offer`, `offer.Status*`, `offer.TitleMaxLength` |
-| `entity.Flight/FlightSegment/Layover`, `factory.NewFlight` | `offer.Flight/FlightSegment/Layover`, `offer.NewFlight` |
-| `repository.OfferRepository/OfferFlightRepository` | `offer.Repository` / `offer.FlightRepository` |
+| `entity.Flight/FlightSegment/Layover`, `factory.NewFlight` | `flight.Flight/Segment/Layover`, `flight.New` (пакет `domain/offer/flight`) |
+| `repository.OfferRepository/OfferFlightRepository` | `offer.Repository` / `flight.Repository` |
 | `repository.OfferFilter` / `OfferListResult` | `offer.Filter` / `offer.ListResult` |
-| `service.OfferManager` / `OfferFlightManager` | `offer.Manager` / `offer.FlightManager` |
-| `service.ErrOffer*`, `service.ErrInsufficientRole`, `service.ErrFlightAirportNotFound`, `factory.ErrFlight*` | `offer.Err*` |
+| `service.OfferManager` / `OfferFlightManager` | `offer.Manager` / `flight.Manager` |
+| `service.ErrOffer*`, `service.ErrInsufficientRole`, `service.ErrFlightAirportNotFound`, `factory.ErrFlight*` | `offer.Err*`, `flight.Err*` (`flight.ErrAirportNotFound`, `flight.ErrSegmentsEmpty` и т.д.) |
 
 ## Negative constraints (соблюдены)
 
@@ -80,3 +81,7 @@ event   → (ничего)
 ## Связанные обсуждения
 
 - Issue №14 — структура тестов (`tests/unit|integration|application` vs рядом с кодом) — решается отдельно; текущая структура тестов в этом PR не менялась.
+
+## Дополнение по review (2026-09-17)
+
+Замечание в review PR №23: дочерние сущности оффера (в будущем — Hotels, Transfers, Rents) превратили бы пакет `offer` в свалку. Решение: **дочерний агрегат = подпакет родителя** — Flight вынесен в `domain/offer/flight` (`flight.Flight`, `flight.Segment`, `flight.Layover`, `flight.New`, `flight.Repository`, `flight.Manager`, `flight.Err*`); будущие дети — `domain/offer/hotel`, `domain/offer/transfer` и т.д. Самостоятельным доменом Flight не делаем: он не живёт вне оффера (все контракты скоупятся `offerID`), top-level пакет исказил бы владение. Правило зависимостей: дети могут импортировать пакет родителя, родитель детей — никогда; композиция — в application-слое.

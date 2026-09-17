@@ -2,10 +2,10 @@
 // use case's writes atomically. Modeled after application/apperror: a
 // small, standalone top-level Application package rather than something
 // tucked inside a single command/*. It lives in Application, not the
-// domain — atomicity across OfferRepository and OfferFlightRepository
+// domain — atomicity across offer.Repository and flight.Repository
 // is only ever needed by the use-case orchestration in
 // create_offer/update_offer; neither offer.Manager nor
-// offer.FlightManager call WithinTx themselves or know it exists. The
+// flight.Manager call WithinTx themselves or know it exists. The
 // concrete implementation lives in
 // infrastructure/persistence/postgres/txmanager.
 package txmanager

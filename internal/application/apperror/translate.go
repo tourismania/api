@@ -3,6 +3,7 @@ package apperror
 import (
 	"api/internal/domain/agency"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 	"errors"
 	"fmt"
@@ -28,11 +29,11 @@ func FromDomainError(err error) error {
 		errors.Is(err, offer.ErrStatusInvalid),
 		errors.Is(err, agency.ErrNotFound),
 		errors.Is(err, agency.ErrInactive),
-		errors.Is(err, offer.ErrFlightAirportNotFound),
-		errors.Is(err, offer.ErrFlightSegmentsEmpty),
-		errors.Is(err, offer.ErrFlightSegmentChronologyInvalid),
-		errors.Is(err, offer.ErrFlightSegmentDiscontinuous),
-		errors.Is(err, offer.ErrFlightLayoverNonPositive):
+		errors.Is(err, flight.ErrAirportNotFound),
+		errors.Is(err, flight.ErrSegmentsEmpty),
+		errors.Is(err, flight.ErrSegmentChronologyInvalid),
+		errors.Is(err, flight.ErrSegmentDiscontinuous),
+		errors.Is(err, flight.ErrLayoverNonPositive):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())
 	default:
 		return err

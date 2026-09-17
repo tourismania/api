@@ -6,6 +6,7 @@ import (
 	"api/internal/application/apperror"
 	"api/internal/application/txmanager"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 )
 
@@ -31,13 +32,13 @@ type UseCase interface {
 // поэтому ему, в отличие от доменных сервисов, необходима абстракция.
 type Handler struct {
 	offerManager       *offer.Manager
-	offerFlightManager *offer.FlightManager
+	offerFlightManager *flight.Manager
 	userFinder         *user.Finder
 	txManager          txmanager.TxManager
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *offer.Manager, offerFlightManager *offer.FlightManager, userFinder *user.Finder, txManager txmanager.TxManager) *Handler {
+func NewHandler(offerManager *offer.Manager, offerFlightManager *flight.Manager, userFinder *user.Finder, txManager txmanager.TxManager) *Handler {
 	return &Handler{
 		offerManager:       offerManager,
 		offerFlightManager: offerFlightManager,
@@ -53,7 +54,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	var flights []offer.Flight
+	var flights []flight.Flight
 	if cmd.Flights != nil {
 		flights, err = buildFlights(*cmd.Flights)
 		if err != nil {
@@ -82,14 +83,14 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 }
 
 // buildFlights validates each segment group's structural invariants via
-// offer.NewFlight before any database write happens.
-func buildFlights(groups [][]FlightSegmentInput) ([]offer.Flight, error) {
+// flight.New before any database write happens.
+func buildFlights(groups [][]FlightSegmentInput) ([]flight.Flight, error) {
 	if len(groups) == 0 {
 		return nil, nil
 	}
-	flights := make([]offer.Flight, 0, len(groups))
+	flights := make([]flight.Flight, 0, len(groups))
 	for _, segs := range groups {
-		f, err := offer.NewFlight(toDomainSegments(segs))
+		f, err := flight.New(toDomainSegments(segs))
 		if err != nil {
 			return nil, err
 		}
@@ -99,12 +100,12 @@ func buildFlights(groups [][]FlightSegmentInput) ([]offer.Flight, error) {
 }
 
 // toDomainSegments конвертирует Application-DTO сегментов в доменный
-// offer.FlightSegment. Только Handler знает про domain/offer —
+// flight.Segment. Только Handler знает про domain/offer —
 // presentation оперирует исключительно FlightSegmentInput.
-func toDomainSegments(in []FlightSegmentInput) []offer.FlightSegment {
-	segs := make([]offer.FlightSegment, 0, len(in))
+func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
+	segs := make([]flight.Segment, 0, len(in))
 	for _, s := range in {
-		segs = append(segs, offer.FlightSegment{
+		segs = append(segs, flight.Segment{
 			DepartureAirportICAO: s.DepartureAirportICAO,
 			ArrivalAirportICAO:   s.ArrivalAirportICAO,
 			DepartureAt:          s.DepartureAt,

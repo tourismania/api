@@ -1,9 +1,18 @@
-package offer
+// Package flight is the Flight child aggregate of an Offer: the Flight
+// entity with its Segments and Layovers, the structural factory (New),
+// the repository contract and the replace-set manager. It lives as a
+// subpackage of domain/offer because a flight never exists outside an
+// offer (every contract is scoped by offerID); future offer children
+// (hotels, transfers, rents) follow the same layout — one subpackage
+// per child aggregate, so the parent offer package stays the aggregate
+// root only. Children may import the parent package; the parent never
+// imports its children — composition happens in the application layer.
+package flight
 
 import "time"
 
-// FlightSegment is one nonstop leg of a Flight.
-type FlightSegment struct {
+// Segment is one nonstop leg of a Flight.
+type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
@@ -11,7 +20,7 @@ type FlightSegment struct {
 }
 
 // Duration is the segment's own flight time.
-func (s FlightSegment) Duration() time.Duration {
+func (s Segment) Duration() time.Duration {
 	return s.ArrivalAt.Sub(s.DepartureAt)
 }
 
@@ -26,13 +35,13 @@ type Layover struct {
 // last segment's arrival airport, made up of one or more nonstop
 // Segments — 2+ segments mean one or more layovers. Structural
 // invariants (non-empty Segments, chronology, route continuity, strictly
-// positive layovers) are enforced by NewFlight, never here: this
+// positive layovers) are enforced by New, never here: this
 // type only ever carries already-valid data. TotalDuration and Layovers
 // are always computed on the fly from Segments, never stored.
 type Flight struct {
 	ID       int
 	OfferID  int
-	Segments []FlightSegment
+	Segments []Segment
 }
 
 // DepartureAirportICAO is the airport of the flight's first segment.

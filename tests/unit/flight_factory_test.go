@@ -1,7 +1,7 @@
 package unit_test
 
 import (
-	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"testing"
 	"time"
 
@@ -10,59 +10,59 @@ import (
 )
 
 func TestNewFlight_EmptySegments_ReturnsErr(t *testing.T) {
-	_, err := offer.NewFlight(nil)
-	assert.ErrorIs(t, err, offer.ErrFlightSegmentsEmpty)
+	_, err := flight.New(nil)
+	assert.ErrorIs(t, err, flight.ErrSegmentsEmpty)
 }
 
 func TestNewFlight_ArrivalNotAfterDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := offer.NewFlight([]offer.FlightSegment{
+	_, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base},
 	})
-	assert.ErrorIs(t, err, offer.ErrFlightSegmentChronologyInvalid)
+	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
 
 func TestNewFlight_ArrivalBeforeDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := offer.NewFlight([]offer.FlightSegment{
+	_, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(-time.Hour)},
 	})
-	assert.ErrorIs(t, err, offer.ErrFlightSegmentChronologyInvalid)
+	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
 
 func TestNewFlight_DiscontinuousRoute_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := offer.NewFlight([]offer.FlightSegment{
+	_, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs from EDDF, not UUDD (the previous segment's arrival) — the route breaks.
 		{DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(4 * time.Hour), ArrivalAt: base.Add(6 * time.Hour)},
 	})
-	assert.ErrorIs(t, err, offer.ErrFlightSegmentDiscontinuous)
+	assert.ErrorIs(t, err, flight.ErrSegmentDiscontinuous)
 }
 
 func TestNewFlight_ZeroLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := offer.NewFlight([]offer.FlightSegment{
+	_, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs exactly when the previous segment arrives: zero layover.
 		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(2 * time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
 	})
-	assert.ErrorIs(t, err, offer.ErrFlightLayoverNonPositive)
+	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
 
 func TestNewFlight_NegativeLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := offer.NewFlight([]offer.FlightSegment{
+	_, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs before the previous segment even arrives.
 		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
 	})
-	assert.ErrorIs(t, err, offer.ErrFlightLayoverNonPositive)
+	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
 
 func TestNewFlight_ValidNonstop_ReturnsFlight(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	f, err := offer.NewFlight([]offer.FlightSegment{
+	f, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
 	})
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestNewFlight_ValidNonstop_ReturnsFlight(t *testing.T) {
 
 func TestNewFlight_ValidWithLayovers_ReturnsFlight(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	f, err := offer.NewFlight([]offer.FlightSegment{
+	f, err := flight.New([]flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "EDDF", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
 		{DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(7 * time.Hour)},

@@ -20,6 +20,7 @@ import (
 	"api/internal/domain/agency"
 	"api/internal/domain/airport"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 	"api/internal/infrastructure/auth"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
@@ -117,21 +118,21 @@ func (s stubAgencyRepo) SetStatus(_ context.Context, _ int, _ agency.Status) err
 
 func (s stubAgencyRepo) Exists(_ context.Context, _ int) (bool, error) { return true, nil }
 
-// stubOfferFlightRepo is a minimal offer.FlightRepository test
+// stubOfferFlightRepo is a minimal flight.Repository test
 // double. Most of these HTTP tests never send a "flights" key, so it is
 // usually just wired to satisfy the handler constructors; the flights
 // tests below assert on the recorded calls.
 type stubOfferFlightRepo struct {
 	replaceCalled   bool
 	replacedOfferID int
-	replacedFlights []offer.Flight
+	replacedFlights []flight.Flight
 }
 
-func (s *stubOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]offer.Flight, error) {
+func (s *stubOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
 	return nil, nil
 }
 
-func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []offer.Flight) error {
+func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []flight.Flight) error {
 	s.replaceCalled = true
 	s.replacedOfferID = offerID
 	s.replacedFlights = flights
@@ -189,7 +190,7 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	offerManager := offer.NewManager(offers, stubAgencyRepo{})
-	offerFlightManager := offer.NewFlightManager(flights, stubAirportRepo{})
+	offerFlightManager := flight.NewManager(flights, stubAirportRepo{})
 	userFinder := user.NewFinder(users)
 
 	createApp := createoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
@@ -423,7 +424,7 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesComputedDurations(t *test
 		// Result carries an already-computed projection (see
 		// getpublishedoffer.Handler.toFlightResults) — this stub bypasses
 		// the real handler, so the durations/layover below are supplied
-		// pre-computed rather than derived from offer.Flight.
+		// pre-computed rather than derived from flight.Flight.
 		Flights: []getpublishedoffer.FlightResult{{
 			ID:                   1,
 			DepartureAirportICAO: "UUEE",

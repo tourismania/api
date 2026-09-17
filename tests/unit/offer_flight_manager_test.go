@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"api/internal/domain/airport"
-	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"context"
 	"testing"
 	"time"
@@ -11,19 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func sampleFlight(dep, arr string, base time.Time) offer.Flight {
-	return offer.Flight{Segments: []offer.FlightSegment{
+func sampleFlight(dep, arr string, base time.Time) flight.Flight {
+	return flight.Flight{Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 	}}
 }
 
 func TestOfferFlightManager_ReplaceForOffer_IdenticalContent_IsNoOp(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	existing := []offer.Flight{sampleFlight("UUEE", "LFPG", base)}
+	existing := []flight.Flight{sampleFlight("UUEE", "LFPG", base)}
 	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
-	mgr := offer.NewFlightManager(flights, &mockAirportRepo{})
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
 
-	err := mgr.ReplaceForOffer(context.Background(), 1, []offer.Flight{sampleFlight("UUEE", "LFPG", base)})
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{sampleFlight("UUEE", "LFPG", base)})
 
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled, "identical content must not touch the database")
@@ -31,11 +31,11 @@ func TestOfferFlightManager_ReplaceForOffer_IdenticalContent_IsNoOp(t *testing.T
 
 func TestOfferFlightManager_ReplaceForOffer_DifferentContent_Replaces(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	existing := []offer.Flight{sampleFlight("UUEE", "LFPG", base)}
+	existing := []flight.Flight{sampleFlight("UUEE", "LFPG", base)}
 	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
-	mgr := offer.NewFlightManager(flights, &mockAirportRepo{})
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
 
-	newSet := []offer.Flight{sampleFlight("UUEE", "EDDF", base)}
+	newSet := []flight.Flight{sampleFlight("UUEE", "EDDF", base)}
 	err := mgr.ReplaceForOffer(context.Background(), 1, newSet)
 
 	require.NoError(t, err)
@@ -46,9 +46,9 @@ func TestOfferFlightManager_ReplaceForOffer_DifferentContent_Replaces(t *testing
 
 func TestOfferFlightManager_ReplaceForOffer_EmptyReplacesNonEmpty(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	existing := []offer.Flight{sampleFlight("UUEE", "LFPG", base)}
+	existing := []flight.Flight{sampleFlight("UUEE", "LFPG", base)}
 	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
-	mgr := offer.NewFlightManager(flights, &mockAirportRepo{})
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
 
 	err := mgr.ReplaceForOffer(context.Background(), 1, nil)
 
@@ -58,7 +58,7 @@ func TestOfferFlightManager_ReplaceForOffer_EmptyReplacesNonEmpty(t *testing.T) 
 
 func TestOfferFlightManager_ReplaceForOffer_BothEmpty_IsNoOp(t *testing.T) {
 	flights := &mockOfferFlightRepo{}
-	mgr := offer.NewFlightManager(flights, &mockAirportRepo{})
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
 
 	err := mgr.ReplaceForOffer(context.Background(), 1, nil)
 
@@ -68,15 +68,15 @@ func TestOfferFlightManager_ReplaceForOffer_BothEmpty_IsNoOp(t *testing.T) {
 
 func TestOfferFlightManager_ReplaceForOffer_DifferentOrder_IsNotEqual(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	existing := []offer.Flight{
+	existing := []flight.Flight{
 		sampleFlight("UUEE", "LFPG", base),
 		sampleFlight("EDDF", "LFPG", base.Add(10*time.Hour)),
 	}
 	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
-	mgr := offer.NewFlightManager(flights, &mockAirportRepo{})
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
 
 	// Same two flights, reversed order — order is significant.
-	reordered := []offer.Flight{existing[1], existing[0]}
+	reordered := []flight.Flight{existing[1], existing[0]}
 	err := mgr.ReplaceForOffer(context.Background(), 1, reordered)
 
 	require.NoError(t, err)
@@ -87,10 +87,10 @@ func TestOfferFlightManager_ReplaceForOffer_UnknownAirport_ReturnsErr(t *testing
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	flights := &mockOfferFlightRepo{}
 	airports := &mockAirportRepo{findByICAOsAirports: []airport.Airport{{ICAO: "UUEE"}}}
-	mgr := offer.NewFlightManager(flights, airports)
+	mgr := flight.NewManager(flights, airports)
 
-	err := mgr.ReplaceForOffer(context.Background(), 1, []offer.Flight{sampleFlight("UUEE", "LFPG", base)})
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{sampleFlight("UUEE", "LFPG", base)})
 
-	assert.ErrorIs(t, err, offer.ErrFlightAirportNotFound)
+	assert.ErrorIs(t, err, flight.ErrAirportNotFound)
 	assert.False(t, flights.replaceCalled, "must not write when an airport is missing")
 }

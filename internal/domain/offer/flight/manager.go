@@ -1,4 +1,4 @@
-package offer
+package flight
 
 import (
 	"context"
@@ -8,26 +8,25 @@ import (
 	"api/internal/domain/airport"
 )
 
-// ErrFlightAirportNotFound is returned by FlightManager when a
-// segment references an icao that does not exist in the airports
-// reference table. Unlike the structural errors checked by NewFlight,
-// this requires a database lookup, so it is raised here rather than by
-// the factory.
-var ErrFlightAirportNotFound = errors.New("flight segment references an unknown airport icao")
+// ErrAirportNotFound is returned by Manager when a segment references
+// an icao that does not exist in the airports reference table. Unlike
+// the structural errors checked by New, this requires a database
+// lookup, so it is raised here rather than by the factory.
+var ErrAirportNotFound = errors.New("flight segment references an unknown airport icao")
 
-// FlightManager orchestrates replacing the full set of flights
-// attached to an Offer. It does not check role/agency ownership: it is
-// only ever called from create_offer/update_offer handlers after
-// Manager.Insert/Update has already enforced that, within the same
-// command and (for the write path) the same transaction.
-type FlightManager struct {
-	flights  FlightRepository
+// Manager orchestrates replacing the full set of flights attached to
+// an Offer. It does not check role/agency ownership: it is only ever
+// called from create_offer/update_offer handlers after
+// offer.Manager.Insert/Update has already enforced that, within the
+// same command and (for the write path) the same transaction.
+type Manager struct {
+	flights  Repository
 	airports airport.Repository
 }
 
-// NewFlightManager wires the collaborators.
-func NewFlightManager(flights FlightRepository, airports airport.Repository) *FlightManager {
-	return &FlightManager{flights: flights, airports: airports}
+// NewManager wires the collaborators.
+func NewManager(flights Repository, airports airport.Repository) *Manager {
+	return &Manager{flights: flights, airports: airports}
 }
 
 // ReplaceForOffer validates that every icao referenced by flights
@@ -35,7 +34,7 @@ func NewFlightManager(flights FlightRepository, airports airport.Repository) *Fl
 // offerID. If the content is identical (same order, same airports and
 // timestamps, ignoring server-assigned IDs) it is a no-op — the
 // database is not touched. Otherwise it fully replaces the stored set.
-func (m *FlightManager) ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error {
+func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error {
 	if err := m.checkAirportsExist(ctx, flights); err != nil {
 		return err
 	}
@@ -54,7 +53,7 @@ func (m *FlightManager) ReplaceForOffer(ctx context.Context, offerID int, flight
 	return nil
 }
 
-func (m *FlightManager) checkAirportsExist(ctx context.Context, flights []Flight) error {
+func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) error {
 	seen := make(map[string]struct{})
 	var icaos []string
 	for _, f := range flights {
@@ -82,7 +81,7 @@ func (m *FlightManager) checkAirportsExist(ctx context.Context, flights []Flight
 	}
 	for _, icao := range icaos {
 		if _, ok := foundSet[icao]; !ok {
-			return ErrFlightAirportNotFound
+			return ErrAirportNotFound
 		}
 	}
 	return nil
@@ -103,7 +102,7 @@ func flightsEqual(a, b []Flight) bool {
 	return true
 }
 
-func segmentsEqual(a, b []FlightSegment) bool {
+func segmentsEqual(a, b []Segment) bool {
 	if len(a) != len(b) {
 		return false
 	}

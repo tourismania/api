@@ -7,6 +7,7 @@ package config
 import (
 	"api/internal/domain/agency"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 	createuserhttp "api/internal/presentation/http/api/v1/user/create"
 	getmehttp "api/internal/presentation/http/api/v1/user/get_me"
@@ -141,7 +142,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// Offer flight domain wiring (issue №20). TxManager makes offer +
 	// flight writes commit/roll back together across the two repositories.
 	offerFlightRepo := pgrepo.NewOfferFlightRepository(queries)
-	offerFlightManager := offer.NewFlightManager(offerFlightRepo, airportRepo)
+	offerFlightManager := flight.NewManager(offerFlightRepo, airportRepo)
 	txManager := pgtxmanager.New(pool)
 
 	countryRepo := pgrepo.NewCountryRepository(pool)

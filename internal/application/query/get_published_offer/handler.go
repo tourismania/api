@@ -2,6 +2,7 @@ package getpublishedoffer
 
 import (
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"context"
 	"fmt"
 
@@ -21,7 +22,7 @@ type OfferFinder interface {
 
 // FlightFinder is the read-port for an offer's flights.
 type FlightFinder interface {
-	FindByOfferID(ctx context.Context, offerID int) ([]offer.Flight, error)
+	FindByOfferID(ctx context.Context, offerID int) ([]flight.Flight, error)
 }
 
 // Handler fetches a single offer and only ever returns it if published —
@@ -64,11 +65,11 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 }
 
 // toFlightResults считает суммарную длительность, длительность каждого
-// сегмента и пересадки через доменные методы offer.Flight (они нигде
+// сегмента и пересадки через доменные методы flight.Flight (они нигде
 // не хранятся, а вычисляются на лету) и превращает их в плоский
 // FlightResult. Это единственное место, где вызывается доменное
 // поведение полёта — presentation получает уже готовые числа.
-func toFlightResults(flights []offer.Flight) []FlightResult {
+func toFlightResults(flights []flight.Flight) []FlightResult {
 	out := make([]FlightResult, 0, len(flights))
 	for _, f := range flights {
 		segments := make([]FlightSegmentResult, 0, len(f.Segments))

@@ -107,7 +107,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 // toFlightSegmentGroups конвертирует presentation-DTO запроса в
 // Application-DTO (updateoffer.FlightSegmentInput), по одной группе на
 // перелёт. Presentation-слой ничего не знает про domain/offer — сборку
-// доменных offer.FlightSegment/offer.Flight и их валидацию делает уже
+// доменных flight.Segment/flight.Flight и их валидацию делает уже
 // updateoffer.Handler.
 func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput {
 	groups := make([][]updateoffer.FlightSegmentInput, 0, len(in))

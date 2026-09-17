@@ -12,7 +12,7 @@ import (
 // FlightSegmentInput — DTO одного перелётного сегмента на границе
 // Application-слоя. Презентационный слой конвертирует свой собственный
 // DTO в этот тип и ничего не знает про domain/offer: сборка
-// offer.FlightSegment/offer.Flight и их валидация происходят уже
+// flight.Segment/flight.Flight и их валидация происходят уже
 // внутри Handler.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string

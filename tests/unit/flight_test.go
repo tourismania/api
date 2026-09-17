@@ -1,7 +1,7 @@
 package unit_test
 
 import (
-	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"testing"
 	"time"
 
@@ -10,7 +10,7 @@ import (
 
 func TestFlight_TotalDuration_NonstopSingleSegment(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	f := offer.Flight{Segments: []offer.FlightSegment{
+	f := flight.Flight{Segments: []flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
 	}}
 
@@ -22,7 +22,7 @@ func TestFlight_TotalDuration_NonstopSingleSegment(t *testing.T) {
 
 func TestFlight_TotalDuration_OneLayover(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	f := offer.Flight{Segments: []offer.FlightSegment{
+	f := flight.Flight{Segments: []flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(4 * time.Hour), ArrivalAt: base.Add(7 * time.Hour)},
 	}}
@@ -39,7 +39,7 @@ func TestFlight_TotalDuration_OneLayover(t *testing.T) {
 
 func TestFlight_TotalDuration_TwoLayovers(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	f := offer.Flight{Segments: []offer.FlightSegment{
+	f := flight.Flight{Segments: []flight.Segment{
 		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "EDDF", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
 		{DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(7 * time.Hour)},
@@ -57,6 +57,6 @@ func TestFlight_TotalDuration_TwoLayovers(t *testing.T) {
 
 func TestFlightSegment_Duration(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	s := offer.FlightSegment{DepartureAt: base, ArrivalAt: base.Add(90 * time.Minute)}
+	s := flight.Segment{DepartureAt: base, ArrivalAt: base.Add(90 * time.Minute)}
 	assert.Equal(t, 90*time.Minute, s.Duration())
 }

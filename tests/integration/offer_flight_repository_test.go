@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -87,8 +88,8 @@ func TestOfferFlightRepository_ReplaceForOffer_StoreThenFindByOfferID_ReturnsSto
 	arr := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	flights := []offer.Flight{
-		{Segments: []offer.FlightSegment{
+	flights := []flight.Flight{
+		{Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 	}
@@ -115,8 +116,8 @@ func TestOfferFlightRepository_ReplaceForOffer_PreservesSegmentOrder(t *testing.
 	c := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	flights := []offer.Flight{
-		{Segments: []offer.FlightSegment{
+	flights := []flight.Flight{
+		{Segments: []flight.Segment{
 			{DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 			{DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
 		}},
@@ -143,12 +144,12 @@ func TestOfferFlightRepository_ReplaceForOffer_ReplacesPreviousSet(t *testing.T)
 	newArr := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	first := []offer.Flight{{Segments: []offer.FlightSegment{
+	first := []flight.Flight{{Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, first))
 
-	second := []offer.Flight{{Segments: []offer.FlightSegment{
+	second := []flight.Flight{{Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: newArr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, second))
@@ -169,7 +170,7 @@ func TestOfferFlightRepository_ReplaceForOffer_EmptySet_ClearsFlights(t *testing
 	arr := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []offer.Flight{{Segments: []offer.FlightSegment{
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{{Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}))
 
@@ -186,7 +187,7 @@ func TestOfferFlightRepository_ReplaceForOffer_UnknownAirportICAO_ReturnsFKError
 	offerID := seedTestOfferID(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	flights := []offer.Flight{{Segments: []offer.FlightSegment{
+	flights := []flight.Flight{{Segments: []flight.Segment{
 		{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "YYYY", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 
@@ -211,7 +212,7 @@ func TestOfferFlightRepository_WithinRealTransaction_RollsBackOnError(t *testing
 	sentinelErr := assert.AnError
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
-		flights := []offer.Flight{{Segments: []offer.FlightSegment{
+		flights := []flight.Flight{{Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		if err := repo.ReplaceForOffer(txCtx, offerID, flights); err != nil {
@@ -238,7 +239,7 @@ func TestOfferFlightRepository_WithinRealTransaction_CommitsOnSuccess(t *testing
 	txMgr := pgtxmanager.New(pool)
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
-		flights := []offer.Flight{{Segments: []offer.FlightSegment{
+		flights := []flight.Flight{{Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		return repo.ReplaceForOffer(txCtx, offerID, flights)

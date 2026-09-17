@@ -9,6 +9,7 @@ import (
 	createoffer "api/internal/application/command/create_offer"
 	"api/internal/domain/airport"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 
 	"github.com/google/uuid"
@@ -26,7 +27,7 @@ func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
 	mgr := offer.NewManager(offers, agencies)
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := offer.NewFlightManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
@@ -51,7 +52,7 @@ func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := offer.NewFlightManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -68,14 +69,14 @@ func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 func TestCreateOffer_InvalidFlightStructure_ReturnsValidationError_NeverStoresOffer(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	flightMgr := offer.NewFlightManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:       "Title",
 		Description: "desc",
 		Status:      offer.StatusDraft,
-		// Empty segments list violates offer.NewFlight's structural invariant.
+		// Empty segments list violates flight.New's structural invariant.
 		Flights:         [][]createoffer.FlightSegmentInput{{}},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -89,7 +90,7 @@ func TestCreateOffer_UnknownAirport_ReturnsValidationError(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	airports := &mockAirportRepo{findByICAOsAirports: []airport.Airport{}}
-	flightMgr := offer.NewFlightManager(&mockOfferFlightRepo{}, airports)
+	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, airports)
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
