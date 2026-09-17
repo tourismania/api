@@ -40,7 +40,7 @@ internal/
       postgres/
         db/           # sqlc-генерированный код (НЕ РЕДАКТИРОВАТЬ вручную)
         model/        # Модели БД (≠ доменные entity)
-        repository/   # Реализации domain/repository
+        repository/   # Реализации доменных repository-интерфейсов
   presentation/       # Точки входа (НЕ содержит бизнес-логику)
     http/
       api/            # HTTP-хендлеры (login, v1/user/*)

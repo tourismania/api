@@ -22,7 +22,7 @@ cmd/
   server/     # HTTP-сервер
   cli/        # CLI (cobra)
 internal/
-  domain/         # Доменный слой, resource-first: 1 агрегат = 1 пакет (user, agency, airport, offer + общее ядро event)
+  domain/         # Доменный слой, resource-first: 1 агрегат = 1 пакет (user, agency, airport, offer + ядро event); дочерние агрегаты — подпакетами (offer/flight)
   application/    # Use cases (command/query, command/query bus)
   infrastructure/ # Реализации интерфейсов домена (postgres, kafka, jwt, bcrypt)
   presentation/   # HTTP, CLI, DTO
