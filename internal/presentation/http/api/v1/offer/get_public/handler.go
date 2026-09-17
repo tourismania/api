@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	getpublishedoffer "api/internal/application/query/get_published_offer"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-chi/chi/v5"
@@ -44,7 +44,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.useCase.Handle(r.Context(), getpublishedoffer.Query{UUID: id})
 	if err != nil {
-		if errors.Is(err, service.ErrOfferNotFound) {
+		if errors.Is(err, offer.ErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
 			return
 		}

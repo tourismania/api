@@ -1,0 +1,181 @@
+package offer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"api/internal/domain/agency"
+	"api/internal/domain/user"
+
+	"github.com/google/uuid"
+)
+
+// ErrNotFound is returned when an offer lookup finds no matching
+// non-deleted row.
+var ErrNotFound = errors.New("offer not found")
+
+// ErrTitleInvalid is returned when the title is empty or exceeds
+// TitleMaxLength.
+var ErrTitleInvalid = errors.New("offer title is required and must be at most 200 characters")
+
+// ErrStatusInvalid is returned when the supplied status is not one
+// of the known Status values.
+var ErrStatusInvalid = errors.New("invalid offer status")
+
+// ErrNotPersisted is returned when the repository does not persist
+// an offer for a reason the caller could not predict.
+var ErrNotPersisted = errors.New("offer was not persisted")
+
+// ErrInsufficientRole is returned when the actor is authenticated (and,
+// for Update/Delete, may even belong to the right agency) but lacks the
+// role required to write an offer. Unlike ErrNotFound this never
+// depends on any specific offer's existence, so returning it does not
+// leak anything about a particular resource.
+var ErrInsufficientRole = errors.New("actor lacks the role required to manage offers")
+
+// Manager orchestrates offer lifecycle: creation, update and soft
+// deletion. It enforces invariants, strict agency ownership, and the
+// role required to write an offer — an offer may only be managed by an
+// actor belonging to its owning agency and carrying ROLE_AGENT or
+// ROLE_SUPER_ADMIN. Reads have no role restriction (see
+// application/query/get_offer(s)).
+type Manager struct {
+	offers   Repository
+	agencies agency.Repository
+}
+
+// NewManager wires the collaborators.
+func NewManager(offers Repository, agencies agency.Repository) *Manager {
+	return &Manager{offers: offers, agencies: agencies}
+}
+
+// Insert creates a new offer under the actor's own agency. AgencyID is
+// never taken from caller input — it is always derived from the actor.
+func (m *Manager) Insert(ctx context.Context, title, description string, status Status, actor user.Actor) (Offer, error) {
+	if !canWriteOffers(actor) {
+		return Offer{}, ErrInsufficientRole
+	}
+	if err := validateTitle(title); err != nil {
+		return Offer{}, err
+	}
+	if !status.IsValid() {
+		return Offer{}, ErrStatusInvalid
+	}
+
+	a, err := m.agencies.FindByID(ctx, actor.AgencyID)
+	if err != nil {
+		return Offer{}, fmt.Errorf("find agency: %w", err)
+	}
+	if a == nil {
+		return Offer{}, agency.ErrNotFound
+	}
+	if !a.IsActive() {
+		return Offer{}, agency.ErrInactive
+	}
+
+	now := time.Now()
+	o := Offer{
+		UUID:        uuid.New(),
+		Title:       title,
+		Description: description,
+		AgencyID:    actor.AgencyID,
+		CreatedBy:   actor.UserID,
+		Status:      status,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	id, err := m.offers.Store(ctx, o)
+	if err != nil {
+		return Offer{}, fmt.Errorf("store offer: %w", err)
+	}
+	if id == 0 {
+		return Offer{}, ErrNotPersisted
+	}
+	o.ID = id
+	return o, nil
+}
+
+// Update applies partial changes to an existing offer. Only non-nil
+// fields are modified. Ownership is enforced: the actor must belong to
+// the offer's agency.
+func (m *Manager) Update(ctx context.Context, id uuid.UUID, title, description *string, status *Status, actor user.Actor) (Offer, error) {
+	if !canWriteOffers(actor) {
+		return Offer{}, ErrInsufficientRole
+	}
+	o, err := m.FindOwned(ctx, id, actor)
+	if err != nil {
+		return Offer{}, err
+	}
+
+	if title != nil {
+		if err := validateTitle(*title); err != nil {
+			return Offer{}, err
+		}
+		o.Title = *title
+	}
+	if description != nil {
+		o.Description = *description
+	}
+	if status != nil {
+		if !status.IsValid() {
+			return Offer{}, ErrStatusInvalid
+		}
+		o.Status = *status
+	}
+	o.UpdatedAt = time.Now()
+
+	if err := m.offers.Update(ctx, *o); err != nil {
+		return Offer{}, fmt.Errorf("update offer: %w", err)
+	}
+	return *o, nil
+}
+
+// Delete soft-deletes an offer. Ownership is enforced the same way as
+// Update.
+func (m *Manager) Delete(ctx context.Context, id uuid.UUID, actor user.Actor) error {
+	if !canWriteOffers(actor) {
+		return ErrInsufficientRole
+	}
+	if _, err := m.FindOwned(ctx, id, actor); err != nil {
+		return err
+	}
+	if err := m.offers.SoftDelete(ctx, id); err != nil {
+		return fmt.Errorf("soft delete offer: %w", err)
+	}
+	return nil
+}
+
+// FindOwned fetches an offer and verifies the actor belongs to its
+// owning agency. 1 user = 1 agency: there is no role-based bypass. An
+// offer of another agency is reported as ErrNotFound, not a
+// forbidden error — for the actor it simply does not exist. This is the
+// single authority for "can this actor see/touch this offer": Update and
+// Delete use it internally before applying a write, and the read-side
+// get_offer use-case calls it directly instead of re-implementing the
+// same ownership comparison.
+func (m *Manager) FindOwned(ctx context.Context, id uuid.UUID, actor user.Actor) (*Offer, error) {
+	o, err := m.offers.FindByUUID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("find offer: %w", err)
+	}
+	if o == nil || o.AgencyID != actor.AgencyID {
+		return nil, ErrNotFound
+	}
+	return o, nil
+}
+
+// canWriteOffers reports whether the actor's roles permit creating,
+// updating or deleting offers.
+func canWriteOffers(actor user.Actor) bool {
+	return actor.HasRole(user.RoleAgent) || actor.HasRole(user.RoleSuperAdmin)
+}
+
+func validateTitle(title string) error {
+	if title == "" || len([]rune(title)) > TitleMaxLength {
+		return ErrTitleInvalid
+	}
+	return nil
+}

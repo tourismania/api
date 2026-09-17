@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/agency"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -33,15 +33,15 @@ func seedAgencyAndUser(t *testing.T, agencyRepo *pgrepo.AgencyRepository, userRe
 	t.Helper()
 	ctx := context.Background()
 
-	agencyID, err := agencyRepo.Store(ctx, entity.Agency{
+	agencyID, err := agencyRepo.Store(ctx, agency.Agency{
 		UUID:      uuid.New(),
 		Name:      "Offer Test Agency " + uuid.NewString(),
-		Status:    enum.AgencyStatusActive,
+		Status:    agency.StatusActive,
 		CreatedAt: time.Now().Truncate(time.Second),
 	})
 	require.NoError(t, err)
 
-	idPtr, err := userRepo.Store(ctx, entity.User{
+	idPtr, err := userRepo.Store(ctx, user.User{
 		FirstName: "Offer",
 		LastName:  "Tester",
 		Email:     "offer+" + uuid.NewString() + "@example.com",
@@ -53,9 +53,9 @@ func seedAgencyAndUser(t *testing.T, agencyRepo *pgrepo.AgencyRepository, userRe
 	return agencyID, *idPtr
 }
 
-func newTestOffer(agencyID, createdBy int, status enum.OfferStatus) entity.Offer {
+func newTestOffer(agencyID, createdBy int, status offer.Status) offer.Offer {
 	now := time.Now().Truncate(time.Second)
-	return entity.Offer{
+	return offer.Offer{
 		UUID:        uuid.New(),
 		Title:       "Test offer " + uuid.NewString(),
 		Description: "A short description",
@@ -72,19 +72,19 @@ func TestOfferRepository_StoreThenFindByUUID_ReturnsStoredOffer(t *testing.T) {
 	agencyID, userID := seedAgencyAndUser(t, agencyRepo, userRepo)
 	ctx := context.Background()
 
-	offer := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
-	id, err := offerRepo.Store(ctx, offer)
+	o := newTestOffer(agencyID, userID, offer.StatusDraft)
+	id, err := offerRepo.Store(ctx, o)
 	require.NoError(t, err)
 	require.Greater(t, id, 0)
 
-	found, err := offerRepo.FindByUUID(ctx, offer.UUID)
+	found, err := offerRepo.FindByUUID(ctx, o.UUID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
-	assert.Equal(t, offer.Title, found.Title)
-	assert.Equal(t, offer.Description, found.Description)
+	assert.Equal(t, o.Title, found.Title)
+	assert.Equal(t, o.Description, found.Description)
 	assert.Equal(t, agencyID, found.AgencyID)
 	assert.Equal(t, userID, found.CreatedBy)
-	assert.Equal(t, enum.OfferStatusDraft, found.Status)
+	assert.Equal(t, offer.StatusDraft, found.Status)
 	assert.Nil(t, found.DeletedAt)
 }
 
@@ -101,20 +101,20 @@ func TestOfferRepository_Update_PersistsChanges(t *testing.T) {
 	agencyID, userID := seedAgencyAndUser(t, agencyRepo, userRepo)
 	ctx := context.Background()
 
-	offer := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
-	_, err := offerRepo.Store(ctx, offer)
+	o := newTestOffer(agencyID, userID, offer.StatusDraft)
+	_, err := offerRepo.Store(ctx, o)
 	require.NoError(t, err)
 
-	offer.Title = "Updated title"
-	offer.Status = enum.OfferStatusPublished
-	offer.UpdatedAt = time.Now().Truncate(time.Second)
-	require.NoError(t, offerRepo.Update(ctx, offer))
+	o.Title = "Updated title"
+	o.Status = offer.StatusPublished
+	o.UpdatedAt = time.Now().Truncate(time.Second)
+	require.NoError(t, offerRepo.Update(ctx, o))
 
-	found, err := offerRepo.FindByUUID(ctx, offer.UUID)
+	found, err := offerRepo.FindByUUID(ctx, o.UUID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, "Updated title", found.Title)
-	assert.Equal(t, enum.OfferStatusPublished, found.Status)
+	assert.Equal(t, offer.StatusPublished, found.Status)
 }
 
 func TestOfferRepository_SoftDelete_ExcludesFromFindByUUID(t *testing.T) {
@@ -122,13 +122,13 @@ func TestOfferRepository_SoftDelete_ExcludesFromFindByUUID(t *testing.T) {
 	agencyID, userID := seedAgencyAndUser(t, agencyRepo, userRepo)
 	ctx := context.Background()
 
-	offer := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
-	_, err := offerRepo.Store(ctx, offer)
+	o := newTestOffer(agencyID, userID, offer.StatusDraft)
+	_, err := offerRepo.Store(ctx, o)
 	require.NoError(t, err)
 
-	require.NoError(t, offerRepo.SoftDelete(ctx, offer.UUID))
+	require.NoError(t, offerRepo.SoftDelete(ctx, o.UUID))
 
-	found, err := offerRepo.FindByUUID(ctx, offer.UUID)
+	found, err := offerRepo.FindByUUID(ctx, o.UUID)
 	require.NoError(t, err)
 	assert.Nil(t, found, "soft-deleted offer must not be returned by reads")
 }
@@ -139,17 +139,17 @@ func TestOfferRepository_List_FiltersByAgencyAndStatus(t *testing.T) {
 	otherAgencyID, otherUserID := seedAgencyAndUser(t, agencyRepo, userRepo)
 	ctx := context.Background()
 
-	published := newTestOffer(agencyID, userID, enum.OfferStatusPublished)
-	draft := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
-	otherAgencyOffer := newTestOffer(otherAgencyID, otherUserID, enum.OfferStatusPublished)
+	published := newTestOffer(agencyID, userID, offer.StatusPublished)
+	draft := newTestOffer(agencyID, userID, offer.StatusDraft)
+	otherAgencyOffer := newTestOffer(otherAgencyID, otherUserID, offer.StatusPublished)
 
-	for _, o := range []entity.Offer{published, draft, otherAgencyOffer} {
+	for _, o := range []offer.Offer{published, draft, otherAgencyOffer} {
 		_, err := offerRepo.Store(ctx, o)
 		require.NoError(t, err)
 	}
 
-	status := enum.OfferStatusPublished
-	res, err := offerRepo.List(ctx, domainrepo.OfferFilter{
+	status := offer.StatusPublished
+	res, err := offerRepo.List(ctx, offer.Filter{
 		AgencyID: &agencyID,
 		Status:   &status,
 		Limit:    10,
@@ -166,8 +166,8 @@ func TestOfferRepository_List_ExcludesSoftDeleted(t *testing.T) {
 	agencyID, userID := seedAgencyAndUser(t, agencyRepo, userRepo)
 	ctx := context.Background()
 
-	kept := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
-	deleted := newTestOffer(agencyID, userID, enum.OfferStatusDraft)
+	kept := newTestOffer(agencyID, userID, offer.StatusDraft)
+	deleted := newTestOffer(agencyID, userID, offer.StatusDraft)
 
 	_, err := offerRepo.Store(ctx, kept)
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestOfferRepository_List_ExcludesSoftDeleted(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, offerRepo.SoftDelete(ctx, deleted.UUID))
 
-	res, err := offerRepo.List(ctx, domainrepo.OfferFilter{
+	res, err := offerRepo.List(ctx, offer.Filter{
 		AgencyID: &agencyID,
 		Limit:    10,
 		Offset:   0,
@@ -192,16 +192,16 @@ func TestOfferRepository_List_Pagination_LimitsAndOffsets(t *testing.T) {
 
 	const total = 3
 	for i := 0; i < total; i++ {
-		_, err := offerRepo.Store(ctx, newTestOffer(agencyID, userID, enum.OfferStatusDraft))
+		_, err := offerRepo.Store(ctx, newTestOffer(agencyID, userID, offer.StatusDraft))
 		require.NoError(t, err)
 	}
 
-	page1, err := offerRepo.List(ctx, domainrepo.OfferFilter{AgencyID: &agencyID, Limit: 2, Offset: 0})
+	page1, err := offerRepo.List(ctx, offer.Filter{AgencyID: &agencyID, Limit: 2, Offset: 0})
 	require.NoError(t, err)
 	assert.Len(t, page1.Offers, 2)
 	assert.EqualValues(t, total, page1.TotalCount)
 
-	page2, err := offerRepo.List(ctx, domainrepo.OfferFilter{AgencyID: &agencyID, Limit: 2, Offset: 2})
+	page2, err := offerRepo.List(ctx, offer.Filter{AgencyID: &agencyID, Limit: 2, Offset: 2})
 	require.NoError(t, err)
 	assert.Len(t, page2.Offers, 1)
 	assert.EqualValues(t, total, page2.TotalCount)

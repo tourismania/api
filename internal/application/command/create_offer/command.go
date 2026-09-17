@@ -3,17 +3,16 @@
 package createoffer
 
 import (
+	"api/internal/domain/offer"
 	"time"
-
-	"api/internal/domain/enum"
 
 	"github.com/google/uuid"
 )
 
 // FlightSegmentInput — DTO одного перелётного сегмента на границе
 // Application-слоя. Презентационный слой конвертирует свой собственный
-// DTO в этот тип и ничего не знает про domain/entity: сборка
-// entity.FlightSegment/entity.Flight и их валидация происходят уже
+// DTO в этот тип и ничего не знает про domain/offer: сборка
+// flight.Segment/flight.Flight и их валидация происходят уже
 // внутри Handler.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
@@ -31,7 +30,7 @@ type FlightSegmentInput struct {
 type Command struct {
 	Title       string
 	Description string
-	Status      enum.OfferStatus
+	Status      offer.Status
 	// Flights is one group of segments per flight, first-to-last within
 	// each group. A nil/empty slice means the offer is created without
 	// flights.

@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"api/internal/domain/entity"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/offer/flight"
 	"api/internal/infrastructure/persistence/postgres/db"
 	"api/internal/infrastructure/persistence/postgres/mapper"
 )
@@ -22,11 +21,11 @@ func NewOfferFlightRepository(queries *db.Queries) *OfferFlightRepository {
 }
 
 // Ensure compile-time interface compliance.
-var _ domainrepo.OfferFlightRepository = (*OfferFlightRepository)(nil)
+var _ flight.Repository = (*OfferFlightRepository)(nil)
 
 // FindByOfferID returns the offer's flights in saved order (flights by
 // ascending id, segments within a flight by ascending sequence).
-func (r *OfferFlightRepository) FindByOfferID(ctx context.Context, offerID int) ([]entity.Flight, error) {
+func (r *OfferFlightRepository) FindByOfferID(ctx context.Context, offerID int) ([]flight.Flight, error) {
 	q := queriesFor(ctx, r.queries)
 
 	flightRows, err := q.ListOfferFlightsByOfferID(ctx, int32(offerID))
@@ -57,7 +56,7 @@ func (r *OfferFlightRepository) FindByOfferID(ctx context.Context, offerID int) 
 // transaction — this method issues its statements against whatever
 // queriesFor(ctx, ...) resolves to and does not open a transaction of
 // its own.
-func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int, flights []entity.Flight) error {
+func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int, flights []flight.Flight) error {
 	q := queriesFor(ctx, r.queries)
 
 	if err := q.DeleteOfferFlightsByOfferID(ctx, int32(offerID)); err != nil {

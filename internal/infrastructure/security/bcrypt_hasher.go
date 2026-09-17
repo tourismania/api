@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// BcryptHasher implements domain/service.PasswordHasher using bcrypt with
+// BcryptHasher implements domain user.PasswordHasher using bcrypt with
 // a configurable cost. Match Symfony's default cost (12) for behavioral
 // parity with the PHP project.
 type BcryptHasher struct {

@@ -7,7 +7,7 @@ import (
 
 	"api/internal/application/apperror"
 	getoffers "api/internal/application/query/get_offers"
-	"api/internal/domain/enum"
+	"api/internal/domain/offer"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -83,9 +83,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if params.CreatedBy > 0 {
 		createdBy = &params.CreatedBy
 	}
-	var status *enum.OfferStatus
+	var status *offer.Status
 	if params.Status != "" {
-		s := enum.OfferStatus(params.Status)
+		s := offer.Status(params.Status)
 		status = &s
 	}
 

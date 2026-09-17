@@ -21,7 +21,7 @@ type Result struct {
 
 // FlightResult — уже вычисленная проекция одного перелёта offer'а:
 // суммарная длительность и пересадки посчитаны здесь, в Application-
-// слое (через доменные методы entity.Flight), а не в presentation.
+// слое (через доменные методы flight.Flight), а не в presentation.
 // Presentation лишь копирует поля в свой wire-DTO, не обращаясь к
 // domain-типам и не вызывая доменное поведение напрямую.
 type FlightResult struct {

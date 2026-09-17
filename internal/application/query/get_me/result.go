@@ -1,7 +1,7 @@
 package getme
 
 import (
-	"api/internal/domain/valueobject"
+	"api/internal/domain/user"
 
 	"github.com/google/uuid"
 )
@@ -22,6 +22,6 @@ type Result struct {
 	Phone     string
 	FirstName string
 	LastName  string
-	Rights    valueobject.RightsDescribe
+	Rights    user.RightsDescribe
 	Agency    Agency
 }

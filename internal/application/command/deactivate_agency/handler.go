@@ -1,9 +1,8 @@
 package deactivateagency
 
 import (
+	"api/internal/domain/agency"
 	"context"
-
-	"api/internal/domain/service"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -12,13 +11,13 @@ type UseCase interface {
 }
 
 // Handler executes the DeactivateAgency command by delegating to the
-// domain AgencyManager service.
+// domain agency.Manager service.
 type Handler struct {
-	agencyManager *service.AgencyManager
+	agencyManager *agency.Manager
 }
 
 // NewHandler constructs the handler.
-func NewHandler(agencyManager *service.AgencyManager) *Handler {
+func NewHandler(agencyManager *agency.Manager) *Handler {
 	return &Handler{agencyManager: agencyManager}
 }
 

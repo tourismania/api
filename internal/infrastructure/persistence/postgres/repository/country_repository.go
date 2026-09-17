@@ -1,16 +1,15 @@
 package repository
 
 import (
+	"api/internal/domain/airport"
 	"context"
 	"fmt"
-
-	domainrepo "api/internal/domain/repository"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Compile-time interface check.
-var _ domainrepo.CountryRepository = (*CountryRepository)(nil)
+var _ airport.CountryRepository = (*CountryRepository)(nil)
 
 // CountryRepository writes countries, cities, and airports to Postgres using
 // raw pgx queries (no sqlc generation required for admin sync operations).

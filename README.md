@@ -22,7 +22,7 @@ cmd/
   server/     # HTTP-сервер
   cli/        # CLI (cobra)
 internal/
-  domain/         # Доменный слой (entity, enum, event, factory, repository, service, valueobject)
+  domain/         # Доменный слой, resource-first: 1 агрегат = 1 пакет (user, agency, airport, offer + ядро event); дочерние агрегаты — подпакетами (offer/flight)
   application/    # Use cases (command/query, command/query bus)
   infrastructure/ # Реализации интерфейсов домена (postgres, kafka, jwt, bcrypt)
   presentation/   # HTTP, CLI, DTO
@@ -258,7 +258,7 @@ make jwt-keys # генерация ключей
 
 ## Роли и права
 
-Роль хранится в `users.roles` (массив) и резолвится на каждый запрос заново, а не из самого токена — так отозванные/изменённые права применяются немедленно, без переиздания токена. JWT несёт только неизменяемый `uuid` (`Claims.Subject`); `agency_id`/`roles` из БД резолвит доменный сервис `domain/service.UserFinder` по этому `uuid` — presentation-слой (в т.ч. мидлвари) в БД не ходит.
+Роль хранится в `users.roles` (массив) и резолвится на каждый запрос заново, а не из самого токена — так отозванные/изменённые права применяются немедленно, без переиздания токена. JWT несёт только неизменяемый `uuid` (`Claims.Subject`); `agency_id`/`roles` из БД резолвит доменный сервис `domain/user.Finder` по этому `uuid` — presentation-слой (в т.ч. мидлвари) в БД не ходит.
 
 | Роль / гость       | Offers: создание/изменение/удаление | Offers: чтение (приватное, `/offers*`) | Offers: чтение (публичное, `/public/offers/{uuid}`) |
 |--------------------|--------------------------------------|-----------------------------------------|--------------------------------------------------------|
@@ -271,7 +271,7 @@ make jwt-keys # генерация ключей
 - `agency_id` при создании offer никогда не берётся из тела запроса — только из агентства текущего аутентифицированного пользователя.
 - Роль не влияет на **видимость чтения** — только на право записи. `ROLE_USER` читает офферы своего агентства наравне с `ROLE_AGENT`/`ROLE_SUPER_ADMIN`, но не может создавать/изменять/удалять.
 - `GET /api/v1/offers` и `GET /api/v1/offers/{uuid}` требуют JWT + `CurrentUserUUID` (обе — настоящие мидлвари, `custommw.JWT` затем `custommw.CurrentUserUUID`): первая валидирует токен и кладёт claims в контекст, вторая один раз извлекает из них `uuid` — ни одна в БД не ходит. `GET /api/v1/public/offers/{uuid}` — отдельный, полностью анонимный обработчик без auth-мидлварей вообще.
-- И роль (для записи), и владение по агентству проверяет доменный `OfferManager` (`FindOwned` — единая точка проверки владения, используется и чтением, и записью) — не HTTP-мидлварь. Presentation-хендлер читает `uuid` из контекста (`custommw.CurrentUserUUIDFromContext`, без параллельного парсинга и без собственной 401-ветки) и передаёт его в Command/Query; application-хендлер резолвит `agency_id`/`roles` через доменный `service.UserFinder.Resolve` и строит `valueobject.Actor`, который уже идёт в домен. Ошибки домена (`service.Err*`) presentation-слой не видит напрямую — application-хендлер переводит их в `application/apperror` (`ErrUnauthenticated`/`ErrForbidden`/`ErrNotFound`/`ErrValidation`), и только эти сентинелы определяют HTTP-код.
+- И роль (для записи), и владение по агентству проверяет доменный `offer.Manager` (`FindOwned` — единая точка проверки владения, используется и чтением, и записью) — не HTTP-мидлварь. Presentation-хендлер читает `uuid` из контекста (`custommw.CurrentUserUUIDFromContext`, без параллельного парсинга и без собственной 401-ветки) и передаёт его в Command/Query; application-хендлер резолвит `agency_id`/`roles` через доменный `user.Finder.Resolve` и строит `user.Actor`, который уже идёт в домен. Ошибки домена (sentinel-ошибки доменных пакетов) presentation-слой не видит напрямую — application-хендлер переводит их в `application/apperror` (`ErrUnauthenticated`/`ErrForbidden`/`ErrNotFound`/`ErrValidation`), и только эти сентинелы определяют HTTP-код.
 
 ## Тесты
 
@@ -304,7 +304,7 @@ swag init -g cmd/server/main.go -o docs/swagger
 
 ## Ключевые архитектурные принципы
 
-1. Доменная сущность ≠ ORM-модель (`domain/entity.User` vs `infrastructure/persistence/postgres/model.User`).
+1. Доменная сущность ≠ ORM-модель (`domain/user.User` vs `infrastructure/persistence/postgres/model.User`).
 2. Репозиторий — интерфейс в домене, реализация в infrastructure.
 3. CQRS через `CommandBus` и `QueryBus` (in-memory routing).
 4. Доменные события публикуются через интерфейс `event.Bus` (kafka — реализация).
