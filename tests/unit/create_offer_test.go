@@ -6,9 +6,8 @@ import (
 
 	"api/internal/application/apperror"
 	createoffer "api/internal/application/command/create_offer"
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,14 +17,14 @@ import (
 func TestCreateOffer_RoleAgent_CreatesUnderCallerAgency(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
-	mgr := service.NewOfferManager(offers, agencies)
-	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
+	mgr := offer.NewManager(offers, agencies)
+	users := user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: 5, Roles: []string{string(user.RoleAgent)}}})
 	h := createoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
 		Description:     "desc",
-		Status:          enum.OfferStatusDraft,
+		Status:          offer.StatusDraft,
 		CurrentUserUUID: uuid.New(),
 	})
 
@@ -37,14 +36,14 @@ func TestCreateOffer_RoleAgent_CreatesUnderCallerAgency(t *testing.T) {
 
 func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 	offers := &mockOfferRepo{}
-	mgr := service.NewOfferManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}})
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	users := user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: 5, Roles: []string{string(user.RoleUser)}}})
 	h := createoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
 		Description:     "desc",
-		Status:          enum.OfferStatusDraft,
+		Status:          offer.StatusDraft,
 		CurrentUserUUID: uuid.New(),
 	})
 
@@ -52,13 +51,13 @@ func TestCreateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
 }
 
 func TestCreateOffer_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
-	mgr := service.NewOfferManager(&mockOfferRepo{}, &mockAgencyRepo{})
+	mgr := offer.NewManager(&mockOfferRepo{}, &mockAgencyRepo{})
 	h := createoffer.NewHandler(mgr, noFlightManager(), noUserFound(), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:           "Title",
 		Description:     "desc",
-		Status:          enum.OfferStatusDraft,
+		Status:          offer.StatusDraft,
 		CurrentUserUUID: uuid.New(),
 	})
 

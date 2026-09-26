@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"api/internal/application/apperror"
-	"api/internal/domain/repository"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -17,21 +17,21 @@ type UseCase interface {
 // OfferLister is the read-port consumed by this use-case. Defined here
 // to invert the dependency: infrastructure implements this.
 type OfferLister interface {
-	List(ctx context.Context, f repository.OfferFilter) (repository.OfferListResult, error)
+	List(ctx context.Context, f offer.Filter) (offer.ListResult, error)
 }
 
 // Handler orchestrates the offer listing use-case. The list is always
 // scoped to the caller's own agency, any status — the role has no
 // bearing on visibility, only on write access (enforced by the domain
-// OfferManager). The caller's own agency is resolved from its uuid via
-// service.UserFinder, not presentation-layer middleware.
+// offer.Manager). The caller's own agency is resolved from its uuid via
+// user.Finder, not presentation-layer middleware.
 type Handler struct {
 	offers     OfferLister
-	userFinder *service.UserFinder
+	userFinder *user.Finder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offers OfferLister, userFinder *service.UserFinder) *Handler {
+func NewHandler(offers OfferLister, userFinder *user.Finder) *Handler {
 	return &Handler{offers: offers, userFinder: userFinder}
 }
 
@@ -42,7 +42,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	filter := repository.OfferFilter{
+	filter := offer.Filter{
 		AgencyID:  &actor.AgencyID,
 		Status:    q.Status,
 		CreatedBy: q.CreatedBy,

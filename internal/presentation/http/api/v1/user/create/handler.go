@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	createuser "api/internal/application/command/create_user"
-	"api/internal/domain/service"
+	"api/internal/domain/agency"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-playground/validator/v10"
@@ -57,7 +57,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		AgencyID:  req.AgencyID,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrAgencyNotFound) || errors.Is(err, service.ErrAgencyInactive) {
+		if errors.Is(err, agency.ErrNotFound) || errors.Is(err, agency.ErrInactive) {
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}

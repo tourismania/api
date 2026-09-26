@@ -1,17 +1,15 @@
 package unit_test
 
 import (
+	"api/internal/domain/user"
 	"testing"
-
-	"api/internal/domain/enum"
-	"api/internal/domain/factory"
 
 	"github.com/stretchr/testify/assert"
 )
 
 // Mirrors the original PHP unit test: roles → IsSuperAdmin truth table.
 func TestRightsDescribeFactory_ByRoles(t *testing.T) {
-	f := factory.NewRightsDescribeFactory()
+	f := user.NewRightsDescribeFactory()
 
 	cases := []struct {
 		name  string
@@ -19,9 +17,9 @@ func TestRightsDescribeFactory_ByRoles(t *testing.T) {
 		want  bool
 	}{
 		{name: "empty", roles: []string{}, want: false},
-		{name: "only super admin", roles: []string{string(enum.RoleSuperAdmin)}, want: true},
-		{name: "only user", roles: []string{string(enum.RoleUser)}, want: false},
-		{name: "mixed includes super", roles: []string{string(enum.RoleUser), string(enum.RoleSuperAdmin)}, want: true},
+		{name: "only super admin", roles: []string{string(user.RoleSuperAdmin)}, want: true},
+		{name: "only user", roles: []string{string(user.RoleUser)}, want: false},
+		{name: "mixed includes super", roles: []string{string(user.RoleUser), string(user.RoleSuperAdmin)}, want: true},
 	}
 
 	for _, tc := range cases {

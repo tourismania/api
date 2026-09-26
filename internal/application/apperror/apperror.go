@@ -1,9 +1,9 @@
 // Package apperror defines the small, fixed set of HTTP-shaped outcomes
 // that application-layer handlers can return. Domain sentinel errors
-// (see internal/domain/service) never cross into the presentation
+// (see internal/domain/<resource> packages) never cross into the presentation
 // layer directly: every command/query handler translates them via
 // FromDomainError before returning, so presentation only ever imports
-// this package — never internal/domain/service — to decide the
+// this package — never a domain package — to decide the
 // response code. This keeps the domain's vocabulary of errors private
 // to the domain and application layers, matching the dependency
 // direction Presentation → Application → Domain.

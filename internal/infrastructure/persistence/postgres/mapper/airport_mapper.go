@@ -1,13 +1,12 @@
 package mapper
 
 import (
-	"api/internal/domain/entity"
-	"api/internal/domain/valueobject"
+	"api/internal/domain/airport"
 	"api/internal/infrastructure/persistence/postgres/db"
 )
 
 // ToAirportDomain converts a sqlc row to a domain entity.
-func ToAirportDomain(row db.SearchAirportsRow) entity.Airport {
+func ToAirportDomain(row db.SearchAirportsRow) airport.Airport {
 	elevFt := ptrInt32ToInt(row.ElevationFt)
 
 	var lon, lat float64
@@ -23,22 +22,22 @@ func ToAirportDomain(row db.SearchAirportsRow) entity.Airport {
 		timezone = *row.CityTimezone
 	}
 
-	return entity.Airport{
+	return airport.Airport{
 		ICAO: row.Icao,
 		IATA: row.Iata,
 		Name: row.AirportName,
-		Location: valueobject.Location{
+		Location: airport.Location{
 			Latitude:    lat,
 			Longitude:   lon,
 			ElevationFt: elevFt,
 		},
-		City: entity.City{
+		City: airport.City{
 			ID:       int(row.CityID),
 			Name:     row.CityName,
 			State:    row.CityState,
 			Timezone: timezone,
 		},
-		Country: entity.Country{
+		Country: airport.Country{
 			ISO2: row.CountryIso2,
 			Name: row.CountryName,
 		},
@@ -47,7 +46,7 @@ func ToAirportDomain(row db.SearchAirportsRow) entity.Airport {
 
 // ToAirportDomainFromICAORow converts a FindAirportsByICAOs row to a
 // domain entity.
-func ToAirportDomainFromICAORow(row db.FindAirportsByICAOsRow) entity.Airport {
+func ToAirportDomainFromICAORow(row db.FindAirportsByICAOsRow) airport.Airport {
 	elevFt := ptrInt32ToInt(row.ElevationFt)
 
 	var lon, lat float64
@@ -63,22 +62,22 @@ func ToAirportDomainFromICAORow(row db.FindAirportsByICAOsRow) entity.Airport {
 		timezone = *row.CityTimezone
 	}
 
-	return entity.Airport{
+	return airport.Airport{
 		ICAO: row.Icao,
 		IATA: row.Iata,
 		Name: row.AirportName,
-		Location: valueobject.Location{
+		Location: airport.Location{
 			Latitude:    lat,
 			Longitude:   lon,
 			ElevationFt: elevFt,
 		},
-		City: entity.City{
+		City: airport.City{
 			ID:       int(row.CityID),
 			Name:     row.CityName,
 			State:    row.CityState,
 			Timezone: timezone,
 		},
-		Country: entity.Country{
+		Country: airport.Country{
 			ISO2: row.CountryIso2,
 			Name: row.CountryName,
 		},

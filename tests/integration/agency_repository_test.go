@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
+	"api/internal/domain/agency"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -29,23 +28,23 @@ func TestAgencyRepository_StoreThenFindByID_ReturnsStoredAgency(t *testing.T) {
 	repo := newAgencyRepo(t)
 	ctx := context.Background()
 
-	agency := entity.Agency{
+	a := agency.Agency{
 		UUID:      uuid.New(),
 		Name:      "Test Agency " + uuid.NewString(),
-		Status:    enum.AgencyStatusActive,
+		Status:    agency.StatusActive,
 		CreatedAt: time.Now().Truncate(time.Second),
 	}
 
-	id, err := repo.Store(ctx, agency)
+	id, err := repo.Store(ctx, a)
 	require.NoError(t, err)
 	require.Greater(t, id, 0)
 
 	found, err := repo.FindByID(ctx, id)
 	require.NoError(t, err)
 	require.NotNil(t, found)
-	assert.Equal(t, agency.UUID, found.UUID)
-	assert.Equal(t, agency.Name, found.Name)
-	assert.Equal(t, enum.AgencyStatusActive, found.Status)
+	assert.Equal(t, a.UUID, found.UUID)
+	assert.Equal(t, a.Name, found.Name)
+	assert.Equal(t, agency.StatusActive, found.Status)
 	assert.Nil(t, found.DeletedAt)
 }
 
@@ -53,10 +52,10 @@ func TestAgencyRepository_Exists_TrueForStoredAgency(t *testing.T) {
 	repo := newAgencyRepo(t)
 	ctx := context.Background()
 
-	id, err := repo.Store(ctx, entity.Agency{
+	id, err := repo.Store(ctx, agency.Agency{
 		UUID:      uuid.New(),
 		Name:      "Existence Check Agency " + uuid.NewString(),
-		Status:    enum.AgencyStatusActive,
+		Status:    agency.StatusActive,
 		CreatedAt: time.Now(),
 	})
 	require.NoError(t, err)
@@ -78,20 +77,20 @@ func TestAgencyRepository_SetStatus_UpdatesStoredStatus(t *testing.T) {
 	repo := newAgencyRepo(t)
 	ctx := context.Background()
 
-	id, err := repo.Store(ctx, entity.Agency{
+	id, err := repo.Store(ctx, agency.Agency{
 		UUID:      uuid.New(),
 		Name:      "Deactivation Check Agency " + uuid.NewString(),
-		Status:    enum.AgencyStatusActive,
+		Status:    agency.StatusActive,
 		CreatedAt: time.Now(),
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SetStatus(ctx, id, enum.AgencyStatusInactive))
+	require.NoError(t, repo.SetStatus(ctx, id, agency.StatusInactive))
 
 	found, err := repo.FindByID(ctx, id)
 	require.NoError(t, err)
 	require.NotNil(t, found)
-	assert.Equal(t, enum.AgencyStatusInactive, found.Status)
+	assert.Equal(t, agency.StatusInactive, found.Status)
 }
 
 func TestAgencyRepository_FindByID_ReturnsNilForUnknownID(t *testing.T) {

@@ -1,11 +1,12 @@
 package apperror
 
 import (
+	"api/internal/domain/agency"
+	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
+	"api/internal/domain/user"
 	"errors"
 	"fmt"
-
-	"api/internal/domain/factory"
-	"api/internal/domain/service"
 )
 
 // FromDomainError translates a domain sentinel error into one of the
@@ -18,21 +19,21 @@ func FromDomainError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, service.ErrActorNotFound):
+	case errors.Is(err, user.ErrActorNotFound):
 		return fmt.Errorf("%w: %s", ErrUnauthenticated, err.Error())
-	case errors.Is(err, service.ErrInsufficientRole):
+	case errors.Is(err, offer.ErrInsufficientRole):
 		return fmt.Errorf("%w: %s", ErrForbidden, err.Error())
-	case errors.Is(err, service.ErrOfferNotFound):
+	case errors.Is(err, offer.ErrNotFound):
 		return fmt.Errorf("%w: %s", ErrNotFound, err.Error())
-	case errors.Is(err, service.ErrOfferTitleInvalid),
-		errors.Is(err, service.ErrOfferStatusInvalid),
-		errors.Is(err, service.ErrAgencyNotFound),
-		errors.Is(err, service.ErrAgencyInactive),
-		errors.Is(err, service.ErrFlightAirportNotFound),
-		errors.Is(err, factory.ErrFlightSegmentsEmpty),
-		errors.Is(err, factory.ErrFlightSegmentChronologyInvalid),
-		errors.Is(err, factory.ErrFlightSegmentDiscontinuous),
-		errors.Is(err, factory.ErrFlightLayoverNonPositive):
+	case errors.Is(err, offer.ErrTitleInvalid),
+		errors.Is(err, offer.ErrStatusInvalid),
+		errors.Is(err, agency.ErrNotFound),
+		errors.Is(err, agency.ErrInactive),
+		errors.Is(err, flight.ErrAirportNotFound),
+		errors.Is(err, flight.ErrSegmentsEmpty),
+		errors.Is(err, flight.ErrSegmentChronologyInvalid),
+		errors.Is(err, flight.ErrSegmentDiscontinuous),
+		errors.Is(err, flight.ErrLayoverNonPositive):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())
 	default:
 		return err

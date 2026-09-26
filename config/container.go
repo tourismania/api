@@ -5,7 +5,11 @@
 package config
 
 import (
-	"api/internal/presentation/http/api/v1/user/create"
+	"api/internal/domain/agency"
+	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
+	"api/internal/domain/user"
+	createuserhttp "api/internal/presentation/http/api/v1/user/create"
 	getmehttp "api/internal/presentation/http/api/v1/user/get_me"
 	"context"
 	"fmt"
@@ -23,8 +27,6 @@ import (
 	getoffersq "api/internal/application/query/get_offers"
 	getpublishedofferq "api/internal/application/query/get_published_offer"
 	searchairports "api/internal/application/query/search_airports"
-	"api/internal/domain/factory"
-	"api/internal/domain/service"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
 	"api/internal/infrastructure/geo/mwgg"
@@ -123,15 +125,15 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	hasher := security.NewBcryptHasher(bcrypt.DefaultCost)
 	userRepo := pgrepo.NewUserRepository(queries)
 	agencyRepo := pgrepo.NewAgencyRepository(queries)
-	agencyManager := service.NewAgencyManager(agencyRepo)
-	userCreator := service.NewUserCreator(userRepo, agencyRepo, hasher, producer)
-	rightsFactory := factory.NewRightsDescribeFactory()
-	rightsDescriber := service.NewRightsDescriber(rightsFactory)
+	agencyManager := agency.NewManager(agencyRepo)
+	userCreator := user.NewCreator(userRepo, agencyRepo, hasher, producer)
+	rightsFactory := user.NewRightsDescribeFactory()
+	rightsDescriber := user.NewRightsDescriber(rightsFactory)
 
 	// Offer domain wiring.
 	offerRepo := pgrepo.NewOfferRepository(queries)
-	offerManager := service.NewOfferManager(offerRepo, agencyRepo)
-	userFinder := service.NewUserFinder(userRepo)
+	offerManager := offer.NewManager(offerRepo, agencyRepo)
+	userFinder := user.NewFinder(userRepo)
 
 	// Airport domain wiring.
 	airportRepo := pgrepo.NewAirportRepository(queries, pool)
@@ -140,7 +142,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// Offer flight domain wiring (issue №20). TxManager makes offer +
 	// flight writes commit/roll back together across the two repositories.
 	offerFlightRepo := pgrepo.NewOfferFlightRepository(queries)
-	offerFlightManager := service.NewOfferFlightManager(offerFlightRepo, airportRepo)
+	offerFlightManager := flight.NewManager(offerFlightRepo, airportRepo)
 	txManager := pgtxmanager.New(pool)
 
 	countryRepo := pgrepo.NewCountryRepository(pool)

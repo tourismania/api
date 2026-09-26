@@ -18,7 +18,7 @@ type currentUserUUIDKey struct{}
 // principal's immutable identity (the uuid carried in Claims.Subject): a
 // pure token read, no DB access. Resolving mutable profile data
 // (agency_id, roles) from that uuid is the domain layer's job (see
-// domain/service.UserFinder), never this middleware's.
+// domain user.Finder), never this middleware's.
 //
 // Centralizing the extraction — and its own 401 on failure — here means
 // handlers no longer each repeat "parse the uuid, write 401 on error":

@@ -17,10 +17,11 @@ import (
 	createoffer "api/internal/application/command/create_offer"
 	getoffers "api/internal/application/query/get_offers"
 	getpublishedoffer "api/internal/application/query/get_published_offer"
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	"api/internal/domain/repository"
-	"api/internal/domain/service"
+	"api/internal/domain/agency"
+	"api/internal/domain/airport"
+	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
+	"api/internal/domain/user"
 	"api/internal/infrastructure/auth"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
@@ -60,89 +61,89 @@ func newTestJWTService(t *testing.T) *auth.Service {
 	return svc
 }
 
-// stubUserFinder implements the domain repository.UserRepository port for
-// tests — role and agency_id are resolved by domain/service.UserFinder,
+// stubUserFinder implements the domain user.Repository port for
+// tests — role and agency_id are resolved by domain/user.Finder,
 // not by any presentation-layer middleware, so these HTTP tests wire the
 // real application handlers and drive the whole resolve → authorize
 // flow. Store is a no-op: these tests only exercise the read path.
 type stubUserFinder struct {
-	record *entity.UserRecord
+	record *user.Record
 }
 
-func (s stubUserFinder) FindByUuid(_ context.Context, _ uuid.UUID) (*entity.UserRecord, error) {
+func (s stubUserFinder) FindByUuid(_ context.Context, _ uuid.UUID) (*user.Record, error) {
 	return s.record, nil
 }
 
-func (s stubUserFinder) Store(_ context.Context, _ entity.User, _ string) (*int, error) {
+func (s stubUserFinder) Store(_ context.Context, _ user.User, _ string) (*int, error) {
 	return nil, nil
 }
 
-// stubOfferRepo is a minimal repository.OfferRepository test double. Its
+// stubOfferRepo is a minimal offer.Repository test double. Its
 // List method also satisfies getoffers.OfferLister (identical
-// signature), so the same instance backs both the domain OfferManager
+// signature), so the same instance backs both the domain offer.Manager
 // (write side) and the list query in these full-stack tests.
 type stubOfferRepo struct {
 	storeID   int
-	gotFilter repository.OfferFilter
+	gotFilter offer.Filter
 }
 
-func (s *stubOfferRepo) Store(_ context.Context, _ entity.Offer) (int, error) {
+func (s *stubOfferRepo) Store(_ context.Context, _ offer.Offer) (int, error) {
 	return s.storeID, nil
 }
 
-func (s *stubOfferRepo) FindByUUID(_ context.Context, _ uuid.UUID) (*entity.Offer, error) {
+func (s *stubOfferRepo) FindByUUID(_ context.Context, _ uuid.UUID) (*offer.Offer, error) {
 	return nil, nil
 }
 
-func (s *stubOfferRepo) List(_ context.Context, f repository.OfferFilter) (repository.OfferListResult, error) {
+func (s *stubOfferRepo) List(_ context.Context, f offer.Filter) (offer.ListResult, error) {
 	s.gotFilter = f
-	return repository.OfferListResult{}, nil
+	return offer.ListResult{}, nil
 }
 
-func (s *stubOfferRepo) Update(_ context.Context, _ entity.Offer) error { return nil }
+func (s *stubOfferRepo) Update(_ context.Context, _ offer.Offer) error { return nil }
 
 func (s *stubOfferRepo) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
-// stubAgencyRepo is a minimal repository.AgencyRepository test double —
+// stubAgencyRepo is a minimal agency.Repository test double —
 // every agency looked up is reported active.
 type stubAgencyRepo struct{}
 
-func (s stubAgencyRepo) Store(_ context.Context, _ entity.Agency) (int, error) { return 0, nil }
+func (s stubAgencyRepo) Store(_ context.Context, _ agency.Agency) (int, error) { return 0, nil }
 
-func (s stubAgencyRepo) FindByID(_ context.Context, id int) (*entity.Agency, error) {
-	return &entity.Agency{ID: id, Status: enum.AgencyStatusActive}, nil
+func (s stubAgencyRepo) FindByID(_ context.Context, id int) (*agency.Agency, error) {
+	return &agency.Agency{ID: id, Status: agency.StatusActive}, nil
 }
 
-func (s stubAgencyRepo) SetStatus(_ context.Context, _ int, _ enum.AgencyStatus) error { return nil }
+func (s stubAgencyRepo) SetStatus(_ context.Context, _ int, _ agency.Status) error { return nil }
 
 func (s stubAgencyRepo) Exists(_ context.Context, _ int) (bool, error) { return true, nil }
 
-// stubOfferFlightRepo is a minimal repository.OfferFlightRepository test
+// stubOfferFlightRepo is a minimal flight.Repository test
 // double. Most of these HTTP tests never send a "flights" key, so it is
 // usually just wired to satisfy the handler constructors; the flights
 // tests below assert on the recorded calls.
 type stubOfferFlightRepo struct {
 	replaceCalled   bool
 	replacedOfferID int
-	replacedFlights []entity.Flight
+	replacedFlights []flight.Flight
 }
 
-func (s *stubOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]entity.Flight, error) {
+func (s *stubOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
 	return nil, nil
 }
 
-func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []entity.Flight) error {
+func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []flight.Flight) error {
 	s.replaceCalled = true
 	s.replacedOfferID = offerID
 	s.replacedFlights = flights
 	return nil
 }
 
-// stubAirportRepo is a minimal repository.AirportRepository test double.
+// stubAirportRepo is a minimal airport.Repository test double.
 type stubAirportRepo struct{}
 
-func (stubAirportRepo) Search(_ context.Context, _ repository.AirportFilter) (repository.AirportSearchResult, error) {
-	return repository.AirportSearchResult{}, nil
+func (stubAirportRepo) Search(_ context.Context, _ airport.Filter) (airport.SearchResult, error) {
+	return airport.SearchResult{}, nil
 }
 
 func (stubAirportRepo) Upsert(_ context.Context, _ string, _ *string, _ string, _, _ float64, _ *int, _ int) error {
@@ -152,10 +153,10 @@ func (stubAirportRepo) Upsert(_ context.Context, _ string, _ *string, _ string, 
 // FindByICAOs reports every requested icao as existing — these HTTP
 // tests care about the request/response contract, not airport
 // reference-data validation (covered at the domain/integration level).
-func (stubAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]entity.Airport, error) {
-	airports := make([]entity.Airport, 0, len(icaos))
+func (stubAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airport.Airport, error) {
+	airports := make([]airport.Airport, 0, len(icaos))
 	for _, icao := range icaos {
-		airports = append(airports, entity.Airport{ICAO: icao})
+		airports = append(airports, airport.Airport{ICAO: icao})
 	}
 	return airports, nil
 }
@@ -183,14 +184,14 @@ func (s *stubGetPublishedOfferUseCase) Handle(_ context.Context, _ getpublishedo
 // (JWT + CurrentUserUUID) for offer reads/writes. There is no middleware
 // resolving the principal's mutable profile or gating by role — both
 // the ownership check and the write-role gate live in the domain
-// OfferManager, reached through the real application command/query
+// offer.Manager, reached through the real application command/query
 // handlers wired here.
 func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	offerManager := service.NewOfferManager(offers, stubAgencyRepo{})
-	offerFlightManager := service.NewOfferFlightManager(flights, stubAirportRepo{})
-	userFinder := service.NewUserFinder(users)
+	offerManager := offer.NewManager(offers, stubAgencyRepo{})
+	offerFlightManager := flight.NewManager(flights, stubAirportRepo{})
+	userFinder := user.NewFinder(users)
 
 	createApp := createoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
 	createH := createofferhttp.NewHandler(createApp, validate)
@@ -233,8 +234,8 @@ func TestOffersHTTP_CreateOffer_RoleUser_Returns403(t *testing.T) {
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleUser)}, AgencyID: 1,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleUser)}, AgencyID: 1,
 	}}
 	offers := &stubOfferRepo{}
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, &stubOfferFlightRepo{})
@@ -255,8 +256,8 @@ func TestOffersHTTP_CreateOffer_RoleAgent_Returns201(t *testing.T) {
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 3,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleAgent)}, AgencyID: 3,
 	}}
 	offers := &stubOfferRepo{storeID: 1}
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, &stubOfferFlightRepo{})
@@ -277,8 +278,8 @@ func TestOffersHTTP_CreateOffer_WithFlights_Returns201_AndReplacesFlights(t *tes
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 3,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleAgent)}, AgencyID: 3,
 	}}
 	offers := &stubOfferRepo{storeID: 9}
 	flights := &stubOfferFlightRepo{}
@@ -307,8 +308,8 @@ func TestOffersHTTP_CreateOffer_InvalidFlightSegments_Returns400_NeverStores(t *
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 3,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleAgent)}, AgencyID: 3,
 	}}
 	offers := &stubOfferRepo{storeID: 9}
 	flights := &stubOfferFlightRepo{}
@@ -350,8 +351,8 @@ func TestOffersHTTP_ListOffers_RoleUser_ScopesToOwnAgency(t *testing.T) {
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleUser)}, AgencyID: 2,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleUser)}, AgencyID: 2,
 	}}
 	offers := &stubOfferRepo{}
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, &stubOfferFlightRepo{})
@@ -372,8 +373,8 @@ func TestOffersHTTP_ListOffers_RoleAgent_ScopesToOwnAgency(t *testing.T) {
 	token, err := jwtSvc.Issue(userUUID)
 	require.NoError(t, err)
 
-	users := stubUserFinder{record: &entity.UserRecord{
-		ID: 1, Uuid: userUUID, Roles: []string{string(enum.RoleAgent)}, AgencyID: 7,
+	users := stubUserFinder{record: &user.Record{
+		ID: 1, Uuid: userUUID, Roles: []string{string(user.RoleAgent)}, AgencyID: 7,
 	}}
 	offers := &stubOfferRepo{}
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, &stubOfferFlightRepo{})
@@ -404,7 +405,7 @@ func TestOffersHTTP_GetPublicOffer_Published_Returns200NoAuth(t *testing.T) {
 func TestOffersHTTP_GetPublicOffer_NotPublished_Returns404(t *testing.T) {
 	jwtSvc := newTestJWTService(t)
 	id := uuid.New()
-	publicUC := &stubGetPublishedOfferUseCase{err: service.ErrOfferNotFound}
+	publicUC := &stubGetPublishedOfferUseCase{err: offer.ErrNotFound}
 	r := newOffersTestRouter(jwtSvc, &stubOfferRepo{}, stubUserFinder{}, publicUC, &stubOfferFlightRepo{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+id.String(), nil)
@@ -423,7 +424,7 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesComputedDurations(t *test
 		// Result carries an already-computed projection (see
 		// getpublishedoffer.Handler.toFlightResults) — this stub bypasses
 		// the real handler, so the durations/layover below are supplied
-		// pre-computed rather than derived from entity.Flight.
+		// pre-computed rather than derived from flight.Flight.
 		Flights: []getpublishedoffer.FlightResult{{
 			ID:                   1,
 			DepartureAirportICAO: "UUEE",

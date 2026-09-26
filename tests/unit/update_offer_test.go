@@ -6,9 +6,8 @@ import (
 
 	"api/internal/application/apperror"
 	updateoffer "api/internal/application/command/update_offer"
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/user"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,10 +15,10 @@ import (
 )
 
 func TestUpdateOffer_RoleAgent_OwnAgency_AppliesChanges(t *testing.T) {
-	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 5, Title: "Old", Status: enum.OfferStatusDraft}
+	existing := &offer.Offer{UUID: uuid.New(), AgencyID: 5, Title: "Old", Status: offer.StatusDraft}
 	offers := &mockOfferRepo{findByUUIDOffer: existing}
-	mgr := service.NewOfferManager(offers, &mockAgencyRepo{})
-	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
+	mgr := offer.NewManager(offers, &mockAgencyRepo{})
+	users := user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: 5, Roles: []string{string(user.RoleAgent)}}})
 	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"
@@ -34,9 +33,9 @@ func TestUpdateOffer_RoleAgent_OwnAgency_AppliesChanges(t *testing.T) {
 }
 
 func TestUpdateOffer_DifferentAgency_ReturnsNotFound(t *testing.T) {
-	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: enum.OfferStatusDraft}
-	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
-	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleAgent)}}})
+	existing := &offer.Offer{UUID: uuid.New(), AgencyID: 1, Title: "Old", Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
+	users := user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: 5, Roles: []string{string(user.RoleAgent)}}})
 	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"
@@ -50,9 +49,9 @@ func TestUpdateOffer_DifferentAgency_ReturnsNotFound(t *testing.T) {
 }
 
 func TestUpdateOffer_RoleUser_ReturnsInsufficientRole(t *testing.T) {
-	existing := &entity.Offer{UUID: uuid.New(), AgencyID: 5, Status: enum.OfferStatusDraft}
-	mgr := service.NewOfferManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
-	users := service.NewUserFinder(stubUserFinder{record: &entity.UserRecord{ID: 9, AgencyID: 5, Roles: []string{string(enum.RoleUser)}}})
+	existing := &offer.Offer{UUID: uuid.New(), AgencyID: 5, Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
+	users := user.NewFinder(stubUserFinder{record: &user.Record{ID: 9, AgencyID: 5, Roles: []string{string(user.RoleUser)}}})
 	h := updateoffer.NewHandler(mgr, noFlightManager(), users, noopTxManager{})
 
 	newTitle := "New title"

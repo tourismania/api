@@ -4,7 +4,7 @@
 package getoffers
 
 import (
-	"api/internal/domain/enum"
+	"api/internal/domain/offer"
 
 	"github.com/google/uuid"
 )
@@ -15,7 +15,7 @@ import (
 // agency staff see the same set of offers.
 type Query struct {
 	CurrentUserUUID uuid.UUID
-	Status          *enum.OfferStatus
+	Status          *offer.Status
 	CreatedBy       *int
 	Limit           int
 	Offset          int

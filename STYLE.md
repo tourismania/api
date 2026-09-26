@@ -24,15 +24,16 @@
 | Элемент | Конвенция | Пример |
 |---|---|---|
 | Переменные, поля | `camelCase` | `userCreator`, `eventBus` |
-| Экспортируемые типы и функции | `PascalCase` | `UserCreator`, `WriteJSON` |
+| Экспортируемые типы и функции | `PascalCase` | `Creator`, `WriteJSON` |
 | Неэкспортируемые функции | `camelCase` | `hashPassword` |
 | Константы | `PascalCase` (или `iota`-группы) | `MaxRetryCount`, `RoleSuperAdmin` |
-| Sentinel-ошибки | `ErrPascalCase` | `ErrUserNotPersisted` |
-| Файлы | `snake_case` | `user_creator.go`, `get_me_http_test.go` |
+| Sentinel-ошибки | `ErrPascalCase` | `user.ErrNotPersisted`, `offer.ErrNotFound` |
+| Файлы | `snake_case` | `password_hasher.go`, `get_me_http_test.go` |
 | Тестовые файлы | `<имя_файла>_test.go` | `user_creator_test.go` |
-| Пакеты | Короткий lowercase, без подчёркиваний | `entity`, `httpx`, `createuser` |
-| Интерфейсы | `PascalCase`, суффикс `-er` если описывает действие | `UserRepository`, `PasswordHasher`, `UseCase` |
-| Конструкторы | `New<TypeName>` | `NewUserCreator`, `NewHandler` |
+| Пакеты | Короткий lowercase, без подчёркиваний | `user`, `httpx`, `createuser` |
+| Интерфейсы | `PascalCase`, суффикс `-er` если описывает действие | `Repository`, `PasswordHasher`, `UseCase` |
+| Конструкторы | `New<TypeName>` (`New`, если тип совпадает с пакетом) | `NewCreator`, `NewHandler`, `flight.New` |
+| Типы в доменном пакете | Без префикса ресурса (без stutter, см. CLAUDE.md) | `user.Repository`, не `user.UserRepository` |
 
 ### Форматирование и линтер
 
@@ -80,11 +81,11 @@ Presentation → Application → Domain ← Infrastructure
 
 ### Доменные сущности vs. ORM-модели
 
-`domain/entity.User` и `infrastructure/persistence/postgres/model.User` — **разные типы**. Маппинг между ними живёт в слое инфраструктуры. Никогда не добавляй теги `db:` или `json:` в доменные сущности.
+`domain/user.User` и `infrastructure/persistence/postgres/model.User` — **разные типы**. Маппинг между ними живёт в слое инфраструктуры. Никогда не добавляй теги `db:` или `json:` в доменные сущности.
 
 ### Интерфейсы репозиториев
 
-Определяются в `domain/repository/`, реализуются в `infrastructure/persistence/`. В тестах использовать ручные моки или `gomock` — **не** конкретные реализации.
+Определяются в пакете своего агрегата (`domain/user`, `domain/offer` и т.д.; у дочернего агрегата — в его подпакете, например `domain/offer/flight`), реализуются в `infrastructure/persistence/`. В тестах использовать ручные моки или `gomock` — **не** конкретные реализации.
 
 ---
 
@@ -177,14 +178,14 @@ slog.Info("server started", "addr", cfg.Addr)
 - Закомментированный код не коммитится — для истории есть git.
 
 ```go
-// UserCreator orchestrates registration: hash credentials, persist, then
-// publish a UserRegistered event so async consumers can react.
-type UserCreator struct { ... }
+// Creator orchestrates registration: hash credentials, persist, then
+// publish a Registered event so async consumers can react.
+type Creator struct { ... }
 
 // Create hashes the user's password, stores the entity, and publishes a
-// UserRegistered event. Event-publish failures are returned to the caller
+// Registered event. Event-publish failures are returned to the caller
 // rather than swallowed.
-func (s *UserCreator) Create(ctx context.Context, user entity.User) (int, error) { ... }
+func (s *Creator) Create(ctx context.Context, u User) (int, error) { ... }
 ```
 
 ---

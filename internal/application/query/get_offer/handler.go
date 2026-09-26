@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"api/internal/application/apperror"
-	"api/internal/domain/entity"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
+	"api/internal/domain/user"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -17,7 +18,7 @@ type UseCase interface {
 // FlightFinder is the read-port for an offer's flights. Defined here to
 // invert the dependency: infrastructure implements this.
 type FlightFinder interface {
-	FindByOfferID(ctx context.Context, offerID int) ([]entity.Flight, error)
+	FindByOfferID(ctx context.Context, offerID int) ([]flight.Flight, error)
 }
 
 // Handler fetches a single offer for its own agency's staff/users: the
@@ -25,17 +26,17 @@ type FlightFinder interface {
 // agency; any other agency's offer is reported as not found. Published
 // offers of other agencies are served separately by get_published_offer.
 // The caller's own agency is resolved from its uuid via
-// service.UserFinder, not presentation-layer middleware. Ownership is
-// checked by the domain OfferManager.FindOwned — the same method the
+// user.Finder, not presentation-layer middleware. Ownership is
+// checked by the domain offer.Manager.FindOwned — the same method the
 // write use-cases use — so the comparison exists in exactly one place.
 type Handler struct {
-	offerManager *service.OfferManager
+	offerManager *offer.Manager
 	flights      FlightFinder
-	userFinder   *service.UserFinder
+	userFinder   *user.Finder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *service.OfferManager, flights FlightFinder, userFinder *service.UserFinder) *Handler {
+func NewHandler(offerManager *offer.Manager, flights FlightFinder, userFinder *user.Finder) *Handler {
 	return &Handler{offerManager: offerManager, flights: flights, userFinder: userFinder}
 }
 
@@ -71,11 +72,11 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 }
 
 // toFlightResults считает суммарную длительность, длительность каждого
-// сегмента и пересадки через доменные методы entity.Flight (они нигде
+// сегмента и пересадки через доменные методы flight.Flight (они нигде
 // не хранятся, а вычисляются на лету) и превращает их в плоский
 // FlightResult. Это единственное место, где вызывается доменное
 // поведение полёта — presentation получает уже готовые числа.
-func toFlightResults(flights []entity.Flight) []FlightResult {
+func toFlightResults(flights []flight.Flight) []FlightResult {
 	out := make([]FlightResult, 0, len(flights))
 	for _, f := range flights {
 		segments := make([]FlightSegmentResult, 0, len(f.Segments))

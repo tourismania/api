@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/agency"
 	"api/internal/infrastructure/persistence/postgres/db"
 	"api/internal/infrastructure/persistence/postgres/mapper"
 
@@ -25,10 +23,10 @@ func NewAgencyRepository(queries *db.Queries) *AgencyRepository {
 }
 
 // Ensure compile-time interface compliance.
-var _ domainrepo.AgencyRepository = (*AgencyRepository)(nil)
+var _ agency.Repository = (*AgencyRepository)(nil)
 
 // Store inserts a new agency and returns its id.
-func (r *AgencyRepository) Store(ctx context.Context, a entity.Agency) (int, error) {
+func (r *AgencyRepository) Store(ctx context.Context, a agency.Agency) (int, error) {
 	id, err := r.queries.CreateAgency(ctx, db.CreateAgencyParams{
 		Uuid:      a.UUID,
 		Name:      a.Name,
@@ -42,7 +40,7 @@ func (r *AgencyRepository) Store(ctx context.Context, a entity.Agency) (int, err
 }
 
 // FindByID fetches a non-deleted agency by primary key.
-func (r *AgencyRepository) FindByID(ctx context.Context, id int) (*entity.Agency, error) {
+func (r *AgencyRepository) FindByID(ctx context.Context, id int) (*agency.Agency, error) {
 	row, err := r.queries.GetAgencyByID(ctx, int32(id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -55,7 +53,7 @@ func (r *AgencyRepository) FindByID(ctx context.Context, id int) (*entity.Agency
 }
 
 // SetStatus updates the agency lifecycle status.
-func (r *AgencyRepository) SetStatus(ctx context.Context, id int, status enum.AgencyStatus) error {
+func (r *AgencyRepository) SetStatus(ctx context.Context, id int, status agency.Status) error {
 	if err := r.queries.SetAgencyStatus(ctx, int32(id), string(status)); err != nil {
 		return fmt.Errorf("set agency status: %w", err)
 	}

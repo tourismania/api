@@ -6,10 +6,8 @@ import (
 	"time"
 
 	getme "api/internal/application/query/get_me"
-	"api/internal/domain/entity"
-	"api/internal/domain/enum"
-	"api/internal/domain/factory"
-	"api/internal/domain/service"
+	"api/internal/domain/agency"
+	"api/internal/domain/user"
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
@@ -28,10 +26,10 @@ func TestGetMe_ReturnsLinkedAgency(t *testing.T) {
 	agencyRepo := pgrepo.NewAgencyRepository(queries)
 	userRepo := pgrepo.NewUserRepository(queries)
 
-	agencyID, err := agencyRepo.Store(ctx, entity.Agency{
+	agencyID, err := agencyRepo.Store(ctx, agency.Agency{
 		UUID:      uuid.New(),
 		Name:      "GetMe Test Agency " + uuid.NewString(),
-		Status:    enum.AgencyStatusActive,
+		Status:    agency.StatusActive,
 		CreatedAt: time.Now().Truncate(time.Second),
 	})
 	require.NoError(t, err)
@@ -40,7 +38,7 @@ func TestGetMe_ReturnsLinkedAgency(t *testing.T) {
 	require.NotNil(t, agency)
 
 	email := "getme+" + uuid.NewString() + "@example.com"
-	_, err = userRepo.Store(ctx, entity.User{
+	_, err = userRepo.Store(ctx, user.User{
 		FirstName: "GetMe",
 		LastName:  "Test",
 		Email:     email,
@@ -51,7 +49,7 @@ func TestGetMe_ReturnsLinkedAgency(t *testing.T) {
 	stored, err := queries.GetUserByEmail(ctx, email)
 	require.NoError(t, err)
 
-	rightsDescriber := service.NewRightsDescriber(factory.NewRightsDescribeFactory())
+	rightsDescriber := user.NewRightsDescriber(user.NewRightsDescribeFactory())
 	handler := getme.NewHandler(userRepo, agencyRepo, rightsDescriber)
 
 	res, err := handler.Handle(ctx, getme.Query{Uuid: stored.Uuid})

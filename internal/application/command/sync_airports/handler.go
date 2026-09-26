@@ -1,12 +1,11 @@
 package syncairports
 
 import (
+	"api/internal/domain/airport"
 	"context"
 	"fmt"
 	"sort"
 	"strings"
-
-	domainrepo "api/internal/domain/repository"
 )
 
 // AirportRecord is the raw record fetched from the external source.
@@ -59,9 +58,9 @@ type UseCase interface {
 
 // Handler orchestrates the sync-airports use-case.
 type Handler struct {
-	airportRepo  domainrepo.AirportRepository
-	countryRepo  domainrepo.CountryRepository
-	cityRepo     domainrepo.CityRepository
+	airportRepo  airport.Repository
+	countryRepo  airport.CountryRepository
+	cityRepo     airport.CityRepository
 	source       AirportSource
 	translations TranslationSource
 	countries    CountryNameSource
@@ -69,9 +68,9 @@ type Handler struct {
 
 // NewHandler wires the sync handler.
 func NewHandler(
-	airportRepo domainrepo.AirportRepository,
-	countryRepo domainrepo.CountryRepository,
-	cityRepo domainrepo.CityRepository,
+	airportRepo airport.Repository,
+	countryRepo airport.CountryRepository,
+	cityRepo airport.CityRepository,
 	source AirportSource,
 	translations TranslationSource,
 	countries CountryNameSource,

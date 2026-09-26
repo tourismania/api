@@ -5,9 +5,9 @@ import (
 
 	"api/internal/application/apperror"
 	"api/internal/application/txmanager"
-	"api/internal/domain/entity"
-	"api/internal/domain/factory"
-	"api/internal/domain/service"
+	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
+	"api/internal/domain/user"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -16,9 +16,9 @@ type UseCase interface {
 }
 
 // Handler executes the UpdateOffer command by delegating to the domain
-// OfferManager service, which enforces agency ownership and the write
+// offer.Manager service, which enforces agency ownership and the write
 // role. The acting principal is resolved from its uuid via
-// service.UserFinder, not presentation-layer middleware. Every domain
+// user.Finder, not presentation-layer middleware. Every domain
 // error is translated to apperror before it leaves this handler.
 // Updating the offer and (if the flights key was present) replacing its
 // flights is wrapped in a single txManager.WithinTx.
@@ -31,14 +31,14 @@ type UseCase interface {
 // (реальный Postgres-менеджер в infrastructure и no-op в юнит-тестах),
 // поэтому ему, в отличие от доменных сервисов, необходима абстракция.
 type Handler struct {
-	offerManager       *service.OfferManager
-	offerFlightManager *service.OfferFlightManager
-	userFinder         *service.UserFinder
+	offerManager       *offer.Manager
+	offerFlightManager *flight.Manager
+	userFinder         *user.Finder
 	txManager          txmanager.TxManager
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *service.OfferManager, offerFlightManager *service.OfferFlightManager, userFinder *service.UserFinder, txManager txmanager.TxManager) *Handler {
+func NewHandler(offerManager *offer.Manager, offerFlightManager *flight.Manager, userFinder *user.Finder, txManager txmanager.TxManager) *Handler {
 	return &Handler{
 		offerManager:       offerManager,
 		offerFlightManager: offerFlightManager,
@@ -54,7 +54,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	var flights []entity.Flight
+	var flights []flight.Flight
 	if cmd.Flights != nil {
 		flights, err = buildFlights(*cmd.Flights)
 		if err != nil {
@@ -83,14 +83,14 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 }
 
 // buildFlights validates each segment group's structural invariants via
-// factory.NewFlight before any database write happens.
-func buildFlights(groups [][]FlightSegmentInput) ([]entity.Flight, error) {
+// flight.New before any database write happens.
+func buildFlights(groups [][]FlightSegmentInput) ([]flight.Flight, error) {
 	if len(groups) == 0 {
 		return nil, nil
 	}
-	flights := make([]entity.Flight, 0, len(groups))
+	flights := make([]flight.Flight, 0, len(groups))
 	for _, segs := range groups {
-		f, err := factory.NewFlight(toDomainSegments(segs))
+		f, err := flight.New(toDomainSegments(segs))
 		if err != nil {
 			return nil, err
 		}
@@ -100,12 +100,12 @@ func buildFlights(groups [][]FlightSegmentInput) ([]entity.Flight, error) {
 }
 
 // toDomainSegments конвертирует Application-DTO сегментов в доменный
-// entity.FlightSegment. Только Handler знает про domain/entity —
+// flight.Segment. Только Handler знает про domain/offer —
 // presentation оперирует исключительно FlightSegmentInput.
-func toDomainSegments(in []FlightSegmentInput) []entity.FlightSegment {
-	segs := make([]entity.FlightSegment, 0, len(in))
+func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
+	segs := make([]flight.Segment, 0, len(in))
 	for _, s := range in {
-		segs = append(segs, entity.FlightSegment{
+		segs = append(segs, flight.Segment{
 			DepartureAirportICAO: s.DepartureAirportICAO,
 			ArrivalAirportICAO:   s.ArrivalAirportICAO,
 			DepartureAt:          s.DepartureAt,

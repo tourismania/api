@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	syncairports "api/internal/application/command/sync_airports"
-	"api/internal/domain/entity"
-	domainrepo "api/internal/domain/repository"
+	"api/internal/domain/airport"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,8 +65,8 @@ type airportUpsertCall struct {
 
 type fakeAirportRepo struct{ calls []airportUpsertCall }
 
-func (*fakeAirportRepo) Search(context.Context, domainrepo.AirportFilter) (domainrepo.AirportSearchResult, error) {
-	return domainrepo.AirportSearchResult{}, nil
+func (*fakeAirportRepo) Search(context.Context, airport.Filter) (airport.SearchResult, error) {
+	return airport.SearchResult{}, nil
 }
 
 func (f *fakeAirportRepo) Upsert(_ context.Context, icao string, _ *string, _ string, _, _ float64, _ *int, cityID int) error {
@@ -75,7 +74,7 @@ func (f *fakeAirportRepo) Upsert(_ context.Context, icao string, _ *string, _ st
 	return nil
 }
 
-func (*fakeAirportRepo) FindByICAOs(context.Context, []string) ([]entity.Airport, error) {
+func (*fakeAirportRepo) FindByICAOs(context.Context, []string) ([]airport.Airport, error) {
 	return nil, nil
 }
 

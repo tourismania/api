@@ -1,9 +1,8 @@
 package createagency
 
 import (
+	"api/internal/domain/agency"
 	"context"
-
-	"api/internal/domain/service"
 )
 
 // UseCase is the port the presentation layer depends on.
@@ -12,14 +11,14 @@ type UseCase interface {
 }
 
 // Handler executes the CreateAgency command by delegating to the domain
-// AgencyManager service. Keeping the handler thin preserves DDD: business
+// agency.Manager service. Keeping the handler thin preserves DDD: business
 // invariants stay in the domain layer.
 type Handler struct {
-	agencyManager *service.AgencyManager
+	agencyManager *agency.Manager
 }
 
 // NewHandler constructs the handler.
-func NewHandler(agencyManager *service.AgencyManager) *Handler {
+func NewHandler(agencyManager *agency.Manager) *Handler {
 	return &Handler{agencyManager: agencyManager}
 }
 

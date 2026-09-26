@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"api/internal/domain/service"
+	"api/internal/domain/user"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/persistence/postgres/db"
 	"api/internal/presentation/http/httpx"
@@ -19,7 +19,7 @@ import (
 // protection it slots in around the call to queries.GetUserByEmail.
 type Handler struct {
 	queries  *db.Queries
-	hasher   service.PasswordHasher
+	hasher   user.PasswordHasher
 	jwt      *auth.Service
 	validate *validator.Validate
 }
@@ -27,7 +27,7 @@ type Handler struct {
 // NewHandler wires the collaborators.
 func NewHandler(
 	queries *db.Queries,
-	hasher service.PasswordHasher,
+	hasher user.PasswordHasher,
 	jwt *auth.Service,
 	v *validator.Validate,
 ) *Handler {
