@@ -92,6 +92,8 @@ type stubOfferRepo struct {
 	gotFilter offer.Filter
 	// found — оффер, который возвращает FindByUUID (nil — «не найден»).
 	found *offer.Offer
+	// listed — офферы, которые возвращает List.
+	listed []offer.Offer
 }
 
 func (s *stubOfferRepo) Store(_ context.Context, _ offer.Offer) (int, error) {
@@ -104,7 +106,7 @@ func (s *stubOfferRepo) FindByUUID(_ context.Context, _ uuid.UUID) (*offer.Offer
 
 func (s *stubOfferRepo) List(_ context.Context, f offer.Filter) (offer.ListResult, error) {
 	s.gotFilter = f
-	return offer.ListResult{}, nil
+	return offer.ListResult{Offers: s.listed, TotalCount: int64(len(s.listed))}, nil
 }
 
 func (s *stubOfferRepo) Update(_ context.Context, _ offer.Offer) error { return nil }
