@@ -47,7 +47,7 @@
 ## Ошибки
 
 Обязательность `price`/`currency` проверяет валидатор presentation-слоя (форма запроса). Валюту по справочнику
-и формат суммы проверяет application-слой (`flightinput.Build`) и возвращает `apperror.FieldError` — presentation
+и формат суммы проверяет application-слой (`helpers.BuildFlights`) и возвращает `apperror.FieldError` — presentation
 отдаёт его в `meta` так же, как ошибки валидатора (ревью PR №27: бизнес-правила не в валидаторе и не в `config/`).
 
 | Случай | Ответ |

@@ -1,7 +1,7 @@
 package updateoffer
 
 import (
-	"api/internal/application/flightinput"
+	"api/internal/application/helpers"
 	"context"
 
 	"api/internal/application/apperror"
@@ -57,7 +57,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 
 	var flights []flight.Flight
 	if cmd.Flights != nil {
-		flights, err = flightinput.Build(*cmd.Flights)
+		flights, err = helpers.BuildFlights(*cmd.Flights)
 		if err != nil {
 			return Result{}, apperror.FromDomainError(err)
 		}

@@ -3,18 +3,18 @@
 package updateoffer
 
 import (
-	"api/internal/application/flightinput"
+	"api/internal/application/helpers"
 	"api/internal/domain/offer"
 
 	"github.com/google/uuid"
 )
 
 // FlightInput — DTO одного перелёта (цена, валюта, сегменты); общий для
-// create_offer и update_offer, см. flightinput.Flight.
-type FlightInput = flightinput.Flight
+// create_offer и update_offer, см. helpers.FlightInput.
+type FlightInput = helpers.FlightInput
 
-// FlightSegmentInput — DTO одного сегмента перелёта, см. flightinput.Segment.
-type FlightSegmentInput = flightinput.Segment
+// FlightSegmentInput — DTO одного сегмента перелёта, см. helpers.FlightSegmentInput.
+type FlightSegmentInput = helpers.FlightSegmentInput
 
 // Command represents the intent to partially update an existing offer.
 // Only non-nil fields are applied. The caller is identified only by

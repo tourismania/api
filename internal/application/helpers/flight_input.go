@@ -1,9 +1,11 @@
-// Package flightinput — общий для команд create_offer и update_offer
-// Application-DTO перелёта и его сборка в доменный flight.Flight. Обе
-// команды принимают перелёты в одном и том же виде, поэтому разбор цены и
-// сборка перелёта живут здесь в одном экземпляре, а пакеты команд
-// объявляют на эти типы псевдонимы (createoffer.FlightInput и т. д.).
-package flightinput
+// Package helpers — общие помощники application-слоя, которые нужны
+// нескольким use case'ам, но не являются ни use case'ом, ни законченным
+// сервисом или маппером. Сейчас здесь DTO перелёта и его сборка в доменный
+// flight.Flight, общие для команд create_offer и update_offer: обе
+// принимают перелёты в одном виде, поэтому разбор цены и сборка живут в
+// одном экземпляре, а пакеты команд объявляют на эти типы псевдонимы
+// (createoffer.FlightInput и т. д.).
+package helpers
 
 import (
 	"errors"
@@ -23,29 +25,29 @@ const (
 	currencyRule  = "currency"
 )
 
-// Flight — DTO одного перелёта на границе Application-слоя: цена
+// FlightInput — DTO одного перелёта на границе Application-слоя: цена
 // десятичной строкой, код валюты и сегменты от первого к последнему.
 // Presentation заполняет его структурно, ничего не зная про domain/offer.
-type Flight struct {
+type FlightInput struct {
 	Price    string
 	Currency string
-	Segments []Segment
+	Segments []FlightSegmentInput
 }
 
-// Segment — DTO одного беспосадочного сегмента перелёта.
-type Segment struct {
+// FlightSegmentInput — DTO одного беспосадочного сегмента перелёта.
+type FlightSegmentInput struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
 }
 
-// Build разбирает цену каждого перелёта по справочнику валют и проверяет
+// BuildFlights разбирает цену каждого перелёта по справочнику валют и проверяет
 // структурные инварианты через flight.New до любой записи в БД, поэтому
 // некорректный перелёт даже не открывает транзакцию. Ошибка цены или
 // валюты возвращается как *apperror.FieldError (поле Price / Currency),
 // остальные доменные ошибки — как есть.
-func Build(inputs []Flight) ([]flight.Flight, error) {
+func BuildFlights(inputs []FlightInput) ([]flight.Flight, error) {
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -73,7 +75,7 @@ func priceFieldError(err error) error {
 }
 
 // toDomainSegments конвертирует DTO сегментов в доменный flight.Segment.
-func toDomainSegments(in []Segment) []flight.Segment {
+func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
 	segs := make([]flight.Segment, 0, len(in))
 	for _, s := range in {
 		segs = append(segs, flight.Segment{
