@@ -14,6 +14,9 @@
 
 Почему так, а не float или `NUMERIC`, — `FAQ.md`, раздел «Деньги и валюты».
 
+Клиенты получают справочник через `GET /api/v1/currencies` (`code` и `exponent` каждой валюты, в порядке
+таблицы) — любое изменение таблицы сразу видно в этом ответе.
+
 Сейчас цену хранит только перелёт (`offer_flights.price_minor`, `offer_flights.currency`). Когда цена
 появится у других позиций оффера, добавьте их таблицы в список ниже.
 
@@ -48,7 +51,9 @@
    go test ./tests/unit/... ./tests/application/...
    golangci-lint run
    ```
-5. SDD (`tourismania/sdd`): список валют — часть спеки `offers/flights`. Заведите change
+5. Проверьте, что валюта появилась в `GET /api/v1/currencies` (тест `TestCurrencies_ReturnsDirectoryInOrder`
+   в `tests/unit/list_currencies_test.go` перечисляет справочник целиком — обновите его).
+6. SDD (`tourismania/sdd`): состав справочника — часть спеки `travel-services/currencies`. Заведите change
    (`/opsx:propose`) или правку спеки, сверьте список валют в web (`src/api/types/offer.ts`, тип `Currency`) —
    иначе web не даст выбрать новую валюту.
 

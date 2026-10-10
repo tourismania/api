@@ -113,6 +113,7 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 | POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
+| GET   | /api/v1/currencies | JWT (любая роль) | Список доступных валют из системного справочника: `{"data":[{"code":"RUB","exponent":2},…]}` — код ISO 4217 и число знаков после точки; `Cache-Control: private, max-age=3600` |
 | POST  | /api/v1/offers   | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Создать offer (agency_id выводится из агентства текущего пользователя); опциональный ключ `flights` создаёт перелёты атомарно вместе с offer |
 | GET   | /api/v1/offers   | JWT (любая роль) | Список offer своего агентства (пагинация + фильтры, любой статус); `flights` в ответ не подмешивается |
 | GET   | /api/v1/offers/{uuid} | JWT (любая роль) | Получить один offer своего агентства (любой статус) вместе с `flights`; чужое агентство → `404` |

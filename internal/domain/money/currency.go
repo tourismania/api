@@ -44,6 +44,14 @@ var currencies = [...]Currency{
 	{Code: CodeTRY, Exponent: exponentTwoDecimals},
 }
 
+// Currencies возвращает все валюты справочника в его порядке. Возвращается
+// копия: изменить справочник через результат нельзя.
+func Currencies() []Currency {
+	out := make([]Currency, len(currencies))
+	copy(out, currencies[:])
+	return out
+}
+
 // LookupCurrency ищет валюту в справочнике по коду ISO 4217. Сравнение
 // точное, с учётом регистра: "rub" — не RUB.
 func LookupCurrency(code string) (Currency, error) {

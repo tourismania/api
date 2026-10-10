@@ -10,6 +10,7 @@ import (
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
@@ -33,6 +34,7 @@ type Server struct {
 	CreateUser        *createuserhttp.Handler
 	GetMe             *getmehttp.Handler
 	Airports          *searchairporthttp.Handler
+	Currencies        *listcurrencieshttp.Handler
 	CreateOffer       *createofferhttp.Handler
 	GetOffer          *getofferhttp.Handler
 	GetOffers         *listoffershttp.Handler
@@ -116,6 +118,9 @@ func (s Server) Build() http.Handler {
 
 			// Airports
 			priv.Get("/airports", s.Airports.Handle)
+
+			// Currencies: системный справочник валют, любой аутентифицированный.
+			priv.Get("/currencies", s.Currencies.Handle)
 
 			// Offer reads: any authenticated principal, scoped to their
 			// own agency, any status. Role has no effect on visibility.

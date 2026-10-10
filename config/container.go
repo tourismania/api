@@ -26,6 +26,7 @@ import (
 	getofferq "api/internal/application/query/get_offer"
 	getoffersq "api/internal/application/query/get_offers"
 	getpublishedofferq "api/internal/application/query/get_published_offer"
+	listcurrencies "api/internal/application/query/list_currencies"
 	searchairports "api/internal/application/query/search_airports"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
@@ -39,6 +40,7 @@ import (
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
@@ -69,6 +71,7 @@ type Container struct {
 		ActivateAgency    *activateagencycmd.Handler
 		GetMe             *getmeq.Handler
 		SearchAirports    *searchairports.Handler
+		ListCurrencies    *listcurrencies.Handler
 		SyncAirports      *syncairportscmd.Handler
 		CreateOffer       *createoffercmd.Handler
 		UpdateOffer       *updateoffercmd.Handler
@@ -84,6 +87,7 @@ type Container struct {
 		CreateUser        *createuserhttp.Handler
 		GetMe             *getmehttp.Handler
 		Airports          *searchairporthttp.Handler
+		Currencies        *listcurrencieshttp.Handler
 		CreateOffer       *createofferhttp.Handler
 		GetOffer          *getofferhttp.Handler
 		GetOffers         *listoffershttp.Handler
@@ -138,6 +142,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	// Airport domain wiring.
 	airportRepo := pgrepo.NewAirportRepository(queries, pool)
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
+	listCurrenciesApp := listcurrencies.NewHandler()
 
 	// Offer flight domain wiring (issue №20). TxManager makes offer +
 	// flight writes commit/roll back together across the two repositories.
@@ -179,6 +184,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp)
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
+	currenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
 	getOffersH := listoffershttp.NewHandler(getOffersApp, validate)
@@ -201,6 +207,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.ActivateAgency = activateAgencyApp
 	c.App.GetMe = getMeApp
 	c.App.SearchAirports = searchAirportsApp
+	c.App.ListCurrencies = listCurrenciesApp
 	c.App.SyncAirports = syncAirportsApp
 	c.App.CreateOffer = createOfferApp
 	c.App.UpdateOffer = updateOfferApp
@@ -213,6 +220,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.Http.CreateUser = createUserH
 	c.Http.GetMe = getMeH
 	c.Http.Airports = airportsH
+	c.Http.Currencies = currenciesH
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH
 	c.Http.GetOffers = getOffersH
