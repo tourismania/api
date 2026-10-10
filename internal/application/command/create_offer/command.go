@@ -3,7 +3,7 @@
 package createoffer
 
 import (
-	flightinput "api/internal/application/command/flight_input"
+	"api/internal/application/flightinput"
 	"api/internal/domain/offer"
 
 	"github.com/google/uuid"

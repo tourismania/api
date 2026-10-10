@@ -1,7 +1,7 @@
 package createoffer
 
 import (
-	flightinput "api/internal/application/command/flight_input"
+	"api/internal/application/flightinput"
 	"context"
 
 	"api/internal/application/apperror"

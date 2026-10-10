@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"api/internal/application/apperror"
-	flightinput "api/internal/application/command/flight_input"
+	"api/internal/application/flightinput"
 	"api/internal/domain/money"
 	"api/internal/domain/offer/flight"
 

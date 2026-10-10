@@ -32,8 +32,11 @@ internal/
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
-    command/          # Write-side: Command + Handler + Result
-    query/            # Read-side: Query + Handler + Result
+    command/          # Write-side: Command + Handler + Result — только use case'ы
+    query/            # Read-side: Query + Handler + Result — только use case'ы
+    apperror/         # Ошибки application-слоя и перевод доменных ошибок (FieldError и др.)
+    txmanager/        # Порт транзакций
+    flightinput/      # Общий для create_offer/update_offer DTO перелёта и его сборка в flight.Flight
   infrastructure/     # Реализации доменных интерфейсов
     auth/             # JWT-сервис
     broker/kafka/     # Kafka Producer (реализация event.Bus)
@@ -104,7 +107,7 @@ tests/
 - Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, money}`; `agency`, `airport` и `money` ни от кого не зависят. Циклы запрещены.
 - Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
 - Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
-- CQRS: команды в `application/command/`, запросы в `application/query/`.
+- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общие для нескольких use case'ов помощники application-слоя (мапперы DTO → домен, сборщики, сервисы) — отдельными пакетами рядом: `application/<имя>` (как `apperror`, `txmanager`, `flightinput`), а не внутри `command/` или `query/`.
 - Доменные события публикуются через интерфейс `domain/event.Bus` (Kafka — одна из реализаций).
 - Все бизнес-эндпоинты — под `/api/v1/`.
 - **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не работает с доменными сущностями и не вызывает их методы напрямую (из доменных пакетов ему доступны только enum-типы вроде `offer.Status` и sentinel-ошибки для маппинга в HTTP-статусы). Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
