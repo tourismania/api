@@ -99,7 +99,9 @@ func (c *Client) doFetch(ctx context.Context) ([]syncairports.AirportRecord, err
 	if err != nil {
 		return nil, &transientErr{cause: fmt.Errorf("http get: %w", err)}
 	}
-	defer resp.Body.Close()
+	// Тело читается и декодируется ниже целиком; ошибка закрытия после
+	// этого на результат не влияет.
+	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode == http.StatusOK:

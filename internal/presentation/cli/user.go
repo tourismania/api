@@ -50,7 +50,9 @@ func newUserCreateCommand(uc createuser.UseCase) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "User successfully generated! id=%d\n", res.ID)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "User successfully generated! id=%d\n", res.ID); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 			return nil
 		},
 	}
