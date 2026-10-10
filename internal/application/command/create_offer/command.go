@@ -9,6 +9,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// FlightInput — DTO одного перелёта на границе Application-слоя: цена
+// десятичной строкой, код валюты и сегменты от первого к последнему.
+// Разбор цены по справочнику валют (money.Parse) и сборка flight.Flight
+// происходят внутри Handler.
+type FlightInput struct {
+	Price    string
+	Currency string
+	Segments []FlightSegmentInput
+}
+
 // FlightSegmentInput — DTO одного перелётного сегмента на границе
 // Application-слоя. Презентационный слой конвертирует свой собственный
 // DTO в этот тип и ничего не знает про domain/offer: сборка
@@ -31,10 +41,9 @@ type Command struct {
 	Title       string
 	Description string
 	Status      offer.Status
-	// Flights is one group of segments per flight, first-to-last within
-	// each group. A nil/empty slice means the offer is created without
-	// flights.
-	Flights [][]FlightSegmentInput
+	// Flights — перелёты оффера в порядке сохранения. A nil/empty slice
+	// means the offer is created without flights.
+	Flights []FlightInput
 
 	CurrentUserUUID uuid.UUID
 }

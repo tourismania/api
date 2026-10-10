@@ -1,6 +1,9 @@
 package mapper
 
 import (
+	"fmt"
+
+	"api/internal/domain/money"
 	"api/internal/domain/offer/flight"
 	"api/internal/infrastructure/persistence/postgres/db"
 )
@@ -10,9 +13,14 @@ import (
 // segRows by ascending (flight_id, sequence) — both ListOfferFlightsByOfferID
 // and ListOfferFlightSegmentsByFlightIDs guarantee this ordering, so no
 // sort happens here.
-func ToFlightsDomain(flightRows []db.OfferFlight, segRows []db.OfferFlightSegment) []flight.Flight {
+//
+// Цена, которую нельзя собрать из сохранённых столбцов (валюты нет в
+// справочнике, отрицательная сумма), — это порча данных, а не ошибка
+// клиента, поэтому исходная ошибка money встраивается через %v, а не %w:
+// apperror не должен превратить её в 400.
+func ToFlightsDomain(flightRows []db.OfferFlight, segRows []db.OfferFlightSegment) ([]flight.Flight, error) {
 	if len(flightRows) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	segsByFlight := make(map[int32][]flight.Segment, len(flightRows))
@@ -27,11 +35,16 @@ func ToFlightsDomain(flightRows []db.OfferFlight, segRows []db.OfferFlightSegmen
 
 	flights := make([]flight.Flight, 0, len(flightRows))
 	for _, f := range flightRows {
+		price, err := money.FromMinor(f.PriceMinor, f.Currency)
+		if err != nil {
+			return nil, fmt.Errorf("offer flight %d has an invalid stored price: %v", f.ID, err)
+		}
 		flights = append(flights, flight.Flight{
 			ID:       int(f.ID),
 			OfferID:  int(f.OfferID),
+			Price:    price,
 			Segments: segsByFlight[f.ID],
 		})
 	}
-	return flights
+	return flights, nil
 }

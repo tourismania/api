@@ -60,7 +60,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Title:           req.Title,
 		Description:     req.Description,
 		Status:          offer.Status(req.Status),
-		Flights:         toFlightSegmentGroups(req.Flights),
+		Flights:         toFlightInputs(req.Flights),
 		CurrentUserUUID: currentUserUUID,
 	})
 	if err != nil {
@@ -79,16 +79,16 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, CreateOfferResponse{ID: res.ID, UUID: res.UUID})
 }
 
-// toFlightSegmentGroups конвертирует presentation-DTO запроса в
-// Application-DTO (createoffer.FlightSegmentInput), по одной группе на
-// перелёт. Presentation-слой ничего не знает про domain/offer — сборку
-// доменных flight.Segment/flight.Flight и их валидацию делает уже
+// toFlightInputs конвертирует presentation-DTO запроса в
+// Application-DTO (createoffer.FlightInput) — чисто структурный reshape.
+// Presentation-слой ничего не знает про domain/offer — разбор цены,
+// сборку доменных flight.Segment/flight.Flight и их валидацию делает уже
 // createoffer.Handler.
-func toFlightSegmentGroups(in []FlightInput) [][]createoffer.FlightSegmentInput {
+func toFlightInputs(in []FlightInput) []createoffer.FlightInput {
 	if len(in) == 0 {
 		return nil
 	}
-	groups := make([][]createoffer.FlightSegmentInput, 0, len(in))
+	flights := make([]createoffer.FlightInput, 0, len(in))
 	for _, f := range in {
 		segs := make([]createoffer.FlightSegmentInput, 0, len(f.Segments))
 		for _, s := range f.Segments {
@@ -99,7 +99,11 @@ func toFlightSegmentGroups(in []FlightInput) [][]createoffer.FlightSegmentInput 
 				ArrivalAt:            s.ArrivalAt,
 			})
 		}
-		groups = append(groups, segs)
+		flights = append(flights, createoffer.FlightInput{
+			Price:    f.Price,
+			Currency: f.Currency,
+			Segments: segs,
+		})
 	}
-	return groups
+	return flights
 }

@@ -31,9 +31,16 @@ func NewManager(flights Repository, airports airport.Repository) *Manager {
 
 // ReplaceForOffer validates that every icao referenced by flights
 // exists, then compares flights against what is currently stored for
-// offerID. If the content is identical (same order, same airports and
-// timestamps, ignoring server-assigned IDs) it is a no-op — the
-// database is not touched. Otherwise it fully replaces the stored set.
+// offerID — сначала маршрут, потом цены:
+//   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
+//     моменты времени сегментов; server-assigned IDs не учитываются)
+//     и цены совпали — no-op, БД не трогается;
+//   - маршрут совпал, у части перелётов другая цена или валюта —
+//     обновляется только цена этих перелётов, сегменты и идентификаторы
+//     сохраняются;
+//   - маршрут отличается — набор заменяется целиком.
+//
+// Перелёты сопоставляются по позиции: у входящих перелётов нет ID.
 func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error {
 	if err := m.checkAirportsExist(ctx, flights); err != nil {
 		return err
@@ -43,7 +50,14 @@ func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Fl
 	if err != nil {
 		return fmt.Errorf("find existing flights: %w", err)
 	}
-	if flightsEqual(existing, flights) {
+	if routesEqual(existing, flights) {
+		updates := priceUpdates(existing, flights)
+		if len(updates) == 0 {
+			return nil
+		}
+		if err := m.flights.UpdatePrices(ctx, offerID, updates); err != nil {
+			return fmt.Errorf("update flight prices: %w", err)
+		}
 		return nil
 	}
 
@@ -87,10 +101,11 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 	return nil
 }
 
-// flightsEqual compares two flight sets by content only — order of
+// routesEqual compares two flight sets by route only — order of
 // flights and order of segments within a flight are significant; IDs
-// are ignored, since incoming flights never carry one.
-func flightsEqual(a, b []Flight) bool {
+// are ignored, since incoming flights never carry one. Цена в сравнение
+// маршрута не входит — её сравнивает priceUpdates.
+func routesEqual(a, b []Flight) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -115,4 +130,18 @@ func segmentsEqual(a, b []Segment) bool {
 		}
 	}
 	return true
+}
+
+// priceUpdates возвращает новые цены для перелётов, у которых цена или
+// валюта отличается от сохранённой. existing и incoming — наборы с уже
+// совпавшим маршрутом (routesEqual), сопоставленные по позиции; ID берётся
+// у сохранённого перелёта.
+func priceUpdates(existing, incoming []Flight) []PriceUpdate {
+	var updates []PriceUpdate
+	for i := range existing {
+		if existing[i].Price != incoming[i].Price {
+			updates = append(updates, PriceUpdate{FlightID: existing[i].ID, Price: incoming[i].Price})
+		}
+	}
+	return updates
 }

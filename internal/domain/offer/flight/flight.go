@@ -9,7 +9,11 @@
 // imports its children — composition happens in the application layer.
 package flight
 
-import "time"
+import (
+	"time"
+
+	"api/internal/domain/money"
+)
 
 // Segment is one nonstop leg of a Flight.
 type Segment struct {
@@ -33,7 +37,8 @@ type Layover struct {
 
 // Flight is a journey from its first segment's departure airport to its
 // last segment's arrival airport, made up of one or more nonstop
-// Segments — 2+ segments mean one or more layovers. Structural
+// Segments — 2+ segments mean one or more layovers. Price — цена
+// перелёта целиком (не сегмента) в валюте из справочника money. Structural
 // invariants (non-empty Segments, chronology, route continuity, strictly
 // positive layovers) are enforced by New, never here: this
 // type only ever carries already-valid data. TotalDuration and Layovers
@@ -41,6 +46,7 @@ type Layover struct {
 type Flight struct {
 	ID       int
 	OfferID  int
+	Price    money.Money
 	Segments []Segment
 }
 

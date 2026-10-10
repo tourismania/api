@@ -18,11 +18,22 @@ type CreateOfferRequest struct {
 	Flights     []FlightInput `json:"flights"     validate:"omitempty,dive"`
 }
 
-// FlightInput is one flight of a CreateOfferRequest: an ordered list of
+// FlightInput is one flight of a CreateOfferRequest: its price (decimal string
+// with no more fractional digits than the currency allows), currency
+// (ISO 4217 code from the system currency list) and an ordered list of
 // nonstop segments from the flight's departure airport to its arrival
-// airport, possibly via layovers.
+// airport, possibly via layovers. Формат цены и валюту проверяет
+// struct-level httpx.PriceValidation, зарегистрированная в
+// config/container.go.
 type FlightInput struct {
+	Price    string               `json:"price"    validate:"required" example:"12345.50"`
+	Currency string               `json:"currency" validate:"required" example:"RUB"`
 	Segments []FlightSegmentInput `json:"segments" validate:"required,min=1,dive"`
+}
+
+// PriceAndCurrency реализует httpx.PricedInput.
+func (f FlightInput) PriceAndCurrency() (amount, currency string) {
+	return f.Price, f.Currency
 }
 
 // FlightSegmentInput is one nonstop leg of a FlightInput.

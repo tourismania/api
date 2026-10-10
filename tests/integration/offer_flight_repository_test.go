@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
 	"api/internal/infrastructure/persistence/postgres"
@@ -17,6 +18,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testFlightPrice — валидная цена по умолчанию для тестовых перелётов.
+func testFlightPrice(t *testing.T) money.Money {
+	t.Helper()
+	m, err := money.Parse("15000", money.CodeRUB)
+	require.NoError(t, err)
+	return m
+}
 
 func newOfferFlightTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -89,7 +98,7 @@ func TestOfferFlightRepository_ReplaceForOffer_StoreThenFindByOfferID_ReturnsSto
 	base := time.Now().UTC().Truncate(time.Second)
 
 	flights := []flight.Flight{
-		{Segments: []flight.Segment{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 	}
@@ -117,7 +126,7 @@ func TestOfferFlightRepository_ReplaceForOffer_PreservesSegmentOrder(t *testing.
 	base := time.Now().UTC().Truncate(time.Second)
 
 	flights := []flight.Flight{
-		{Segments: []flight.Segment{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
 			{DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 			{DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
 		}},
@@ -144,12 +153,12 @@ func TestOfferFlightRepository_ReplaceForOffer_ReplacesPreviousSet(t *testing.T)
 	newArr := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	first := []flight.Flight{{Segments: []flight.Segment{
+	first := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, first))
 
-	second := []flight.Flight{{Segments: []flight.Segment{
+	second := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: newArr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, second))
@@ -170,7 +179,7 @@ func TestOfferFlightRepository_ReplaceForOffer_EmptySet_ClearsFlights(t *testing
 	arr := seedTestAirport(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{{Segments: []flight.Segment{
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}))
 
@@ -187,7 +196,7 @@ func TestOfferFlightRepository_ReplaceForOffer_UnknownAirportICAO_ReturnsFKError
 	offerID := seedTestOfferID(t, pool)
 	base := time.Now().UTC().Truncate(time.Second)
 
-	flights := []flight.Flight{{Segments: []flight.Segment{
+	flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 		{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "YYYY", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 
@@ -212,7 +221,7 @@ func TestOfferFlightRepository_WithinRealTransaction_RollsBackOnError(t *testing
 	sentinelErr := assert.AnError
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
-		flights := []flight.Flight{{Segments: []flight.Segment{
+		flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		if err := repo.ReplaceForOffer(txCtx, offerID, flights); err != nil {
@@ -239,7 +248,7 @@ func TestOfferFlightRepository_WithinRealTransaction_CommitsOnSuccess(t *testing
 	txMgr := pgtxmanager.New(pool)
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
-		flights := []flight.Flight{{Segments: []flight.Segment{
+		flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
 			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		return repo.ReplaceForOffer(txCtx, offerID, flights)
@@ -249,4 +258,106 @@ func TestOfferFlightRepository_WithinRealTransaction_CommitsOnSuccess(t *testing
 	found, findErr := repo.FindByOfferID(context.Background(), offerID)
 	require.NoError(t, findErr)
 	require.Len(t, found, 1)
+}
+
+func TestOfferFlightRepository_ReplaceForOffer_StoresAndReadsPrice(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	price, err := money.Parse("12345.5", money.CodeEUR)
+	require.NoError(t, err)
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
+		{Price: price, Segments: []flight.Segment{
+			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+		}},
+	}))
+
+	found, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, price, found[0].Price)
+	assert.Equal(t, "12345.50", found[0].Price.String())
+}
+
+func TestOfferFlightRepository_UpdatePrices_KeepsIDsAndSegments(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+		}},
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
+		}},
+	}))
+	before, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, before, 2)
+
+	newPrice, err := money.Parse("99.99", money.CodeUSD)
+	require.NoError(t, err)
+	require.NoError(t, repo.UpdatePrices(context.Background(), offerID, []flight.PriceUpdate{
+		{FlightID: before[1].ID, Price: newPrice},
+	}))
+
+	after, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, after, 2)
+	assert.Equal(t, before[0].ID, after[0].ID)
+	assert.Equal(t, before[1].ID, after[1].ID)
+	assert.Equal(t, before[0].Price, after[0].Price, "цена другого перелёта не меняется")
+	assert.Equal(t, newPrice, after[1].Price)
+	assert.Equal(t, before[1].Segments, after[1].Segments)
+}
+
+func TestOfferFlightRepository_UpdatePrices_OtherOfferFlight_NotChanged(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	ownerID := seedTestOfferID(t, pool)
+	otherID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), ownerID, []flight.Flight{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+		}},
+	}))
+	owned, err := repo.FindByOfferID(context.Background(), ownerID)
+	require.NoError(t, err)
+	require.Len(t, owned, 1)
+
+	newPrice, err := money.Parse("1", money.CodeUSD)
+	require.NoError(t, err)
+	// Чужой offerID: перелёт ownerID обновляться не должен.
+	require.NoError(t, repo.UpdatePrices(context.Background(), otherID, []flight.PriceUpdate{
+		{FlightID: owned[0].ID, Price: newPrice},
+	}))
+
+	after, err := repo.FindByOfferID(context.Background(), ownerID)
+	require.NoError(t, err)
+	assert.Equal(t, owned[0].Price, after[0].Price)
+}
+
+func TestOfferFlightRepository_FindByOfferID_UnknownStoredCurrency_ReturnsNonValidationErr(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+
+	// CHECK на валюту в БД нет — запись в обход api может оставить
+	// неизвестный код; это порча данных, а не ошибка клиента.
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO offer_flights (offer_id, price_minor, currency) VALUES ($1, 100, 'GBP')`, offerID)
+	require.NoError(t, err)
+
+	_, err = repo.FindByOfferID(context.Background(), offerID)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, money.ErrCurrencyUnsupported, "не должна превращаться в 400")
 }

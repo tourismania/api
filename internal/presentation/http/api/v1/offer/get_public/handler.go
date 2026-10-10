@@ -93,6 +93,8 @@ func toFlightResponses(flights []getpublishedoffer.FlightResult) []FlightRespons
 
 		out = append(out, FlightResponse{
 			ID:                   f.ID,
+			Price:                f.Price,
+			Currency:             f.Currency,
 			DepartureAirportICAO: f.DepartureAirportICAO,
 			ArrivalAirportICAO:   f.ArrivalAirportICAO,
 			TotalDurationSeconds: f.TotalDurationSeconds,

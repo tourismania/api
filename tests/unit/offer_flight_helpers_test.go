@@ -2,9 +2,25 @@ package unit_test
 
 import (
 	"api/internal/domain/airport"
+	"api/internal/domain/money"
 	"api/internal/domain/offer/flight"
 	"context"
 )
+
+// mustMoney разбирает сумму для тестов и паникует на некорректном вводе —
+// в тестах это всегда ошибка самого теста.
+func mustMoney(amount, code string) money.Money {
+	m, err := money.Parse(amount, code)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// samplePrice — валидная цена по умолчанию для тестовых перелётов.
+func samplePrice() money.Money {
+	return mustMoney("15000", money.CodeRUB)
+}
 
 // noopTxManager is a hand-written test double for txmanager.TxManager
 // that runs fn directly against the given context — unit tests never
@@ -26,6 +42,11 @@ type mockOfferFlightRepo struct {
 	replaceCalled   bool
 	replacedOfferID int
 	replacedFlights []flight.Flight
+
+	updatePricesErr     error
+	updatePricesCalled  bool
+	updatePricesOfferID int
+	updatedPrices       []flight.PriceUpdate
 }
 
 func (m *mockOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
@@ -37,6 +58,13 @@ func (m *mockOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, fl
 	m.replacedOfferID = offerID
 	m.replacedFlights = flights
 	return m.replaceErr
+}
+
+func (m *mockOfferFlightRepo) UpdatePrices(_ context.Context, offerID int, updates []flight.PriceUpdate) error {
+	m.updatePricesCalled = true
+	m.updatePricesOfferID = offerID
+	m.updatedPrices = updates
+	return m.updatePricesErr
 }
 
 // mockAirportRepo is a hand-written test double for

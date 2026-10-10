@@ -5,6 +5,7 @@ import (
 
 	"api/internal/application/apperror"
 	"api/internal/application/txmanager"
+	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
@@ -82,15 +83,20 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	return result, nil
 }
 
-// buildFlights validates each segment group's structural invariants via
-// flight.New before any database write happens.
-func buildFlights(groups [][]FlightSegmentInput) ([]flight.Flight, error) {
-	if len(groups) == 0 {
+// buildFlights разбирает цену каждого перелёта по справочнику валют и
+// проверяет структурные инварианты через flight.New before any database
+// write happens, so a malformed flight never even opens a transaction.
+func buildFlights(inputs []FlightInput) ([]flight.Flight, error) {
+	if len(inputs) == 0 {
 		return nil, nil
 	}
-	flights := make([]flight.Flight, 0, len(groups))
-	for _, segs := range groups {
-		f, err := flight.New(toDomainSegments(segs))
+	flights := make([]flight.Flight, 0, len(inputs))
+	for _, in := range inputs {
+		price, err := money.Parse(in.Price, in.Currency)
+		if err != nil {
+			return nil, err
+		}
+		f, err := flight.New(price, toDomainSegments(in.Segments))
 		if err != nil {
 			return nil, err
 		}

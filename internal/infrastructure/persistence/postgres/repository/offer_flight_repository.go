@@ -46,7 +46,11 @@ func (r *OfferFlightRepository) FindByOfferID(ctx context.Context, offerID int) 
 		return nil, fmt.Errorf("list offer flight segments: %w", err)
 	}
 
-	return mapper.ToFlightsDomain(flightRows, segRows), nil
+	flights, err := mapper.ToFlightsDomain(flightRows, segRows)
+	if err != nil {
+		return nil, fmt.Errorf("map offer flights: %w", err)
+	}
+	return flights, nil
 }
 
 // ReplaceForOffer atomically deletes every flight/segment currently
@@ -64,7 +68,11 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 	}
 
 	for _, f := range flights {
-		flightID, err := q.CreateOfferFlight(ctx, int32(offerID))
+		flightID, err := q.CreateOfferFlight(ctx, db.CreateOfferFlightParams{
+			OfferID:    int32(offerID),
+			PriceMinor: f.Price.AmountMinor,
+			Currency:   f.Price.Currency.Code,
+		})
 		if err != nil {
 			return fmt.Errorf("insert offer flight: %w", err)
 		}
@@ -80,6 +88,26 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 			}); err != nil {
 				return fmt.Errorf("insert offer flight segment: %w", err)
 			}
+		}
+	}
+	return nil
+}
+
+// UpdatePrices перезаписывает цену у перечисленных перелётов offerID, не
+// трогая их сегменты и идентификаторы. Как и ReplaceForOffer, своей
+// транзакции не открывает — вызывающий application-хендлер уже внутри
+// txmanager.TxManager.WithinTx.
+func (r *OfferFlightRepository) UpdatePrices(ctx context.Context, offerID int, updates []flight.PriceUpdate) error {
+	q := queriesFor(ctx, r.queries)
+
+	for _, u := range updates {
+		if err := q.UpdateOfferFlightPrice(ctx, db.UpdateOfferFlightPriceParams{
+			ID:         int32(u.FlightID),
+			OfferID:    int32(offerID),
+			PriceMinor: u.Price.AmountMinor,
+			Currency:   u.Price.Currency.Code,
+		}); err != nil {
+			return fmt.Errorf("update offer flight %d price: %w", u.FlightID, err)
 		}
 	}
 	return nil

@@ -173,6 +173,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
+	RegisterValidations(validate)
 
 	// HTTP handlers.
 	loginH := loginhttp.NewHandler(queries, hasher, jwtSvc, validate)

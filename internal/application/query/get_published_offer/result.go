@@ -25,7 +25,11 @@ type Result struct {
 // Presentation лишь копирует поля в свой wire-DTO, не обращаясь к
 // domain-типам и не вызывая доменное поведение напрямую.
 type FlightResult struct {
-	ID                   int
+	ID int
+	// Price — цена перелёта десятичной строкой ровно с тем числом знаков
+	// после точки, что у валюты (money.Money.String()).
+	Price                string
+	Currency             string
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	TotalDurationSeconds int64
