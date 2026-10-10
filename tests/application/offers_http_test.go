@@ -10,11 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	createoffer "api/internal/application/command/create_offer"
+	updateoffer "api/internal/application/command/update_offer"
+	getoffer "api/internal/application/query/get_offer"
 	getoffers "api/internal/application/query/get_offers"
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/agency"
@@ -24,8 +27,10 @@ import (
 	"api/internal/domain/user"
 	"api/internal/infrastructure/auth"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
+	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
 	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
 	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-chi/chi/v5"
@@ -85,6 +90,8 @@ func (s stubUserFinder) Store(_ context.Context, _ user.User, _ string) (*int, e
 type stubOfferRepo struct {
 	storeID   int
 	gotFilter offer.Filter
+	// found — оффер, который возвращает FindByUUID (nil — «не найден»).
+	found *offer.Offer
 }
 
 func (s *stubOfferRepo) Store(_ context.Context, _ offer.Offer) (int, error) {
@@ -92,7 +99,7 @@ func (s *stubOfferRepo) Store(_ context.Context, _ offer.Offer) (int, error) {
 }
 
 func (s *stubOfferRepo) FindByUUID(_ context.Context, _ uuid.UUID) (*offer.Offer, error) {
-	return nil, nil
+	return s.found, nil
 }
 
 func (s *stubOfferRepo) List(_ context.Context, f offer.Filter) (offer.ListResult, error) {
@@ -118,24 +125,50 @@ func (s stubAgencyRepo) SetStatus(_ context.Context, _ int, _ agency.Status) err
 
 func (s stubAgencyRepo) Exists(_ context.Context, _ int) (bool, error) { return true, nil }
 
-// stubOfferFlightRepo is a minimal flight.Repository test
+// stubOfferFlightRepo is a minimal in-memory flight.Repository test
 // double. Most of these HTTP tests never send a "flights" key, so it is
 // usually just wired to satisfy the handler constructors; the flights
-// tests below assert on the recorded calls.
+// tests assert on the recorded calls. Сохранённые перелёты держатся в
+// stored (ID назначаются по порядку), поэтому после POST/PATCH их можно
+// прочитать через GET.
 type stubOfferFlightRepo struct {
 	replaceCalled   bool
 	replacedOfferID int
 	replacedFlights []flight.Flight
+
+	updatePricesCalled bool
+
+	stored []flight.Flight
+	nextID int
 }
 
 func (s *stubOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
-	return nil, nil
+	return slices.Clone(s.stored), nil
 }
 
 func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, flights []flight.Flight) error {
 	s.replaceCalled = true
 	s.replacedOfferID = offerID
 	s.replacedFlights = flights
+	s.stored = nil
+	for _, f := range flights {
+		s.nextID++
+		f.ID = s.nextID
+		f.OfferID = offerID
+		s.stored = append(s.stored, f)
+	}
+	return nil
+}
+
+func (s *stubOfferFlightRepo) UpdatePrices(_ context.Context, _ int, updates []flight.PriceUpdate) error {
+	s.updatePricesCalled = true
+	for _, u := range updates {
+		for i := range s.stored {
+			if s.stored[i].ID == u.FlightID {
+				s.stored[i].Price = u.Price
+			}
+		}
+	}
 	return nil
 }
 
@@ -199,6 +232,12 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 	listApp := getoffers.NewHandler(offers, userFinder)
 	listH := listoffershttp.NewHandler(listApp, validate)
 
+	updateApp := updateoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
+	updateH := updateofferhttp.NewHandler(updateApp, validate)
+
+	getApp := getoffer.NewHandler(offerManager, flights, userFinder)
+	getH := getofferhttp.NewHandler(getApp)
+
 	publicH := getpublicofferhttp.NewHandler(publicUC)
 
 	r := chi.NewRouter()
@@ -211,6 +250,8 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 
 			priv.Get("/offers", listH.Handle)
 			priv.Post("/offers", createH.Handle)
+			priv.Get("/offers/{uuid}", getH.Handle)
+			priv.Patch("/offers/{uuid}", updateH.Handle)
 		})
 	})
 	return r
@@ -285,7 +326,7 @@ func TestOffersHTTP_CreateOffer_WithFlights_Returns201_AndReplacesFlights(t *tes
 	flights := &stubOfferFlightRepo{}
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights)
 
-	body := `{"title":"Test","description":"d","status":"draft","flights":[{"segments":[
+	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
 		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))
@@ -317,7 +358,7 @@ func TestOffersHTTP_CreateOffer_InvalidFlightSegments_Returns400_NeverStores(t *
 
 	// arrival_at before departure_at violates the domain chronology
 	// invariant, surfaced as a 400 by apperror.ErrValidation.
-	body := `{"title":"Test","description":"d","status":"draft","flights":[{"segments":[
+	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
 		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T14:00:00Z","arrival_at":"2026-08-01T10:00:00Z"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))

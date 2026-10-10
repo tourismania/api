@@ -26,7 +26,11 @@ type OfferResponse struct {
 
 // FlightResponse is a computed projection of one of the offer's flights.
 type FlightResponse struct {
-	ID                   int                     `json:"id"`
+	ID int `json:"id"`
+	// Price — цена перелёта строкой ровно с тем числом знаков после
+	// точки, что у валюты.
+	Price                string                  `json:"price"    example:"12345.50"`
+	Currency             string                  `json:"currency" example:"RUB"`
 	DepartureAirportICAO string                  `json:"departure_airport_icao"`
 	ArrivalAirportICAO   string                  `json:"arrival_airport_icao"`
 	TotalDurationSeconds int64                   `json:"total_duration_seconds"`

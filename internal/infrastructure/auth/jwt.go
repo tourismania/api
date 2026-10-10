@@ -50,7 +50,10 @@ func NewService(privateKeyPath, publicKeyPath, passphrase string, ttl time.Durat
 		}
 		var priv *rsa.PrivateKey
 		if passphrase != "" {
-			priv, err = jwt.ParseRSAPrivateKeyFromPEMWithPassword(privBytes, passphrase)
+			// Ключ, зашифрованный по устаревшему RFC 1423 (JWT_PASSPHRASE).
+			// Альтернативы в стандартной библиотеке Go нет (golang/go#8860);
+			// отказ от зашифрованных ключей — в docs/tech_debt/tasks.md.
+			priv, err = jwt.ParseRSAPrivateKeyFromPEMWithPassword(privBytes, passphrase) //nolint:staticcheck // SA1019: нет замены в stdlib, см. tech_debt
 		} else {
 			priv, err = jwt.ParseRSAPrivateKeyFromPEM(privBytes)
 		}

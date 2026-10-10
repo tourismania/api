@@ -1,6 +1,7 @@
 package createoffer
 
 import (
+	"api/internal/application/helpers"
 	"context"
 
 	"api/internal/application/apperror"
@@ -57,7 +58,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	flights, err := buildFlights(cmd.Flights)
+	flights, err := helpers.BuildFlights(cmd.Flights)
 	if err != nil {
 		return Result{}, apperror.FromDomainError(err)
 	}
@@ -80,38 +81,4 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 	return result, nil
-}
-
-// buildFlights validates each segment group's structural invariants via
-// flight.New before any database write happens, so a malformed
-// flight never even opens a transaction.
-func buildFlights(groups [][]FlightSegmentInput) ([]flight.Flight, error) {
-	if len(groups) == 0 {
-		return nil, nil
-	}
-	flights := make([]flight.Flight, 0, len(groups))
-	for _, segs := range groups {
-		f, err := flight.New(toDomainSegments(segs))
-		if err != nil {
-			return nil, err
-		}
-		flights = append(flights, f)
-	}
-	return flights, nil
-}
-
-// toDomainSegments конвертирует Application-DTO сегментов в доменный
-// flight.Segment. Только Handler знает про domain/offer —
-// presentation оперирует исключительно FlightSegmentInput.
-func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
-	segs := make([]flight.Segment, 0, len(in))
-	for _, s := range in {
-		segs = append(segs, flight.Segment{
-			DepartureAirportICAO: s.DepartureAirportICAO,
-			ArrivalAirportICAO:   s.ArrivalAirportICAO,
-			DepartureAt:          s.DepartureAt,
-			ArrivalAt:            s.ArrivalAt,
-		})
-	}
-	return segs
 }

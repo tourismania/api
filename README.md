@@ -22,7 +22,7 @@ cmd/
   server/     # HTTP-сервер
   cli/        # CLI (cobra)
 internal/
-  domain/         # Доменный слой, resource-first: 1 агрегат = 1 пакет (user, agency, airport, offer + ядро event); дочерние агрегаты — подпакетами (offer/flight)
+  domain/         # Доменный слой, resource-first: 1 агрегат = 1 пакет (user, agency, airport, offer, money + ядро event); дочерние агрегаты — подпакетами (offer/flight)
   application/    # Use cases (command/query, command/query bus)
   infrastructure/ # Реализации интерфейсов домена (postgres, kafka, jwt, bcrypt)
   presentation/   # HTTP, CLI, DTO
@@ -113,6 +113,7 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 | POST  | /api/v1/users    | JWT    | Создание пользователя (обязательный `agency_id` — привязка к агентству) |
 | GET   | /api/v1/users/me | JWT    | Профиль текущего пользователя    |
 | GET   | /api/v1/airports | JWT    | Поиск аэропортов по названию, IATA, ICAO, городу |
+| GET   | /api/v1/currencies | JWT (любая роль) | Список доступных валют из системного справочника: `{"data":[{"code":"RUB","exponent":2},…]}` — код ISO 4217 и число знаков после точки; `Cache-Control: private, max-age=3600` |
 | POST  | /api/v1/offers   | JWT, ROLE_AGENT/ROLE_SUPER_ADMIN, своё агентство | Создать offer (agency_id выводится из агентства текущего пользователя); опциональный ключ `flights` создаёт перелёты атомарно вместе с offer |
 | GET   | /api/v1/offers   | JWT (любая роль) | Список offer своего агентства (пагинация + фильтры, любой статус); `flights` в ответ не подмешивается |
 | GET   | /api/v1/offers/{uuid} | JWT (любая роль) | Получить один offer своего агентства (любой статус) вместе с `flights`; чужое агентство → `404` |
@@ -128,7 +129,11 @@ docker compose exec tourismania_app /app/cli agency activate --id 1
 
 **Владение по агентству (write-side):** создавать/изменять/удалять offer может только `ROLE_AGENT` или `ROLE_SUPER_ADMIN`, принадлежащий **тому же** агентству, что и offer (`offer.agency_id == user.agency_id`); чужое агентство → `404` (не раскрываем существование чужого offer), недостаточная роль (`ROLE_USER`) → `403`. Особого режима для `ROLE_SUPER_ADMIN` нет — 1 пользователь = 1 агентство касается всех ролей одинаково.
 
-**Перелёты (`flights`) offer (issue №20):** новых маршрутов не добавляется — перелёты сохраняются и читаются через существующие `POST`/`PATCH`/`GET .../offers`. Каждый flight — упорядоченный список сегментов (`departure_airport_icao`/`arrival_airport_icao`/`departure_at`/`arrival_at`); аэропорт прилёта сегмента N обязан совпадать с аэропортом вылета сегмента N+1, пересадка между сегментами — строго `> 0`. В `POST` ключ `flights` опционален (список groups сегментов); offer и его flights создаются в одной транзакции — при ошибке валидации flights offer не создаётся. В `PATCH` ключ `flights` — указатель на список, как `title`/`description`/`status`: отсутствует в теле → перелёты не трогаются; `flights: []` → все перелёты офера удаляются; непустой список → полная замена (diff-then-replace: идентичный набор — no-op, БД не трогается). В детальных `GET .../offers/{uuid}` ответ содержит вычисленные `total_duration_seconds` (на весь flight) и `layovers` (по одному на каждую пересадку, с `duration_seconds`) — эти величины не хранятся в БД, а пересчитываются на лету при каждом чтении.
+**Перелёты (`flights`) offer (issue №20):** новых маршрутов не добавляется — перелёты сохраняются и читаются через существующие `POST`/`PATCH`/`GET .../offers`. Каждый flight — упорядоченный список сегментов (`departure_airport_icao`/`arrival_airport_icao`/`departure_at`/`arrival_at`); аэропорт прилёта сегмента N обязан совпадать с аэропортом вылета сегмента N+1, пересадка между сегментами — строго `> 0`. В `POST` ключ `flights` опционален (список groups сегментов); offer и его flights создаются в одной транзакции — при ошибке валидации flights offer не создаётся. В `PATCH` ключ `flights` — указатель на список, как `title`/`description`/`status`: отсутствует в теле → перелёты не трогаются; `flights: []` → все перелёты офера удаляются; непустой список → полная замена (diff-then-replace: идентичный набор — no-op, БД не трогается).
+
+**Цена перелёта (issue №26):** у каждого flight обязательны `price` и `currency` (на уровне перелёта, не сегмента): `{"price":"12345.50","currency":"RUB","segments":[...]}`. `currency` — код ISO 4217 из системного справочника валют (`internal/domain/money`, сейчас `RUB`, `USD`, `EUR`, `TRY`); `price` — неотрицательная десятичная **строка** (не число JSON), до 10 цифр в целой части и не больше знаков после точки, чем у валюты. Ошибки → `400 validation failed` с `meta` `Price`/`Currency`. В ответе `price` — ровно с числом знаков валюты (`"12345.5"` → `"12345.50"`). Хранится целым числом минорных единиц (`offer_flights.price_minor` + `currency`), без float и без `CHECK` в БД. В `PATCH`, если маршрут и время перелётов не изменились, а изменились только цена/валюта, обновляется только цена — `id` перелётов сохраняются. Миграция `018` удаляет перелёты, сохранённые до появления цены. Как добавить валюту или изменить её число знаков — [`docs/currencies.md`](docs/currencies.md), почему так — [`FAQ.md`](FAQ.md) №2.
+
+В детальных `GET .../offers/{uuid}` ответ содержит вычисленные `total_duration_seconds` (на весь flight) и `layovers` (по одному на каждую пересадку, с `duration_seconds`) — эти величины не хранятся в БД, а пересчитываются на лету при каждом чтении.
 
 ## Отладка (Debugger)
 
@@ -280,6 +285,8 @@ go test ./tests/unit/...
 go test ./tests/integration/...
 go test ./tests/application/...
 ```
+
+Интеграционным тестам нужен Postgres с применёнными миграциями: `TEST_DATABASE_URL=postgres://…`, без неё они пропускаются. Данные тесты засевают сами и удаляют после себя — загружать справочник аэропортов (`airports sync`) не нужно. Сиды поиска аэропортов — `tests/integration/airport_fixtures_test.go`: коды из цифр (реальные IATA/ICAO — только буквы) и уникальный токен в названиях, поэтому тесты не трогают реальные записи и безопасны даже на базе с загруженным справочником.
 
 ## Swagger
 

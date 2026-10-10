@@ -2,6 +2,7 @@ package apperror
 
 import (
 	"api/internal/domain/agency"
+	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
@@ -19,6 +20,9 @@ func FromDomainError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case isFieldError(err):
+		// Уже ошибка валидации с полем — переупаковка потеряла бы поле.
+		return err
 	case errors.Is(err, user.ErrActorNotFound):
 		return fmt.Errorf("%w: %s", ErrUnauthenticated, err.Error())
 	case errors.Is(err, offer.ErrInsufficientRole):
@@ -33,9 +37,17 @@ func FromDomainError(err error) error {
 		errors.Is(err, flight.ErrSegmentsEmpty),
 		errors.Is(err, flight.ErrSegmentChronologyInvalid),
 		errors.Is(err, flight.ErrSegmentDiscontinuous),
-		errors.Is(err, flight.ErrLayoverNonPositive):
+		errors.Is(err, flight.ErrLayoverNonPositive),
+		errors.Is(err, money.ErrCurrencyUnsupported),
+		errors.Is(err, money.ErrAmountInvalid):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())
 	default:
 		return err
 	}
+}
+
+// isFieldError — в цепочке уже есть *FieldError.
+func isFieldError(err error) bool {
+	_, ok := AsFieldError(err)
+	return ok
 }

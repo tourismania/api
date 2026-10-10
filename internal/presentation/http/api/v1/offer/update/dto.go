@@ -19,10 +19,15 @@ type UpdateOfferRequest struct {
 	Flights     *[]FlightInput `json:"flights"     validate:"omitempty,dive"`
 }
 
-// FlightInput is one flight of an UpdateOfferRequest: an ordered list of
-// nonstop segments from the flight's departure airport to its arrival
-// airport, possibly via layovers.
+// FlightInput — один перелёт UpdateOfferRequest: цена (десятичная строка, знаков
+// после точки не больше, чем у валюты), валюта (код ISO 4217 из системного
+// справочника) и сегменты от аэропорта вылета до аэропорта прилёта, по
+// порядку, с пересадками. Здесь проверяется только форма запроса
+// (обязательность полей); формат цены и валюту по справочнику проверяет
+// application-слой и возвращает apperror.FieldError.
 type FlightInput struct {
+	Price    string               `json:"price"    validate:"required" example:"12345.50"`
+	Currency string               `json:"currency" validate:"required" example:"RUB"`
 	Segments []FlightSegmentInput `json:"segments" validate:"required,min=1,dive"`
 }
 

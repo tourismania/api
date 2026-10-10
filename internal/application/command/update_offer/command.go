@@ -3,23 +3,18 @@
 package updateoffer
 
 import (
+	"api/internal/application/helpers"
 	"api/internal/domain/offer"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-// FlightSegmentInput — DTO одного перелётного сегмента на границе
-// Application-слоя. Презентационный слой конвертирует свой собственный
-// DTO в этот тип и ничего не знает про domain/offer: сборка
-// flight.Segment/flight.Flight и их валидация происходят уже
-// внутри Handler.
-type FlightSegmentInput struct {
-	DepartureAirportICAO string
-	ArrivalAirportICAO   string
-	DepartureAt          time.Time
-	ArrivalAt            time.Time
-}
+// FlightInput — DTO одного перелёта (цена, валюта, сегменты); общий для
+// create_offer и update_offer, см. helpers.FlightInput.
+type FlightInput = helpers.FlightInput
+
+// FlightSegmentInput — DTO одного сегмента перелёта, см. helpers.FlightSegmentInput.
+type FlightSegmentInput = helpers.FlightSegmentInput
 
 // Command represents the intent to partially update an existing offer.
 // Only non-nil fields are applied. The caller is identified only by
@@ -29,13 +24,12 @@ type Command struct {
 	Title       *string
 	Description *string
 	Status      *offer.Status
-	// Flights is a pointer to a slice of segment groups (one group per
-	// flight), mirroring Title/Description/Status: nil means the
-	// "flights" key was absent from the request and existing flights are
-	// left untouched; a non-nil value (including an empty slice) fully
-	// replaces the offer's flights after a content diff against what is
-	// already stored.
-	Flights *[][]FlightSegmentInput
+	// Flights — указатель на срез перелётов, как у Title/Description/Status:
+	// nil — ключа "flights" в запросе не было, сохранённые перелёты не
+	// трогаются; не-nil (в том числе пустой срез) — новый полный набор
+	// перелётов оффера. flight.Manager сравнивает его с сохранённым и, если
+	// изменилась только цена, обновляет только её.
+	Flights *[]FlightInput
 
 	CurrentUserUUID uuid.UUID
 }

@@ -71,10 +71,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
-	var flights *[][]updateoffer.FlightSegmentInput
+	var flights *[]updateoffer.FlightInput
 	if req.Flights != nil {
-		groups := toFlightSegmentGroups(*req.Flights)
-		flights = &groups
+		converted := toFlightInputs(*req.Flights)
+		flights = &converted
 	}
 
 	res, err := h.useCase.Handle(r.Context(), updateoffer.Command{
@@ -93,6 +93,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusForbidden, "insufficient role")
 		case errors.Is(err, apperror.ErrNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "offer not found")
+		case isFieldError(err):
+			fe, _ := apperror.AsFieldError(err)
+			httpx.WriteFieldValidationError(w, fe.Field, fe.Rule)
 		case errors.Is(err, apperror.ErrValidation):
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		default:
@@ -104,13 +107,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, UpdateOfferResponse{ID: res.ID, UUID: res.UUID})
 }
 
-// toFlightSegmentGroups конвертирует presentation-DTO запроса в
-// Application-DTO (updateoffer.FlightSegmentInput), по одной группе на
-// перелёт. Presentation-слой ничего не знает про domain/offer — сборку
-// доменных flight.Segment/flight.Flight и их валидацию делает уже
+// toFlightInputs конвертирует presentation-DTO запроса в
+// Application-DTO (updateoffer.FlightInput) — чисто структурный reshape.
+// Presentation-слой ничего не знает про domain/offer — разбор цены,
+// сборку доменных flight.Segment/flight.Flight и их валидацию делает уже
 // updateoffer.Handler.
-func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput {
-	groups := make([][]updateoffer.FlightSegmentInput, 0, len(in))
+func toFlightInputs(in []FlightInput) []updateoffer.FlightInput {
+	flights := make([]updateoffer.FlightInput, 0, len(in))
 	for _, f := range in {
 		segs := make([]updateoffer.FlightSegmentInput, 0, len(f.Segments))
 		for _, s := range f.Segments {
@@ -121,7 +124,17 @@ func toFlightSegmentGroups(in []FlightInput) [][]updateoffer.FlightSegmentInput 
 				ArrivalAt:            s.ArrivalAt,
 			})
 		}
-		groups = append(groups, segs)
+		flights = append(flights, updateoffer.FlightInput{
+			Price:    f.Price,
+			Currency: f.Currency,
+			Segments: segs,
+		})
 	}
-	return groups
+	return flights
+}
+
+// isFieldError — ошибка валидации конкретного поля, её отдаём с meta.
+func isFieldError(err error) bool {
+	_, ok := apperror.AsFieldError(err)
+	return ok
 }

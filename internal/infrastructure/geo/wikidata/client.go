@@ -282,7 +282,9 @@ func (c *Client) doSparql(ctx context.Context, reqURL string) ([]map[string]stru
 	if err != nil {
 		return nil, &transientErr{cause: fmt.Errorf("sparql http: %w", err)}
 	}
-	defer resp.Body.Close()
+	// Тело читается и декодируется ниже целиком; ошибка закрытия после
+	// этого на результат не влияет.
+	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode == http.StatusOK:

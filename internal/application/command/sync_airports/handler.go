@@ -89,7 +89,9 @@ func NewHandler(
 func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	log := func(format string, args ...any) {
 		if cmd.Progress != nil {
-			fmt.Fprintf(cmd.Progress, format+"\n", args...)
+			// Прогресс — необязательный вывод для оператора: ошибка записи в
+			// него не должна прерывать синхронизацию справочника.
+			_, _ = fmt.Fprintf(cmd.Progress, format+"\n", args...)
 		}
 	}
 

@@ -1,6 +1,10 @@
 package flight
 
-import "context"
+import (
+	"context"
+
+	"api/internal/domain/money"
+)
 
 // Repository persists the Flight child aggregate of an Offer.
 // 1 entity = 1 repository; Flight is a child of Offer, so every
@@ -17,4 +21,15 @@ type Repository interface {
 	// together with the write to the owning offer, so the offer and its
 	// flights always commit or roll back together.
 	ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error
+	// UpdatePrices перезаписывает цену у перечисленных перелётов offerID,
+	// не трогая их сегменты и идентификаторы. Вызывается, как и
+	// ReplaceForOffer, только внутри txmanager.TxManager.WithinTx вместе
+	// с записью оффера.
+	UpdatePrices(ctx context.Context, offerID int, updates []PriceUpdate) error
+}
+
+// PriceUpdate — новая цена одного уже сохранённого перелёта.
+type PriceUpdate struct {
+	FlightID int
+	Price    money.Money
 }

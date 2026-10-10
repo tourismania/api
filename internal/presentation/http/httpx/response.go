@@ -37,6 +37,17 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 	WriteJSON(w, status, ErrorBody{Error: msg, Code: status})
 }
 
+// WriteFieldValidationError отдаёт 400 «validation failed» с meta
+// {field: rule} — в том же виде, что WriteValidationError, но для ошибки
+// поля, найденной application-слоем (apperror.FieldError).
+func WriteFieldValidationError(w http.ResponseWriter, field, rule string) {
+	WriteJSON(w, http.StatusBadRequest, ErrorBody{
+		Error: "validation failed",
+		Code:  http.StatusBadRequest,
+		Meta:  map[string]any{field: rule},
+	})
+}
+
 // WriteValidationError flattens validator errors into a 400 response.
 func WriteValidationError(w http.ResponseWriter, err error) {
 	meta := map[string]any{}

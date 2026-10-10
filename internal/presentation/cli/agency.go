@@ -48,7 +48,9 @@ func newAgencyCreateCommand(uc createagency.UseCase) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully created! id=%d uuid=%s\n", res.ID, res.UUID)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully created! id=%d uuid=%s\n", res.ID, res.UUID); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -70,7 +72,9 @@ func newAgencyDeactivateCommand(uc deactivateagency.UseCase) *cobra.Command {
 			if _, err := uc.Handle(cmd.Context(), deactivateagency.Command{ID: id}); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully deactivated! id=%d\n", id)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully deactivated! id=%d\n", id); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -92,7 +96,9 @@ func newAgencyActivateCommand(uc activateagency.UseCase) *cobra.Command {
 			if _, err := uc.Handle(cmd.Context(), activateagency.Command{ID: id}); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully activated! id=%d\n", id)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Agency successfully activated! id=%d\n", id); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 			return nil
 		},
 	}

@@ -28,11 +28,15 @@ internal/
     agency/           # Агрегат агентства: Agency, Status, Repository, Manager
     airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
-      flight/         # Дочерний агрегат Flight: Flight, Segment, Layover, New, Repository, Manager
+      flight/         # Дочерний агрегат Flight: Flight, Segment, Layover, New, Repository, Manager, PriceUpdate
+    money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
-    command/          # Write-side: Command + Handler + Result
-    query/            # Read-side: Query + Handler + Result
+    command/          # Write-side: Command + Handler + Result — только use case'ы
+    query/            # Read-side: Query + Handler + Result — только use case'ы
+    apperror/         # Ошибки application-слоя и перевод доменных ошибок (FieldError и др.)
+    txmanager/        # Порт транзакций
+    helpers/          # Общие помощники use case'ов (пока не сервис и не маппер): DTO перелёта и его сборка в flight.Flight для create_offer/update_offer
   infrastructure/     # Реализации доменных интерфейсов
     auth/             # JWT-сервис
     broker/kafka/     # Kafka Producer (реализация event.Bus)
@@ -100,10 +104,10 @@ tests/
 - Domain-слой организован **resource-first**: один агрегат/bounded context = один пакет (`domain/user`, `domain/agency`, `domain/airport`, `domain/offer`). Внутри пакета — плоские файлы (`entity`, `repository`, `manager` и т.д. как файлы, а не подпакеты). Общее ядро (интерфейсы `DomainEvent`/`Bus`) — в `domain/event`.
 - **Дочерние агрегаты — подпакетами родителя**: сущность, не живущая вне родительского агрегата (все контракты скоупятся id родителя), лежит в подпакете: `domain/offer/flight`; будущие дети оффера — `domain/offer/hotel`, `domain/offer/transfer` и т.д. Пакет родителя остаётся только корнем агрегата. Дети могут импортировать пакет родителя; родитель детей — никогда (композиция — в application-слое).
 - Имена типов не дублируют имя пакета (без stutter): `user.Repository` (не `user.UserRepository`), `agency.Manager`, `offer.Status`, `flight.Segment` (не `flight.FlightSegment`). Имя самого агрегата совпадает с пакетом — это допустимый Go-идиоматический stutter: `user.User`, `offer.Offer`, `flight.Flight`.
-- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → airport`; `agency` и `airport` ни от кого не зависят. Циклы запрещены.
+- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, money}`; `agency`, `airport` и `money` ни от кого не зависят. Циклы запрещены.
 - Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
 - Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
-- CQRS: команды в `application/command/`, запросы в `application/query/`.
+- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights`).
 - Доменные события публикуются через интерфейс `domain/event.Bus` (Kafka — одна из реализаций).
 - Все бизнес-эндпоинты — под `/api/v1/`.
 - **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не работает с доменными сущностями и не вызывает их методы напрямую (из доменных пакетов ему доступны только enum-типы вроде `offer.Status` и sentinel-ошибки для маппинга в HTTP-статусы). Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
@@ -119,7 +123,8 @@ tests/
 - Нет магических чисел — только именованные константы.
 - Предпочитать композицию наследованию (embedding только если оправдано).
 - Единый формат ответа API: `{ data, error, metadata }` (или как определено в `httpx/`).
-- Входные данные валидируются на границе presentation-слоя (`go-playground/validator`), внутрь домена попадают уже чистые данные.
+- **Валидация по слоям.** Presentation (`go-playground/validator`) проверяет только **форму** запроса: обязательность полей, типы, длины, формат, протокольные перечисления (`oneof` для значений контракта вроде статуса). **Бизнес-правила** — справочники (валюты, аэропорты), доменные инварианты, всё, для чего нужен доменный код, — проверяются в domain и application, а не в валидаторе. Нарушение правила в конкретном поле application возвращает как `apperror.FieldError` (поле + правило); presentation отдаёт его в `meta` ответа `400 validation failed` в том же виде, что и ошибки валидатора. Пример — цена перелёта: `helpers.BuildFlights` → `apperror.FieldError{Field: "Price", Rule: "money"}`.
+- **`config/` только собирает зависимости.** Composition root не содержит доменной логики и не прокидывает её в presentation: не регистрирует в валидаторе проверки, вызывающие доменный код, не оборачивает доменные функции для других слоёв.
 
 ### Error Handling
 
@@ -231,6 +236,7 @@ Plan → Issue → Implement → Review → Merge → Docs
 - Каждый запрос на работу — сначала GitHub Issue, потом реализация.
 - Оригинальный промпт сохраняется в описании issue.
 - Если промпт содержит несколько задач — создавать отдельные issues.
+- **Всегда указывать источник требований со ссылкой** — в описании issue и в шапке `docs/issues/*.md` (строка «Источник требований»): изменение SDD (`tourismania/sdd`, путь `openspec/changes/<id>/`) **и PR, в котором оно принято**; если требования пришли из другого места (обсуждение, ревью, issue) — ссылка на него. Задача без источника требований не берётся в работу.
 
 ### Актуализация состояния
 

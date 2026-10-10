@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"api/internal/domain/airport"
+	"api/internal/domain/money"
 	"api/internal/domain/offer/flight"
 	"context"
 	"testing"
@@ -12,9 +13,16 @@ import (
 )
 
 func sampleFlight(dep, arr string, base time.Time) flight.Flight {
-	return flight.Flight{Segments: []flight.Segment{
+	return flight.Flight{Price: samplePrice(), Segments: []flight.Segment{
 		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 	}}
+}
+
+// withPrice возвращает копию перелёта с другой ценой и ID.
+func withPrice(f flight.Flight, id int, price money.Money) flight.Flight {
+	f.ID = id
+	f.Price = price
+	return f
 }
 
 func TestOfferFlightManager_ReplaceForOffer_IdenticalContent_IsNoOp(t *testing.T) {
@@ -27,6 +35,72 @@ func TestOfferFlightManager_ReplaceForOffer_IdenticalContent_IsNoOp(t *testing.T
 
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled, "identical content must not touch the database")
+	assert.False(t, flights.updatePricesCalled, "identical prices must not touch the database")
+}
+
+func TestOfferFlightManager_ReplaceForOffer_SamePriceDifferentNotation_IsNoOp(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	stored := withPrice(sampleFlight("UUEE", "LFPG", base), 7, mustMoney("100.00", money.CodeRUB))
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := withPrice(sampleFlight("UUEE", "LFPG", base), 0, mustMoney("100", money.CodeRUB))
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{incoming})
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled)
+	assert.False(t, flights.updatePricesCalled)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_OnlyPriceChanged_UpdatesPricesKeepsIDs(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	existing := []flight.Flight{
+		withPrice(sampleFlight("UUEE", "LFPG", base), 7, mustMoney("100", money.CodeRUB)),
+		withPrice(sampleFlight("LFPG", "UUEE", base.Add(48*time.Hour)), 8, mustMoney("200", money.CodeRUB)),
+	}
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	// Маршрут тот же, у второго перелёта другая цена.
+	incoming := []flight.Flight{
+		withPrice(sampleFlight("UUEE", "LFPG", base), 0, mustMoney("100", money.CodeRUB)),
+		withPrice(sampleFlight("LFPG", "UUEE", base.Add(48*time.Hour)), 0, mustMoney("250.50", money.CodeRUB)),
+	}
+	err := mgr.ReplaceForOffer(context.Background(), 1, incoming)
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled, "price-only change must not replace the set")
+	require.True(t, flights.updatePricesCalled)
+	assert.Equal(t, 1, flights.updatePricesOfferID)
+	assert.Equal(t, []flight.PriceUpdate{{FlightID: 8, Price: mustMoney("250.50", money.CodeRUB)}}, flights.updatedPrices)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_OnlyCurrencyChanged_UpdatesPrices(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	existing := []flight.Flight{withPrice(sampleFlight("UUEE", "LFPG", base), 7, mustMoney("100", money.CodeRUB))}
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := []flight.Flight{withPrice(sampleFlight("UUEE", "LFPG", base), 0, mustMoney("100", money.CodeEUR))}
+	err := mgr.ReplaceForOffer(context.Background(), 1, incoming)
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled)
+	assert.Equal(t, []flight.PriceUpdate{{FlightID: 7, Price: mustMoney("100", money.CodeEUR)}}, flights.updatedPrices)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_RouteAndPriceChanged_Replaces(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	existing := []flight.Flight{withPrice(sampleFlight("UUEE", "LFPG", base), 7, mustMoney("100", money.CodeRUB))}
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := []flight.Flight{withPrice(sampleFlight("UUEE", "EDDF", base), 0, mustMoney("300", money.CodeRUB))}
+	err := mgr.ReplaceForOffer(context.Background(), 1, incoming)
+
+	require.NoError(t, err)
+	assert.True(t, flights.replaceCalled)
+	assert.False(t, flights.updatePricesCalled)
 }
 
 func TestOfferFlightManager_ReplaceForOffer_DifferentContent_Replaces(t *testing.T) {
