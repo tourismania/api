@@ -20,6 +20,9 @@ func FromDomainError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case isFieldError(err):
+		// Уже ошибка валидации с полем — переупаковка потеряла бы поле.
+		return err
 	case errors.Is(err, user.ErrActorNotFound):
 		return fmt.Errorf("%w: %s", ErrUnauthenticated, err.Error())
 	case errors.Is(err, offer.ErrInsufficientRole):
@@ -41,4 +44,10 @@ func FromDomainError(err error) error {
 	default:
 		return err
 	}
+}
+
+// isFieldError — в цепочке уже есть *FieldError.
+func isFieldError(err error) bool {
+	_, ok := AsFieldError(err)
+	return ok
 }

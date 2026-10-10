@@ -8,11 +8,11 @@ import (
 	"api/internal/infrastructure/persistence/postgres/db"
 )
 
-// ToFlightsDomain groups flight rows with their segments into domain
-// entities. flightRows must already be ordered by ascending id and
-// segRows by ascending (flight_id, sequence) — both ListOfferFlightsByOfferID
-// and ListOfferFlightSegmentsByFlightIDs guarantee this ordering, so no
-// sort happens here.
+// ToFlightsDomain собирает строки перелётов и их сегментов в доменные
+// сущности. flightRows должны быть упорядочены по возрастанию id, а
+// segRows — по (flight_id, sequence); ListOfferFlightsByOfferID и
+// ListOfferFlightSegmentsByFlightIDs это гарантируют, поэтому здесь
+// ничего не сортируется.
 //
 // Цена, которую нельзя собрать из сохранённых столбцов (валюты нет в
 // справочнике, отрицательная сумма), — это порча данных, а не ошибка

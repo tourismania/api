@@ -33,12 +33,14 @@
 2. Добавьте константу кода и строку в таблицу `currencies` в `internal/domain/money/currency.go`:
    ```go
    const CodeKWD = "KWD"
-   // exponentFils — три цифры после точки (филсы).
-   const exponentFils = 3
+   // exponentThreeDecimals — три цифры после точки (у KWD — филсы).
+   const exponentThreeDecimals = 3
    ...
-   {Code: CodeKWD, Exponent: exponentFils},
+   {Code: CodeKWD, Exponent: exponentThreeDecimals},
    ```
-   Без магических чисел — для нового `Exponent` заведите именованную константу.
+   Без магических чисел — для нового `Exponent` заведите именованную константу. Называйте её по
+   числу знаков (`exponentTwoDecimals`, `exponentThreeDecimals`), а не по названию минорной единицы:
+   у разных валют она называется по-разному (копейки, центы, филсы).
 3. Тест в `tests/unit/money_test.go`: валюта находится `LookupCurrency`, сумма с `Exponent` знаками
    разбирается и форматируется обратно, лишний знак после точки отклоняется.
 4. Прогоните тесты и линтер (см. `CLAUDE.md`, Validation Gates) в docker:

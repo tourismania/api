@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"api/config"
 	createoffer "api/internal/application/command/create_offer"
 	updateoffer "api/internal/application/command/update_offer"
 	getoffer "api/internal/application/query/get_offer"
@@ -222,7 +221,6 @@ func (s *stubGetPublishedOfferUseCase) Handle(_ context.Context, _ getpublishedo
 // handlers wired here.
 func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	config.RegisterValidations(validate)
 
 	offerManager := offer.NewManager(offers, stubAgencyRepo{})
 	offerFlightManager := flight.NewManager(flights, stubAirportRepo{})

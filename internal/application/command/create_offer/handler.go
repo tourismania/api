@@ -1,11 +1,11 @@
 package createoffer
 
 import (
+	flightinput "api/internal/application/command/flight_input"
 	"context"
 
 	"api/internal/application/apperror"
 	"api/internal/application/txmanager"
-	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
@@ -58,7 +58,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 
-	flights, err := buildFlights(cmd.Flights)
+	flights, err := flightinput.Build(cmd.Flights)
 	if err != nil {
 		return Result{}, apperror.FromDomainError(err)
 	}
@@ -81,42 +81,4 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 		return Result{}, apperror.FromDomainError(err)
 	}
 	return result, nil
-}
-
-// buildFlights разбирает цену каждого перелёта по справочнику валют и
-// проверяет структурные инварианты через flight.New before any database
-// write happens, so a malformed flight never even opens a transaction.
-func buildFlights(inputs []FlightInput) ([]flight.Flight, error) {
-	if len(inputs) == 0 {
-		return nil, nil
-	}
-	flights := make([]flight.Flight, 0, len(inputs))
-	for _, in := range inputs {
-		price, err := money.Parse(in.Price, in.Currency)
-		if err != nil {
-			return nil, err
-		}
-		f, err := flight.New(price, toDomainSegments(in.Segments))
-		if err != nil {
-			return nil, err
-		}
-		flights = append(flights, f)
-	}
-	return flights, nil
-}
-
-// toDomainSegments конвертирует Application-DTO сегментов в доменный
-// flight.Segment. Только Handler знает про domain/offer —
-// presentation оперирует исключительно FlightSegmentInput.
-func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
-	segs := make([]flight.Segment, 0, len(in))
-	for _, s := range in {
-		segs = append(segs, flight.Segment{
-			DepartureAirportICAO: s.DepartureAirportICAO,
-			ArrivalAirportICAO:   s.ArrivalAirportICAO,
-			DepartureAt:          s.DepartureAt,
-			ArrivalAt:            s.ArrivalAt,
-		})
-	}
-	return segs
 }

@@ -26,17 +26,15 @@ var ErrSegmentDiscontinuous = errors.New("flight segments must form a continuous
 // negative duration is not physically possible.
 var ErrLayoverNonPositive = errors.New("flight layover between segments must be strictly positive")
 
-// New builds a Flight with the given price from segments already ordered
-// first-to-last. Цена должна быть в валюте из справочника money и
+// New собирает Flight с ценой price из сегментов, уже упорядоченных от
+// первого к последнему. Цена должна быть в валюте из справочника money и
 // неотрицательной (нулевое значение money.Money отклоняется) — иначе
-// money.ErrCurrencyUnsupported / money.ErrAmountInvalid. Then it checks
-// every structural invariant that does not require I/O:
-// non-empty segment list, chronology within each segment, route
-// continuity between consecutive segments, and a strictly positive
-// layover at every stop. It does not check that the referenced
-// airports exist — that requires a database lookup and is the
-// responsibility of Manager, which calls New only after (or alongside)
-// that check.
+// money.ErrCurrencyUnsupported / money.ErrAmountInvalid. Затем проверяются
+// все структурные инварианты, не требующие I/O: список сегментов не пуст,
+// хронология внутри каждого сегмента, непрерывность маршрута между
+// соседними сегментами и строго положительная пересадка на каждой
+// остановке. Существование аэропортов New не проверяет — для этого нужен
+// запрос к БД, это делает Manager.
 func New(price money.Money, segments []Segment) (Flight, error) {
 	if _, err := money.LookupCurrency(price.Currency.Code); err != nil {
 		return Flight{}, err

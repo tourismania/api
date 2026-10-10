@@ -25,8 +25,10 @@ const (
 	CodeTRY = "TRY"
 )
 
-// exponentCents — две цифры после точки (копейки, центы, куруши).
-const exponentCents = 2
+// exponentTwoDecimals — две цифры после точки. Константа названа по числу
+// знаков, а не по названию минорной единицы: у RUB это копейки, у USD и
+// EUR — центы, у TRY — куруши.
+const exponentTwoDecimals = 2
 
 // currencies — системный справочник поддерживаемых валют. Таблица
 // неизменяемая: пакет её только читает.
@@ -36,10 +38,10 @@ const exponentCents = 2
 // использована в сохранённых ценах, нельзя менять без миграции данных:
 // суммы хранятся в минорных единицах, и старые значения поменяют смысл.
 var currencies = [...]Currency{
-	{Code: CodeRUB, Exponent: exponentCents},
-	{Code: CodeUSD, Exponent: exponentCents},
-	{Code: CodeEUR, Exponent: exponentCents},
-	{Code: CodeTRY, Exponent: exponentCents},
+	{Code: CodeRUB, Exponent: exponentTwoDecimals},
+	{Code: CodeUSD, Exponent: exponentTwoDecimals},
+	{Code: CodeEUR, Exponent: exponentTwoDecimals},
+	{Code: CodeTRY, Exponent: exponentTwoDecimals},
 }
 
 // LookupCurrency ищет валюту в справочнике по коду ISO 4217. Сравнение

@@ -69,6 +69,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated")
 		case errors.Is(err, apperror.ErrForbidden):
 			httpx.WriteError(w, http.StatusForbidden, "insufficient role")
+		case isFieldError(err):
+			fe, _ := apperror.AsFieldError(err)
+			httpx.WriteFieldValidationError(w, fe.Field, fe.Rule)
 		case errors.Is(err, apperror.ErrValidation):
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		default:
@@ -106,4 +109,10 @@ func toFlightInputs(in []FlightInput) []createoffer.FlightInput {
 		})
 	}
 	return flights
+}
+
+// isFieldError — ошибка валидации конкретного поля, её отдаём с meta.
+func isFieldError(err error) bool {
+	_, ok := apperror.AsFieldError(err)
+	return ok
 }

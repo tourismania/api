@@ -3,7 +3,9 @@
 > **GitHub issue:** [№26](https://github.com/tourismania/api/issues/26)
 > **Зависит от:** [№20](https://github.com/tourismania/api/issues/20) (перелёты в составе Offer)
 > **Источник требований:** изменение SDD `add-flight-price-currency` в `tourismania/sdd`
-> (`openspec/changes/add-flight-price-currency/`: proposal, дельта спеки `offers/flights`, design, tasks).
+> (`openspec/changes/add-flight-price-currency/`: proposal, дельта спеки `offers/flights`, design, tasks),
+> принято в [sdd PR №12](https://github.com/tourismania/sdd/pull/12).
+> **Реализация:** [api PR №27](https://github.com/tourismania/api/pull/27).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
@@ -42,6 +44,10 @@
 заполнять нулём — выдумывать данные). Down удаляет столбцы, удалённые перелёты не возвращает.
 
 ## Ошибки
+
+Обязательность `price`/`currency` проверяет валидатор presentation-слоя (форма запроса). Валюту по справочнику
+и формат суммы проверяет application-слой (`flightinput.Build`) и возвращает `apperror.FieldError` — presentation
+отдаёт его в `meta` так же, как ошибки валидатора (ревью PR №27: бизнес-правила не в валидаторе и не в `config/`).
 
 | Случай | Ответ |
 |---|---|

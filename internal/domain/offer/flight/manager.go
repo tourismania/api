@@ -29,11 +29,11 @@ func NewManager(flights Repository, airports airport.Repository) *Manager {
 	return &Manager{flights: flights, airports: airports}
 }
 
-// ReplaceForOffer validates that every icao referenced by flights
-// exists, then compares flights against what is currently stored for
-// offerID — сначала маршрут, потом цены:
+// ReplaceForOffer проверяет, что все коды icao из flights есть в
+// справочнике аэропортов, и сравнивает flights с сохранёнными для offerID —
+// сначала маршрут, потом цены:
 //   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
-//     моменты времени сегментов; server-assigned IDs не учитываются)
+//     моменты времени сегментов; ID, назначенные сервером, не учитываются)
 //     и цены совпали — no-op, БД не трогается;
 //   - маршрут совпал, у части перелётов другая цена или валюта —
 //     обновляется только цена этих перелётов, сегменты и идентификаторы
@@ -101,10 +101,10 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 	return nil
 }
 
-// routesEqual compares two flight sets by route only — order of
-// flights and order of segments within a flight are significant; IDs
-// are ignored, since incoming flights never carry one. Цена в сравнение
-// маршрута не входит — её сравнивает priceUpdates.
+// routesEqual сравнивает два набора перелётов только по маршруту: порядок
+// перелётов и порядок сегментов внутри перелёта значимы, ID не учитываются
+// — у входящих перелётов их нет. Цена в сравнение маршрута не входит — её
+// сравнивает priceUpdates.
 func routesEqual(a, b []Flight) bool {
 	if len(a) != len(b) {
 		return false

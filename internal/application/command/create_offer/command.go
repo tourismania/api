@@ -3,33 +3,18 @@
 package createoffer
 
 import (
+	flightinput "api/internal/application/command/flight_input"
 	"api/internal/domain/offer"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-// FlightInput — DTO одного перелёта на границе Application-слоя: цена
-// десятичной строкой, код валюты и сегменты от первого к последнему.
-// Разбор цены по справочнику валют (money.Parse) и сборка flight.Flight
-// происходят внутри Handler.
-type FlightInput struct {
-	Price    string
-	Currency string
-	Segments []FlightSegmentInput
-}
+// FlightInput — DTO одного перелёта (цена, валюта, сегменты); общий для
+// create_offer и update_offer, см. flightinput.Flight.
+type FlightInput = flightinput.Flight
 
-// FlightSegmentInput — DTO одного перелётного сегмента на границе
-// Application-слоя. Презентационный слой конвертирует свой собственный
-// DTO в этот тип и ничего не знает про domain/offer: сборка
-// flight.Segment/flight.Flight и их валидация происходят уже
-// внутри Handler.
-type FlightSegmentInput struct {
-	DepartureAirportICAO string
-	ArrivalAirportICAO   string
-	DepartureAt          time.Time
-	ArrivalAt            time.Time
-}
+// FlightSegmentInput — DTO одного сегмента перелёта, см. flightinput.Segment.
+type FlightSegmentInput = flightinput.Segment
 
 // Command represents the intent to publish a new offer under the
 // caller's own agency. The request body never carries agency_id: the
@@ -41,8 +26,8 @@ type Command struct {
 	Title       string
 	Description string
 	Status      offer.Status
-	// Flights — перелёты оффера в порядке сохранения. A nil/empty slice
-	// means the offer is created without flights.
+	// Flights — перелёты оффера в порядке сохранения. nil или пустой срез —
+	// оффер создаётся без перелётов.
 	Flights []FlightInput
 
 	CurrentUserUUID uuid.UUID
