@@ -55,6 +55,13 @@ type airportFixture struct {
 	// ZurichCity, Zurich — город и аэропорт с «ü» для проверки unaccent.
 	ZurichCity string
 	Zurich     fixtureAirport
+	// SpecialCity, Special — город и аэропорт «Test_Field <token> 50%» со
+	// спецсимволами LIKE в названии: проверка, что `%` и `_` ищутся буквально.
+	SpecialCity string
+	Special     fixtureAirport
+	// SpecialAaron — содержит название Special не в начале и по алфавиту
+	// стоит раньше: проверка, что Special попадает в группу «начинается со строки».
+	SpecialAaron fixtureAirport
 }
 
 // seedAirportFixture засевает тестовые города и аэропорты и регистрирует
@@ -64,18 +71,21 @@ func seedAirportFixture(t *testing.T, pool *pgxpool.Pool) airportFixture {
 	ctx := context.Background()
 
 	token := randomLetters(fixtureTokenLen)
-	codes := freeCodes(t, pool, 5)
+	codes := freeCodes(t, pool, 7)
 
 	f := airportFixture{
-		Token:      token,
-		CityName:   "Тестоград-" + token,
-		ZurichCity: "Zürich-" + token,
+		Token:       token,
+		CityName:    "Тестоград-" + token,
+		ZurichCity:  "Zürich-" + token,
+		SpecialCity: "Спецград-" + token,
 	}
 	f.Alpha = fixtureAirport{ICAO: codes[0].icao, IATA: codes[0].iata, Name: "Alpha " + token + " International"}
 	f.Aaron = fixtureAirport{ICAO: codes[1].icao, IATA: codes[1].iata, Name: "Aaron Alpha " + token + " Field"}
 	f.Bravo = fixtureAirport{ICAO: codes[2].icao, IATA: codes[2].iata, Name: "Bravo " + token + " Field"}
 	f.Delta = fixtureAirport{ICAO: codes[3].icao, IATA: codes[3].iata, Name: "Delta " + codes[0].iata + " " + token}
 	f.Zurich = fixtureAirport{ICAO: codes[4].icao, IATA: codes[4].iata, Name: "Zürich-" + token + " Flughafen"}
+	f.Special = fixtureAirport{ICAO: codes[5].icao, IATA: codes[5].iata, Name: "Test_Field " + token + " 50%"}
+	f.SpecialAaron = fixtureAirport{ICAO: codes[6].icao, IATA: codes[6].iata, Name: "Aaron Test_Field " + token + " 50%"}
 
 	countryRepo := pgrepo.NewCountryRepository(pool)
 	require.NoError(t, countryRepo.Upsert(ctx, fixtureCountryISO2, "Test Country"))
@@ -85,11 +95,14 @@ func seedAirportFixture(t *testing.T, pool *pgxpool.Pool) airportFixture {
 	require.NoError(t, err)
 	zurichCityID, err := cityRepo.Upsert(ctx, f.ZurichCity, nil, "Europe/Zurich", fixtureCountryISO2)
 	require.NoError(t, err)
+	specialCityID, err := cityRepo.Upsert(ctx, f.SpecialCity, nil, "UTC", fixtureCountryISO2)
+	require.NoError(t, err)
 
 	airportRepo := newAirportRepoOn(pool)
 	byCity := map[int][]fixtureAirport{
-		cityID:       {f.Alpha, f.Aaron, f.Bravo, f.Delta},
-		zurichCityID: {f.Zurich},
+		cityID:        {f.Alpha, f.Aaron, f.Bravo, f.Delta},
+		zurichCityID:  {f.Zurich},
+		specialCityID: {f.Special, f.SpecialAaron},
 	}
 	var icaos []string
 	for city, airports := range byCity {
@@ -103,7 +116,7 @@ func seedAirportFixture(t *testing.T, pool *pgxpool.Pool) airportFixture {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = pool.Exec(ctx, `DELETE FROM airports WHERE icao = ANY($1::char(4)[])`, icaos)
-		_, _ = pool.Exec(ctx, `DELETE FROM cities WHERE id = ANY($1::int[])`, []int{cityID, zurichCityID})
+		_, _ = pool.Exec(ctx, `DELETE FROM cities WHERE id = ANY($1::int[])`, []int{cityID, zurichCityID, specialCityID})
 	})
 	return f
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"api/internal/infrastructure/persistence/postgres/db"
 
@@ -30,10 +31,22 @@ func NewAirportRepository(queries *db.Queries, pool *pgxpool.Pool) *AirportRepos
 	}
 }
 
+// escapeLike делает строку буквальной внутри шаблона LIKE: `%`, `_` и `\`
+// перестают быть подстановкой и экранированием. Опирается на экранирующий
+// символ `\` по умолчанию у LIKE в PostgreSQL (в запросах нет ESCAPE): если
+// добавить ESCAPE с другим символом, экранирование нужно менять вместе с ним.
+func escapeLike(s string) string {
+	// Replacer проходит строку один раз, поэтому вставленные `\` повторно не
+	// экранируются и порядок пар не важен.
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 // Search executes the airport full-text search and maps results to domain entities.
 func (r *AirportRepository) Search(ctx context.Context, f airport.Filter) (airport.SearchResult, error) {
-	searchLike := "%" + f.Search + "%"
-	searchPrefix := f.Search + "%"
+	// Коды IATA/ICAO сравниваются через `=` — их передаём без экранирования.
+	escaped := escapeLike(f.Search)
+	searchLike := "%" + escaped + "%"
+	searchPrefix := escaped + "%"
 
 	rows, err := r.queries.SearchAirports(ctx, db.SearchAirportsParams{
 		Search:       f.Search,

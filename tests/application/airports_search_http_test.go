@@ -3,15 +3,22 @@ package application_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	searchairports "api/internal/application/query/search_airports"
+	"api/internal/infrastructure/persistence/postgres"
+	"api/internal/infrastructure/persistence/postgres/db"
+	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,4 +169,68 @@ func TestSearchAirports_CacheControlHeader(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, "private, max-age=3600", rr.Header().Get("Cache-Control"))
+}
+
+// seedLiteralSearchAirport засевает тестовый город и аэропорт с `%` и `_` в
+// названии (коды из цифр, как в tests/integration) и удаляет их после теста.
+// Возвращает ICAO аэропорта.
+func seedLiteralSearchAirport(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	ctx := context.Background()
+
+	// Свободная пара кодов: настоящие IATA/ICAO — только буквы.
+	var icao, iata string
+	for range 100 {
+		num := rand.IntN(1000)
+		icao, iata = fmt.Sprintf("9%03d", num), fmt.Sprintf("%03d", num)
+		var exists bool
+		require.NoError(t, pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM airports WHERE icao = $1 OR iata = $2)`, icao, iata,
+		).Scan(&exists))
+		if !exists {
+			break
+		}
+	}
+
+	require.NoError(t, pgrepo.NewCountryRepository(pool).Upsert(ctx, "ZZ", "Test Country"))
+	cityID, err := pgrepo.NewCityRepository(pool).Upsert(ctx, "Спецград-"+icao, nil, "UTC", "ZZ")
+	require.NoError(t, err)
+	airportRepo := pgrepo.NewAirportRepository(db.New(pool), pool)
+	require.NoError(t, airportRepo.Upsert(ctx, icao, &iata, "Test_Field "+icao+" 50%", 0, 0, nil, cityID))
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = pool.Exec(ctx, `DELETE FROM airports WHERE icao = $1`, icao)
+		_, _ = pool.Exec(ctx, `DELETE FROM cities WHERE id = $1`, cityID)
+	})
+	return icao
+}
+
+// TestSearchAirports_PercentOnly_NoWildcard проверяет полный стек (handler →
+// use case → PostgreSQL): `search=%%` ищется буквально, а не находит все
+// аэропорты. Нужен запущенный Postgres с миграциями (TEST_DATABASE_URL).
+func TestSearchAirports_PercentOnly_NoWildcard(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping database-backed HTTP test")
+	}
+	pool, err := postgres.NewPool(context.Background(), dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	icao := seedLiteralSearchAirport(t, pool)
+
+	uc := searchairports.NewHandler(pgrepo.NewAirportRepository(db.New(pool), pool))
+	r := newTestRouter(uc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/airports?search=%25%25&limit=100", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp searchairporthttp.SearchResponse
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	assert.Equal(t, "%%", resp.Meta.Search)
+	for _, a := range resp.Data {
+		assert.NotEqual(t, icao, a.ICAO, "аэропорт сида без «%%» в названии не должен находиться")
+	}
 }
