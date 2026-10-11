@@ -7,7 +7,7 @@
 
 `GET /api/v1/airports` подставляет `search` в шаблон `LIKE` как есть: `%` и `_` работают как подстановка, `\` экранирует следующий символ. `search=%%` проходит проверку длины и находит все аэропорты справочника, `Al_ha` находит `Alpha`.
 
-- **Экранирование — в репозитории**, `queries/airports.sql` и `db/` не меняются: работает за счёт экранирующего `\` по умолчанию у `LIKE` в PostgreSQL.
+- **Экранирование — в слое хранения**, `queries/airports.sql` и `db/` не меняются: работает за счёт экранирующего `\` по умолчанию у `LIKE` в PostgreSQL. Функция `helpers.EscapeLike` лежит в `internal/infrastructure/persistence/helpers` и нужна не только аэропортам: её может использовать любой репозиторий с `LIKE` (по ревью PR №34).
 - **Коды IATA/ICAO** сравниваются через `=` и передаются без экранирования.
 
 ## Acceptance criteria
@@ -21,6 +21,7 @@
 
 | Файл | Тест | Проверка |
 |---|---|---|
+| `tests/unit/persistence_helpers_like_test.go` | `TestEscapeLike_EscapesSpecialChars` | `%`, `_`, `\` экранируются, вставленные `\` не задваиваются, обычный текст не меняется |
 | `tests/integration/airport_repository_test.go` | `..._PercentOnly_NoWildcard` | `%%` — ни одного аэропорта сида, `TotalCount` = число буквальных совпадений в БД |
 | | `..._Underscore_NoWildcard` | `Al_ha <token>` не находит `Alpha <token> International` |
 | | `..._Backslash_Literal` | `Al\pha <token>` не находит Alpha |
