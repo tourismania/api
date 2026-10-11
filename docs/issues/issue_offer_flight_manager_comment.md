@@ -5,6 +5,7 @@
 > **Источник требований:** изменение SDD `add-flight-manager-comment` в `tourismania/sdd`
 > (`openspec/changes/add-flight-manager-comment/`: proposal, дельта спеки `offers/flights`, design, tasks),
 > принято в [sdd PR №19](https://github.com/tourismania/sdd/pull/19).
+> **Реализация:** [api PR №32](https://github.com/tourismania/api/pull/32).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
