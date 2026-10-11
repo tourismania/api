@@ -282,7 +282,7 @@ func TestOfferFlightRepository_ReplaceForOffer_StoresAndReadsPrice(t *testing.T)
 	assert.Equal(t, "12345.50", found[0].Price.String())
 }
 
-func TestOfferFlightRepository_UpdatePrices_KeepsIDsAndSegments(t *testing.T) {
+func TestOfferFlightRepository_UpdateDetails_KeepsIDsAndSegments(t *testing.T) {
 	pool := newOfferFlightTestPool(t)
 	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
 	offerID := seedTestOfferID(t, pool)
@@ -303,7 +303,7 @@ func TestOfferFlightRepository_UpdatePrices_KeepsIDsAndSegments(t *testing.T) {
 
 	newPrice, err := money.Parse("99.99", money.CodeUSD)
 	require.NoError(t, err)
-	require.NoError(t, repo.UpdatePrices(context.Background(), offerID, []flight.PriceUpdate{
+	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{
 		{FlightID: before[1].ID, Price: newPrice},
 	}))
 
@@ -317,7 +317,76 @@ func TestOfferFlightRepository_UpdatePrices_KeepsIDsAndSegments(t *testing.T) {
 	assert.Equal(t, before[1].Segments, after[1].Segments)
 }
 
-func TestOfferFlightRepository_UpdatePrices_OtherOfferFlight_NotChanged(t *testing.T) {
+func TestOfferFlightRepository_ManagerComment_StoredAndReadAsIs(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	comments := []string{
+		"Багаж оплачивается отдельно",
+		"Строка 1\nСтрока 2\r\n\tс отступом ",
+		`Rock'n'roll \ "VIP"'; DROP TABLE offers; --`,
+		"",
+	}
+	flights := make([]flight.Flight, 0, len(comments))
+	for i, c := range comments {
+		at := base.Add(time.Duration(i) * 24 * time.Hour)
+		flights = append(flights, flight.Flight{Price: testFlightPrice(t), ManagerComment: c, Segments: []flight.Segment{
+			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: at, ArrivalAt: at.Add(3 * time.Hour)},
+		}})
+	}
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, flights))
+
+	found, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, found, len(comments))
+	for i, c := range comments {
+		assert.Equal(t, c, found[i].ManagerComment)
+	}
+}
+
+func TestOfferFlightRepository_UpdateDetails_ChangesPriceAndComment_KeepsIDsAndSegments(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
+		{Price: testFlightPrice(t), ManagerComment: "первый", Segments: []flight.Segment{
+			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+		}},
+		{Price: testFlightPrice(t), ManagerComment: "второй", Segments: []flight.Segment{
+			{DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
+		}},
+	}))
+	before, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, before, 2)
+
+	newPrice, err := money.Parse("99.99", money.CodeUSD)
+	require.NoError(t, err)
+	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{
+		{FlightID: before[0].ID, Price: before[0].Price, ManagerComment: ""},
+		{FlightID: before[1].ID, Price: newPrice, ManagerComment: "Ночная пересадка"},
+	}))
+
+	after, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, after, 2)
+	assert.Equal(t, before[0].ID, after[0].ID)
+	assert.Equal(t, before[1].ID, after[1].ID)
+	assert.Equal(t, "", after[0].ManagerComment, "комментарий удалён")
+	assert.Equal(t, before[0].Price, after[0].Price)
+	assert.Equal(t, newPrice, after[1].Price)
+	assert.Equal(t, "Ночная пересадка", after[1].ManagerComment)
+	assert.Equal(t, before[0].Segments, after[0].Segments)
+	assert.Equal(t, before[1].Segments, after[1].Segments)
+}
+
+func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_NotChanged(t *testing.T) {
 	pool := newOfferFlightTestPool(t)
 	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
 	ownerID := seedTestOfferID(t, pool)
@@ -337,7 +406,7 @@ func TestOfferFlightRepository_UpdatePrices_OtherOfferFlight_NotChanged(t *testi
 	newPrice, err := money.Parse("1", money.CodeUSD)
 	require.NoError(t, err)
 	// Чужой offerID: перелёт ownerID обновляться не должен.
-	require.NoError(t, repo.UpdatePrices(context.Background(), otherID, []flight.PriceUpdate{
+	require.NoError(t, repo.UpdateDetails(context.Background(), otherID, []flight.DetailsUpdate{
 		{FlightID: owned[0].ID, Price: newPrice},
 	}))
 

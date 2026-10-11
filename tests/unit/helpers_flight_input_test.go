@@ -54,6 +54,34 @@ func TestBuildFlights_UnsupportedCurrency_ReturnsCurrencyFieldError(t *testing.T
 	assert.Equal(t, "currency", fe.Rule)
 }
 
+func TestBuildFlights_ManagerComment_PassedAsIs(t *testing.T) {
+	comment := " Багаж оплачивается отдельно\nRock'n'roll \\ \"VIP\" "
+	flights, err := helpers.BuildFlights([]helpers.FlightInput{
+		{Price: "100", Currency: "RUB", ManagerComment: comment, Segments: validSegments()},
+		{Price: "100", Currency: "RUB", Segments: validSegments()},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, flights, 2)
+	assert.Equal(t, comment, flights[0].ManagerComment)
+	assert.Empty(t, flights[1].ManagerComment)
+}
+
+func TestBuildFlights_ManagerCommentControlChar_ReturnsManagerCommentFieldError(t *testing.T) {
+	for _, comment := range []string{"\u0000", "\u001b[0m", "\u007f"} {
+		_, err := helpers.BuildFlights([]helpers.FlightInput{
+			{Price: "100", Currency: "RUB", ManagerComment: comment, Segments: validSegments()},
+		})
+
+		fe, ok := apperror.AsFieldError(err)
+		require.True(t, ok, "%q", comment)
+		assert.Equal(t, "ManagerComment", fe.Field)
+		assert.Equal(t, "text", fe.Rule)
+		assert.ErrorIs(t, err, apperror.ErrValidation)
+		assert.ErrorIs(t, err, flight.ErrManagerCommentInvalid)
+	}
+}
+
 func TestBuildFlights_StructuralError_IsNotFieldError(t *testing.T) {
 	_, err := helpers.BuildFlights([]helpers.FlightInput{{Price: "100", Currency: "RUB"}})
 

@@ -29,8 +29,11 @@ type FlightResponse struct {
 	ID int `json:"id"`
 	// Price — цена перелёта строкой ровно с тем числом знаков после
 	// точки, что у валюты.
-	Price                string                  `json:"price"    example:"12345.50"`
-	Currency             string                  `json:"currency" example:"RUB"`
+	Price    string `json:"price"    example:"12345.50"`
+	Currency string `json:"currency" example:"RUB"`
+	// ManagerComment — комментарий менеджера к перелёту как есть; поле
+	// присутствует всегда, "" — комментария нет.
+	ManagerComment       string                  `json:"manager_comment" example:"Багаж оплачивается отдельно"`
 	DepartureAirportICAO string                  `json:"departure_airport_icao"`
 	ArrivalAirportICAO   string                  `json:"arrival_airport_icao"`
 	TotalDurationSeconds int64                   `json:"total_duration_seconds"`

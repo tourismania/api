@@ -20,14 +20,18 @@ type CreateOfferRequest struct {
 
 // FlightInput — один перелёт CreateOfferRequest: цена (десятичная строка, знаков
 // после точки не больше, чем у валюты), валюта (код ISO 4217 из системного
-// справочника) и сегменты от аэропорта вылета до аэропорта прилёта, по
-// порядку, с пересадками. Здесь проверяется только форма запроса
-// (обязательность полей); формат цены и валюту по справочнику проверяет
-// application-слой и возвращает apperror.FieldError.
+// справочника), необязательный комментарий менеджера (текст для клиента,
+// до 2000 символов; отсутствие поля, null и "" — комментария нет) и
+// сегменты от аэропорта вылета до аэропорта прилёта, по порядку, с
+// пересадками. Здесь проверяется только форма запроса (обязательность
+// полей, длина комментария); формат цены, валюту по справочнику и
+// управляющие символы в комментарии проверяет application-слой и
+// возвращает apperror.FieldError.
 type FlightInput struct {
-	Price    string               `json:"price"    validate:"required" example:"12345.50"`
-	Currency string               `json:"currency" validate:"required" example:"RUB"`
-	Segments []FlightSegmentInput `json:"segments" validate:"required,min=1,dive"`
+	Price          string               `json:"price"    validate:"required" example:"12345.50"`
+	Currency       string               `json:"currency" validate:"required" example:"RUB"`
+	ManagerComment string               `json:"manager_comment" validate:"max=2000" example:"Багаж оплачивается отдельно"`
+	Segments       []FlightSegmentInput `json:"segments" validate:"required,min=1,dive"`
 }
 
 // FlightSegmentInput is one nonstop leg of a FlightInput.

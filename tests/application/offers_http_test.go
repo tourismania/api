@@ -88,8 +88,10 @@ func (s stubUserFinder) Store(_ context.Context, _ user.User, _ string) (*int, e
 // signature), so the same instance backs both the domain offer.Manager
 // (write side) and the list query in these full-stack tests.
 type stubOfferRepo struct {
-	storeID   int
-	gotFilter offer.Filter
+	storeID int
+	// storeCalled — Store вызывался (оффер создан).
+	storeCalled bool
+	gotFilter   offer.Filter
 	// found — оффер, который возвращает FindByUUID (nil — «не найден»).
 	found *offer.Offer
 	// listed — офферы, которые возвращает List.
@@ -97,6 +99,7 @@ type stubOfferRepo struct {
 }
 
 func (s *stubOfferRepo) Store(_ context.Context, _ offer.Offer) (int, error) {
+	s.storeCalled = true
 	return s.storeID, nil
 }
 
@@ -138,7 +141,7 @@ type stubOfferFlightRepo struct {
 	replacedOfferID int
 	replacedFlights []flight.Flight
 
-	updatePricesCalled bool
+	updateDetailsCalled bool
 
 	stored []flight.Flight
 	nextID int
@@ -162,12 +165,13 @@ func (s *stubOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, fl
 	return nil
 }
 
-func (s *stubOfferFlightRepo) UpdatePrices(_ context.Context, _ int, updates []flight.PriceUpdate) error {
-	s.updatePricesCalled = true
+func (s *stubOfferFlightRepo) UpdateDetails(_ context.Context, _ int, updates []flight.DetailsUpdate) error {
+	s.updateDetailsCalled = true
 	for _, u := range updates {
 		for i := range s.stored {
 			if s.stored[i].ID == u.FlightID {
 				s.stored[i].Price = u.Price
+				s.stored[i].ManagerComment = u.ManagerComment
 			}
 		}
 	}

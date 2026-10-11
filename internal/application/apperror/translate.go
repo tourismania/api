@@ -38,6 +38,7 @@ func FromDomainError(err error) error {
 		errors.Is(err, flight.ErrSegmentChronologyInvalid),
 		errors.Is(err, flight.ErrSegmentDiscontinuous),
 		errors.Is(err, flight.ErrLayoverNonPositive),
+		errors.Is(err, flight.ErrManagerCommentInvalid),
 		errors.Is(err, money.ErrCurrencyUnsupported),
 		errors.Is(err, money.ErrAmountInvalid):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())

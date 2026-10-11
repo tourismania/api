@@ -28,8 +28,11 @@ type FlightResult struct {
 	ID int
 	// Price — цена перелёта десятичной строкой ровно с тем числом знаков
 	// после точки, что у валюты (money.Money.String()).
-	Price                string
-	Currency             string
+	Price    string
+	Currency string
+	// ManagerComment — комментарий менеджера к перелёту как есть; "" —
+	// комментария нет.
+	ManagerComment       string
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	TotalDurationSeconds int64

@@ -49,3 +49,32 @@ func TestGetPublishedOffer_FlightWithPrice_ReturnsFormattedPriceAndCurrency(t *t
 	assert.Equal(t, "15000.00", res.Flights[0].Price)
 	assert.Equal(t, "RUB", res.Flights[0].Currency)
 }
+
+func TestGetOffer_FlightManagerComment_ReturnedAsIs(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
+	commented := pricedFlight()
+	commented.ManagerComment = "Багаж оплачивается отдельно\n"
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}}, userRecordWithAgency(7))
+
+	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 2)
+	assert.Equal(t, "Багаж оплачивается отдельно\n", res.Flights[0].ManagerComment)
+	assert.Equal(t, "", res.Flights[1].ManagerComment)
+}
+
+func TestGetPublishedOffer_FlightManagerComment_ReturnedAsIs(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
+	commented := pricedFlight()
+	commented.ManagerComment = "Ночная пересадка"
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}})
+
+	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 2)
+	assert.Equal(t, "Ночная пересадка", res.Flights[0].ManagerComment)
+	assert.Equal(t, "", res.Flights[1].ManagerComment)
+}

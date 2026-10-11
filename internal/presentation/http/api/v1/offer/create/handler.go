@@ -103,9 +103,10 @@ func toFlightInputs(in []FlightInput) []createoffer.FlightInput {
 			})
 		}
 		flights = append(flights, createoffer.FlightInput{
-			Price:    f.Price,
-			Currency: f.Currency,
-			Segments: segs,
+			Price:          f.Price,
+			Currency:       f.Currency,
+			ManagerComment: f.ManagerComment,
+			Segments:       segs,
 		})
 	}
 	return flights

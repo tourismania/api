@@ -26,21 +26,40 @@ var ErrSegmentDiscontinuous = errors.New("flight segments must form a continuous
 // negative duration is not physically possible.
 var ErrLayoverNonPositive = errors.New("flight layover between segments must be strictly positive")
 
-// New собирает Flight с ценой price из сегментов, уже упорядоченных от
-// первого к последнему. Цена должна быть в валюте из справочника money и
-// неотрицательной (нулевое значение money.Money отклоняется) — иначе
-// money.ErrCurrencyUnsupported / money.ErrAmountInvalid. Затем проверяются
+// ErrManagerCommentInvalid возвращается New, если комментарий менеджера
+// содержит управляющий символ C0 (U+0000–U+001F), кроме табуляции, перевода
+// строки и возврата каретки, или U+007F. U+0000 PostgreSQL не хранит в TEXT,
+// остальные в тексте для клиента бессмысленны и ломают вывод.
+var ErrManagerCommentInvalid = errors.New("flight manager comment contains a forbidden control character")
+
+// Границы запрещённых в комментарии менеджера управляющих символов.
+const (
+	lastC0Control = '\u001f'
+	deleteControl = '\u007f'
+)
+
+// New собирает Flight с ценой price и комментарием менеджера managerComment
+// из сегментов, уже упорядоченных от первого к последнему. Цена должна быть
+// в валюте из справочника money и неотрицательной (нулевое значение
+// money.Money отклоняется) — иначе money.ErrCurrencyUnsupported /
+// money.ErrAmountInvalid. Комментарий сохраняется как есть (без обрезки и
+// экранирования), пустая строка — «комментария нет»; управляющие символы,
+// кроме \t, \n, \r, — ErrManagerCommentInvalid. Длину комментария New не
+// проверяет — это правило формы запроса. Затем проверяются
 // все структурные инварианты, не требующие I/O: список сегментов не пуст,
 // хронология внутри каждого сегмента, непрерывность маршрута между
 // соседними сегментами и строго положительная пересадка на каждой
 // остановке. Существование аэропортов New не проверяет — для этого нужен
 // запрос к БД, это делает Manager.
-func New(price money.Money, segments []Segment) (Flight, error) {
+func New(price money.Money, managerComment string, segments []Segment) (Flight, error) {
 	if _, err := money.LookupCurrency(price.Currency.Code); err != nil {
 		return Flight{}, err
 	}
 	if price.AmountMinor < 0 {
 		return Flight{}, money.ErrAmountInvalid
+	}
+	if !managerCommentValid(managerComment) {
+		return Flight{}, ErrManagerCommentInvalid
 	}
 	if len(segments) == 0 {
 		return Flight{}, ErrSegmentsEmpty
@@ -62,5 +81,19 @@ func New(price money.Money, segments []Segment) (Flight, error) {
 		}
 	}
 
-	return Flight{Price: price, Segments: segments}, nil
+	return Flight{Price: price, ManagerComment: managerComment, Segments: segments}, nil
+}
+
+// managerCommentValid сообщает, что в комментарии нет запрещённых
+// управляющих символов: C0, кроме \t, \n, \r, и U+007F.
+func managerCommentValid(comment string) bool {
+	for _, r := range comment {
+		switch {
+		case r == '\t', r == '\n', r == '\r':
+			continue
+		case r <= lastC0Control, r == deleteControl:
+			return false
+		}
+	}
+	return true
 }
