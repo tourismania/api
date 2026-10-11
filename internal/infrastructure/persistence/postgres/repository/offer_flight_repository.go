@@ -69,9 +69,10 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 
 	for _, f := range flights {
 		flightID, err := q.CreateOfferFlight(ctx, db.CreateOfferFlightParams{
-			OfferID:    int32(offerID),
-			PriceMinor: f.Price.AmountMinor,
-			Currency:   f.Price.Currency.Code,
+			OfferID:        int32(offerID),
+			PriceMinor:     f.Price.AmountMinor,
+			Currency:       f.Price.Currency.Code,
+			ManagerComment: f.ManagerComment,
 		})
 		if err != nil {
 			return fmt.Errorf("insert offer flight: %w", err)
@@ -93,21 +94,22 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 	return nil
 }
 
-// UpdatePrices перезаписывает цену у перечисленных перелётов offerID, не
-// трогая их сегменты и идентификаторы. Как и ReplaceForOffer, своей
-// транзакции не открывает — вызывающий application-хендлер уже внутри
-// txmanager.TxManager.WithinTx.
-func (r *OfferFlightRepository) UpdatePrices(ctx context.Context, offerID int, updates []flight.PriceUpdate) error {
+// UpdateDetails перезаписывает цену, валюту и комментарий менеджера у
+// перечисленных перелётов offerID, не трогая их сегменты и идентификаторы.
+// Как и ReplaceForOffer, своей транзакции не открывает — вызывающий
+// application-хендлер уже внутри txmanager.TxManager.WithinTx.
+func (r *OfferFlightRepository) UpdateDetails(ctx context.Context, offerID int, updates []flight.DetailsUpdate) error {
 	q := queriesFor(ctx, r.queries)
 
 	for _, u := range updates {
-		if err := q.UpdateOfferFlightPrice(ctx, db.UpdateOfferFlightPriceParams{
-			ID:         int32(u.FlightID),
-			OfferID:    int32(offerID),
-			PriceMinor: u.Price.AmountMinor,
-			Currency:   u.Price.Currency.Code,
+		if err := q.UpdateOfferFlightDetails(ctx, db.UpdateOfferFlightDetailsParams{
+			ID:             int32(u.FlightID),
+			OfferID:        int32(offerID),
+			PriceMinor:     u.Price.AmountMinor,
+			Currency:       u.Price.Currency.Code,
+			ManagerComment: u.ManagerComment,
 		}); err != nil {
-			return fmt.Errorf("update offer flight %d price: %w", u.FlightID, err)
+			return fmt.Errorf("update offer flight %d details: %w", u.FlightID, err)
 		}
 	}
 	return nil

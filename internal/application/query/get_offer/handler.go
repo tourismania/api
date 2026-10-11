@@ -103,6 +103,7 @@ func toFlightResults(flights []flight.Flight) []FlightResult {
 			ID:                   f.ID,
 			Price:                f.Price.String(),
 			Currency:             f.Price.Currency.Code,
+			ManagerComment:       f.ManagerComment,
 			DepartureAirportICAO: f.DepartureAirportICAO(),
 			ArrivalAirportICAO:   f.ArrivalAirportICAO(),
 			TotalDurationSeconds: int64(f.TotalDuration().Seconds()),

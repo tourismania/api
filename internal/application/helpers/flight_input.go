@@ -23,15 +23,21 @@ const (
 	priceRule     = "money"
 	currencyField = "Currency"
 	currencyRule  = "currency"
+	// managerCommentField / managerCommentRule — комментарий менеджера с
+	// запрещёнными управляющими символами.
+	managerCommentField = "ManagerComment"
+	managerCommentRule  = "text"
 )
 
 // FlightInput — DTO одного перелёта на границе Application-слоя: цена
-// десятичной строкой, код валюты и сегменты от первого к последнему.
+// десятичной строкой, код валюты, комментарий менеджера ("" — комментария
+// нет) и сегменты от первого к последнему.
 // Presentation заполняет его структурно, ничего не зная про domain/offer.
 type FlightInput struct {
-	Price    string
-	Currency string
-	Segments []FlightSegmentInput
+	Price          string
+	Currency       string
+	ManagerComment string
+	Segments       []FlightSegmentInput
 }
 
 // FlightSegmentInput — DTO одного беспосадочного сегмента перелёта.
@@ -44,9 +50,9 @@ type FlightSegmentInput struct {
 
 // BuildFlights разбирает цену каждого перелёта по справочнику валют и проверяет
 // структурные инварианты через flight.New до любой записи в БД, поэтому
-// некорректный перелёт даже не открывает транзакцию. Ошибка цены или
-// валюты возвращается как *apperror.FieldError (поле Price / Currency),
-// остальные доменные ошибки — как есть.
+// некорректный перелёт даже не открывает транзакцию. Ошибка цены, валюты
+// или комментария возвращается как *apperror.FieldError (поле Price /
+// Currency / ManagerComment), остальные доменные ошибки — как есть.
 func BuildFlights(inputs []FlightInput) ([]flight.Flight, error) {
 	if len(inputs) == 0 {
 		return nil, nil
@@ -57,7 +63,10 @@ func BuildFlights(inputs []FlightInput) ([]flight.Flight, error) {
 		if err != nil {
 			return nil, priceFieldError(err)
 		}
-		f, err := flight.New(price, toDomainSegments(in.Segments))
+		f, err := flight.New(price, in.ManagerComment, toDomainSegments(in.Segments))
+		if errors.Is(err, flight.ErrManagerCommentInvalid) {
+			return nil, apperror.NewFieldError(managerCommentField, managerCommentRule, err)
+		}
 		if err != nil {
 			return nil, err
 		}

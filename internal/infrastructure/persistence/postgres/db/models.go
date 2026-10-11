@@ -54,10 +54,11 @@ type Offer struct {
 // OfferFlight is the sqlc-style row representation of the offer_flights
 // table.
 type OfferFlight struct {
-	ID         int32
-	OfferID    int32
-	PriceMinor int64
-	Currency   string
+	ID             int32
+	OfferID        int32
+	PriceMinor     int64
+	Currency       string
+	ManagerComment string
 }
 
 // OfferFlightSegment is the sqlc-style row representation of the

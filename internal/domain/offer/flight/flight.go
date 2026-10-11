@@ -38,16 +38,19 @@ type Layover struct {
 // Flight — путь из аэропорта вылета первого сегмента в аэропорт прилёта
 // последнего, из одного или нескольких беспосадочных сегментов: 2 и более
 // сегмента — это одна или несколько пересадок. Price — цена перелёта
-// целиком (не сегмента) в валюте из справочника money. Структурные
+// целиком (не сегмента) в валюте из справочника money. ManagerComment —
+// комментарий менеджера к перелёту целиком, текст для клиента; "" —
+// комментария нет. Структурные
 // инварианты (есть сегменты, хронология, непрерывность маршрута,
 // положительные пересадки) проверяет New, а не этот тип: он всегда несёт
 // уже проверенные данные. TotalDuration и Layovers всегда вычисляются из
 // Segments на лету и не хранятся.
 type Flight struct {
-	ID       int
-	OfferID  int
-	Price    money.Money
-	Segments []Segment
+	ID             int
+	OfferID        int
+	Price          money.Money
+	ManagerComment string
+	Segments       []Segment
 }
 
 // DepartureAirportICAO is the airport of the flight's first segment.

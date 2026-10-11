@@ -23,6 +23,7 @@ type priceTestEnv struct {
 	router  http.Handler
 	token   string
 	offerID uuid.UUID
+	offers  *stubOfferRepo
 	flights *stubOfferFlightRepo
 }
 
@@ -47,6 +48,7 @@ func newPriceTestEnv(t *testing.T) priceTestEnv {
 		router:  newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights),
 		token:   token,
 		offerID: offerUUID,
+		offers:  offers,
 		flights: flights,
 	}
 }
@@ -217,7 +219,7 @@ func TestOffersHTTP_PatchFlights_SameSetDifferentNotation_IsNoOp(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.False(t, e.flights.replaceCalled)
-	assert.False(t, e.flights.updatePricesCalled)
+	assert.False(t, e.flights.updateDetailsCalled)
 }
 
 func TestOffersHTTP_PatchFlights_OnlyPriceChanged_KeepsFlightIDs(t *testing.T) {
@@ -232,7 +234,7 @@ func TestOffersHTTP_PatchFlights_OnlyPriceChanged_KeepsFlightIDs(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.False(t, e.flights.replaceCalled, "price-only change must not replace flights")
-	assert.True(t, e.flights.updatePricesCalled)
+	assert.True(t, e.flights.updateDetailsCalled)
 	after := e.cardFlights(t)
 	require.Len(t, after, 1)
 	assert.Equal(t, before[0]["id"], after[0]["id"])

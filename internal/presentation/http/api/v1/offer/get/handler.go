@@ -115,6 +115,7 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 			ID:                   f.ID,
 			Price:                f.Price,
 			Currency:             f.Currency,
+			ManagerComment:       f.ManagerComment,
 			DepartureAirportICAO: f.DepartureAirportICAO,
 			ArrivalAirportICAO:   f.ArrivalAirportICAO,
 			TotalDurationSeconds: f.TotalDurationSeconds,

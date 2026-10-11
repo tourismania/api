@@ -40,10 +40,11 @@ func ToFlightsDomain(flightRows []db.OfferFlight, segRows []db.OfferFlightSegmen
 			return nil, fmt.Errorf("offer flight %d has an invalid stored price: %v", f.ID, err)
 		}
 		flights = append(flights, flight.Flight{
-			ID:       int(f.ID),
-			OfferID:  int(f.OfferID),
-			Price:    price,
-			Segments: segsByFlight[f.ID],
+			ID:             int(f.ID),
+			OfferID:        int(f.OfferID),
+			Price:          price,
+			ManagerComment: f.ManagerComment,
+			Segments:       segsByFlight[f.ID],
 		})
 	}
 	return flights, nil

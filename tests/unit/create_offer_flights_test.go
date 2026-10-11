@@ -129,6 +129,53 @@ func TestCreateOffer_WithValidFlights_StoresParsedPrice(t *testing.T) {
 	assert.Equal(t, mustMoney("12345.50", money.CodeEUR), flightRepo.replacedFlights[0].Price)
 }
 
+func TestCreateOffer_WithManagerComment_StoresComment(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	offers := &mockOfferRepo{storeID: 42}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "100", Currency: "RUB", ManagerComment: "Багаж оплачивается отдельно", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, flightRepo.replacedFlights, 1)
+	assert.Equal(t, "Багаж оплачивается отдельно", flightRepo.replacedFlights[0].ManagerComment)
+}
+
+func TestCreateOffer_ManagerCommentControlChar_ReturnsFieldError_NeverStoresOffer(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	offers := &mockOfferRepo{storeID: 1}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "100", Currency: "RUB", ManagerComment: "до\u0000после", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
+	fe, ok := apperror.AsFieldError(err)
+	require.True(t, ok)
+	assert.Equal(t, "ManagerComment", fe.Field)
+	assert.Equal(t, offer.Offer{}, offers.storedOffer)
+	assert.False(t, flightRepo.replaceCalled)
+}
+
 func TestCreateOffer_InvalidPriceOrCurrency_ReturnsValidationError_NeverStoresOffer(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	for _, tc := range []struct{ price, currency string }{

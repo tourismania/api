@@ -43,10 +43,10 @@ type mockOfferFlightRepo struct {
 	replacedOfferID int
 	replacedFlights []flight.Flight
 
-	updatePricesErr     error
-	updatePricesCalled  bool
-	updatePricesOfferID int
-	updatedPrices       []flight.PriceUpdate
+	updateDetailsErr     error
+	updateDetailsCalled  bool
+	updateDetailsOfferID int
+	updatedDetails       []flight.DetailsUpdate
 }
 
 func (m *mockOfferFlightRepo) FindByOfferID(_ context.Context, _ int) ([]flight.Flight, error) {
@@ -60,11 +60,11 @@ func (m *mockOfferFlightRepo) ReplaceForOffer(_ context.Context, offerID int, fl
 	return m.replaceErr
 }
 
-func (m *mockOfferFlightRepo) UpdatePrices(_ context.Context, offerID int, updates []flight.PriceUpdate) error {
-	m.updatePricesCalled = true
-	m.updatePricesOfferID = offerID
-	m.updatedPrices = updates
-	return m.updatePricesErr
+func (m *mockOfferFlightRepo) UpdateDetails(_ context.Context, offerID int, updates []flight.DetailsUpdate) error {
+	m.updateDetailsCalled = true
+	m.updateDetailsOfferID = offerID
+	m.updatedDetails = updates
+	return m.updateDetailsErr
 }
 
 // mockAirportRepo is a hand-written test double for

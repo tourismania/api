@@ -5,24 +5,25 @@ import (
 	"time"
 )
 
-const createOfferFlightSQL = `INSERT INTO offer_flights (offer_id, price_minor, currency) VALUES ($1, $2, $3) RETURNING id`
+const createOfferFlightSQL = `INSERT INTO offer_flights (offer_id, price_minor, currency, manager_comment) VALUES ($1, $2, $3, $4) RETURNING id`
 
 // CreateOfferFlightParams matches the column order of
 // createOfferFlightSQL.
 type CreateOfferFlightParams struct {
-	OfferID    int32
-	PriceMinor int64
-	Currency   string
+	OfferID        int32
+	PriceMinor     int64
+	Currency       string
+	ManagerComment string
 }
 
 // CreateOfferFlight inserts a flight row and returns its id.
 func (q *Queries) CreateOfferFlight(ctx context.Context, arg CreateOfferFlightParams) (int32, error) {
 	var id int32
-	err := q.db.QueryRow(ctx, createOfferFlightSQL, arg.OfferID, arg.PriceMinor, arg.Currency).Scan(&id)
+	err := q.db.QueryRow(ctx, createOfferFlightSQL, arg.OfferID, arg.PriceMinor, arg.Currency, arg.ManagerComment).Scan(&id)
 	return id, err
 }
 
-const listOfferFlightsByOfferIDSQL = `SELECT id, offer_id, price_minor, currency FROM offer_flights WHERE offer_id = $1 ORDER BY id ASC`
+const listOfferFlightsByOfferIDSQL = `SELECT id, offer_id, price_minor, currency, manager_comment FROM offer_flights WHERE offer_id = $1 ORDER BY id ASC`
 
 // ListOfferFlightsByOfferID returns the offer's flight rows, ordered by
 // ascending id (i.e. insertion order).
@@ -36,7 +37,7 @@ func (q *Queries) ListOfferFlightsByOfferID(ctx context.Context, offerID int32) 
 	var result []OfferFlight
 	for rows.Next() {
 		var f OfferFlight
-		if err := rows.Scan(&f.ID, &f.OfferID, &f.PriceMinor, &f.Currency); err != nil {
+		if err := rows.Scan(&f.ID, &f.OfferID, &f.PriceMinor, &f.Currency, &f.ManagerComment); err != nil {
 			return nil, err
 		}
 		result = append(result, f)
@@ -47,21 +48,23 @@ func (q *Queries) ListOfferFlightsByOfferID(ctx context.Context, offerID int32) 
 	return result, nil
 }
 
-const updateOfferFlightPriceSQL = `UPDATE offer_flights SET price_minor = $3, currency = $4 WHERE id = $1 AND offer_id = $2`
+const updateOfferFlightDetailsSQL = `UPDATE offer_flights SET price_minor = $3, currency = $4, manager_comment = $5 WHERE id = $1 AND offer_id = $2`
 
-// UpdateOfferFlightPriceParams matches the column order of
-// updateOfferFlightPriceSQL.
-type UpdateOfferFlightPriceParams struct {
-	ID         int32
-	OfferID    int32
-	PriceMinor int64
-	Currency   string
+// UpdateOfferFlightDetailsParams matches the column order of
+// updateOfferFlightDetailsSQL.
+type UpdateOfferFlightDetailsParams struct {
+	ID             int32
+	OfferID        int32
+	PriceMinor     int64
+	Currency       string
+	ManagerComment string
 }
 
-// UpdateOfferFlightPrice overwrites the price of a single flight row of
-// the given offer, leaving its id and segments untouched.
-func (q *Queries) UpdateOfferFlightPrice(ctx context.Context, arg UpdateOfferFlightPriceParams) error {
-	_, err := q.db.Exec(ctx, updateOfferFlightPriceSQL, arg.ID, arg.OfferID, arg.PriceMinor, arg.Currency)
+// UpdateOfferFlightDetails overwrites the price, currency and manager
+// comment of a single flight row of the given offer, leaving its id and
+// segments untouched.
+func (q *Queries) UpdateOfferFlightDetails(ctx context.Context, arg UpdateOfferFlightDetailsParams) error {
+	_, err := q.db.Exec(ctx, updateOfferFlightDetailsSQL, arg.ID, arg.OfferID, arg.PriceMinor, arg.Currency, arg.ManagerComment)
 	return err
 }
 
