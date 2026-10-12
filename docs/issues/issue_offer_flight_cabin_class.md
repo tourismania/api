@@ -5,6 +5,7 @@
 > **Источник требований:** изменение SDD `add-flight-segment-class` в `tourismania/sdd`
 > (`openspec/changes/add-flight-segment-class/`: proposal, дельта спеки `offers/flights`, design, tasks),
 > принято в [sdd PR №23](https://github.com/tourismania/sdd/pull/23).
+> **Реализация:** [api PR №35](https://github.com/tourismania/api/pull/35).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
