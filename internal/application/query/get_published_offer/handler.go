@@ -80,6 +80,7 @@ func toFlightResults(flights []flight.Flight) []FlightResult {
 				DepartureAt:          s.DepartureAt,
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      int64(s.Duration().Seconds()),
+				CabinClass:           string(s.CabinClass),
 			})
 		}
 

@@ -60,3 +60,9 @@ func TestFlightSegment_Duration(t *testing.T) {
 	s := flight.Segment{DepartureAt: base, ArrivalAt: base.Add(90 * time.Minute)}
 	assert.Equal(t, 90*time.Minute, s.Duration())
 }
+
+func TestFlightSegment_CabinClassZeroValue_IsUnknown(t *testing.T) {
+	var seg flight.Segment
+
+	assert.Equal(t, flight.CabinClassUnknown, seg.CabinClass)
+}

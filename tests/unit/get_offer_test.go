@@ -3,10 +3,12 @@ package unit_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"api/internal/application/apperror"
 	getoffer "api/internal/application/query/get_offer"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
 
 	"github.com/google/uuid"
@@ -112,4 +114,25 @@ func TestGetOffer_ActorNotFound_ReturnsErrUnauthenticated(t *testing.T) {
 	})
 
 	assert.ErrorIs(t, err, apperror.ErrUnauthenticated)
+}
+
+// cabinClassFlight — сохранённый перелёт из двух сегментов: первый в
+// бизнесе, у второго класс неизвестен.
+func cabinClassFlight() flight.Flight {
+	f := withCabinClasses(twoSegmentFlight(time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)), 11, flight.CabinClassBusiness)
+	return f
+}
+
+func TestGetOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}}, userRecordWithAgency(7))
+
+	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 1)
+	require.Len(t, res.Flights[0].Segments, 2)
+	assert.Equal(t, "business", res.Flights[0].Segments[0].CabinClass)
+	assert.Equal(t, "", res.Flights[0].Segments[1].CabinClass)
 }

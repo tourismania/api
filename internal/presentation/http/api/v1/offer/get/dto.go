@@ -45,6 +45,9 @@ type FlightSegmentResponse struct {
 	DepartureAt          time.Time `json:"departure_at"`
 	ArrivalAt            time.Time `json:"arrival_at"`
 	DurationSeconds      int64     `json:"duration_seconds"`
+	// CabinClass — класс обслуживания сегмента; поле присутствует всегда,
+	// "" — класс неизвестен.
+	CabinClass string `json:"cabin_class" example:"economy" enums:",economy,comfort,comfort_plus,business"`
 }
 
 // LayoverResponse is the wait between two consecutive segments of a

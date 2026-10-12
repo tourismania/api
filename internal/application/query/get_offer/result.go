@@ -50,6 +50,8 @@ type FlightSegmentResult struct {
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
 	DurationSeconds      int64
+	// CabinClass — класс обслуживания сегмента; "" — класс неизвестен.
+	CabinClass string
 }
 
 // LayoverResult — пересадка между двумя соседними сегментами FlightResult.

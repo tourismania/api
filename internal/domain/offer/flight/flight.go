@@ -15,12 +15,16 @@ import (
 	"api/internal/domain/money"
 )
 
-// Segment is one nonstop leg of a Flight.
+// Segment is one nonstop leg of a Flight. CabinClass — класс обслуживания
+// сегмента (у сегментов одного перелёта классы могут различаться);
+// CabinClassUnknown — класс неизвестен. Класс в маршрут не входит: его
+// изменение обновляет сегмент на месте (см. Manager.ReplaceForOffer).
 type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
+	CabinClass           CabinClass
 }
 
 // Duration is the segment's own flight time.

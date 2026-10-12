@@ -18,6 +18,20 @@ func sampleFlight(dep, arr string, base time.Time) flight.Flight {
 	}}
 }
 
+// unknownCabinClass — классы единственного сегмента sampleFlight без класса.
+var unknownCabinClass = []flight.CabinClass{flight.CabinClassUnknown}
+
+// withCabinClasses возвращает копию перелёта с другими классами сегментов
+// (по порядку) и ID; сегменты копируются, исходный перелёт не меняется.
+func withCabinClasses(f flight.Flight, id int, classes ...flight.CabinClass) flight.Flight {
+	f.ID = id
+	f.Segments = append([]flight.Segment(nil), f.Segments...)
+	for i, c := range classes {
+		f.Segments[i].CabinClass = c
+	}
+	return f
+}
+
 // withPrice возвращает копию перелёта с другой ценой и ID.
 func withPrice(f flight.Flight, id int, price money.Money) flight.Flight {
 	f.ID = id
@@ -72,7 +86,7 @@ func TestOfferFlightManager_ReplaceForOffer_OnlyPriceChanged_UpdatesPricesKeepsI
 	assert.False(t, flights.replaceCalled, "price-only change must not replace the set")
 	require.True(t, flights.updateDetailsCalled)
 	assert.Equal(t, 1, flights.updateDetailsOfferID)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 8, Price: mustMoney("250.50", money.CodeRUB)}}, flights.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 8, Price: mustMoney("250.50", money.CodeRUB), SegmentCabinClasses: unknownCabinClass}}, flights.updatedDetails)
 }
 
 func TestOfferFlightManager_ReplaceForOffer_OnlyCurrencyChanged_UpdatesPrices(t *testing.T) {
@@ -86,7 +100,7 @@ func TestOfferFlightManager_ReplaceForOffer_OnlyCurrencyChanged_UpdatesPrices(t 
 
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: mustMoney("100", money.CodeEUR)}}, flights.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: mustMoney("100", money.CodeEUR), SegmentCabinClasses: unknownCabinClass}}, flights.updatedDetails)
 }
 
 // withComment возвращает копию перелёта с другим комментарием менеджера и ID.
@@ -131,7 +145,7 @@ func TestOfferFlightManager_ReplaceForOffer_OnlyCommentChanged_UpdatesDetailsKee
 	require.True(t, flights.updateDetailsCalled)
 	assert.Equal(t, 1, flights.updateDetailsOfferID)
 	assert.Equal(t, []flight.DetailsUpdate{
-		{FlightID: 8, Price: samplePrice(), ManagerComment: "Ночная пересадка"},
+		{FlightID: 8, Price: samplePrice(), ManagerComment: "Ночная пересадка", SegmentCabinClasses: unknownCabinClass},
 	}, flights.updatedDetails)
 }
 
@@ -145,7 +159,7 @@ func TestOfferFlightManager_ReplaceForOffer_CommentRemoved_UpdatesDetails(t *tes
 
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: samplePrice(), ManagerComment: ""}}, flights.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: samplePrice(), ManagerComment: "", SegmentCabinClasses: unknownCabinClass}}, flights.updatedDetails)
 }
 
 func TestOfferFlightManager_ReplaceForOffer_PriceAndCommentChanged_OneUpdate(t *testing.T) {
@@ -160,7 +174,7 @@ func TestOfferFlightManager_ReplaceForOffer_PriceAndCommentChanged_OneUpdate(t *
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled)
 	assert.Equal(t, []flight.DetailsUpdate{
-		{FlightID: 7, Price: mustMoney("200", money.CodeEUR), ManagerComment: "новый"},
+		{FlightID: 7, Price: mustMoney("200", money.CodeEUR), ManagerComment: "новый", SegmentCabinClasses: unknownCabinClass},
 	}, flights.updatedDetails, "price and comment of one flight must be a single update")
 }
 
@@ -175,7 +189,7 @@ func TestOfferFlightManager_ReplaceForOffer_TrailingSpaceInComment_IsAChange(t *
 
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: samplePrice(), ManagerComment: "a "}}, flights.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: samplePrice(), ManagerComment: "a ", SegmentCabinClasses: unknownCabinClass}}, flights.updatedDetails)
 }
 
 func TestOfferFlightManager_ReplaceForOffer_RouteAndCommentChanged_Replaces(t *testing.T) {
@@ -271,4 +285,101 @@ func TestOfferFlightManager_ReplaceForOffer_UnknownAirport_ReturnsErr(t *testing
 
 	assert.ErrorIs(t, err, flight.ErrAirportNotFound)
 	assert.False(t, flights.replaceCalled, "must not write when an airport is missing")
+}
+
+// twoSegmentFlight — перелёт UUEE→LFPG→KJFK из двух сегментов без классов.
+func twoSegmentFlight(base time.Time) flight.Flight {
+	return flight.Flight{Price: samplePrice(), Segments: []flight.Segment{
+		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
+		{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+	}}
+}
+
+func TestOfferFlightManager_ReplaceForOffer_SameCabinClasses_IsNoOp(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	stored := withCabinClasses(twoSegmentFlight(base), 7, flight.CabinClassEconomy, flight.CabinClassBusiness)
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := withCabinClasses(twoSegmentFlight(base), 0, flight.CabinClassEconomy, flight.CabinClassBusiness)
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{incoming})
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled)
+	assert.False(t, flights.updateDetailsCalled, "same classes must not touch the database")
+}
+
+func TestOfferFlightManager_ReplaceForOffer_OnlyCabinClassChanged_UpdatesDetailsKeepsIDs(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	later := base.Add(72 * time.Hour)
+	existing := []flight.Flight{
+		withCabinClasses(twoSegmentFlight(base), 7, flight.CabinClassEconomy, flight.CabinClassEconomy),
+		withCabinClasses(twoSegmentFlight(later), 8, flight.CabinClassEconomy, flight.CabinClassEconomy),
+	}
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: existing}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	// Маршрут, цена и комментарий те же; у второго сегмента второго перелёта
+	// другой класс.
+	incoming := []flight.Flight{
+		withCabinClasses(twoSegmentFlight(base), 0, flight.CabinClassEconomy, flight.CabinClassEconomy),
+		withCabinClasses(twoSegmentFlight(later), 0, flight.CabinClassEconomy, flight.CabinClassComfortPlus),
+	}
+	err := mgr.ReplaceForOffer(context.Background(), 1, incoming)
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled, "class-only change must not replace the set")
+	require.True(t, flights.updateDetailsCalled)
+	assert.Equal(t, 1, flights.updateDetailsOfferID)
+	assert.Equal(t, []flight.DetailsUpdate{{
+		FlightID:            8,
+		Price:               samplePrice(),
+		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassEconomy, flight.CabinClassComfortPlus},
+	}}, flights.updatedDetails, "only the changed flight, with every segment class")
+}
+
+func TestOfferFlightManager_ReplaceForOffer_CabinClassRemoved_UpdatesDetails(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	stored := withCabinClasses(sampleFlight("UUEE", "LFPG", base), 7, flight.CabinClassBusiness)
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{sampleFlight("UUEE", "LFPG", base)})
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 7, Price: samplePrice(), SegmentCabinClasses: unknownCabinClass}}, flights.updatedDetails)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_CabinClassAndPriceChanged_OneUpdate(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	stored := withCabinClasses(withPrice(sampleFlight("UUEE", "LFPG", base), 7, mustMoney("100", money.CodeRUB)), 7, flight.CabinClassEconomy)
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := withCabinClasses(withPrice(sampleFlight("UUEE", "LFPG", base), 0, mustMoney("300", money.CodeRUB)), 0, flight.CabinClassBusiness)
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{incoming})
+
+	require.NoError(t, err)
+	assert.False(t, flights.replaceCalled)
+	assert.Equal(t, []flight.DetailsUpdate{{
+		FlightID:            7,
+		Price:               mustMoney("300", money.CodeRUB),
+		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness},
+	}}, flights.updatedDetails, "class and price of one flight must be a single update")
+}
+
+func TestOfferFlightManager_ReplaceForOffer_AirportsAndCabinClassChanged_Replaces(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	stored := withCabinClasses(sampleFlight("UUEE", "LFPG", base), 7, flight.CabinClassEconomy)
+	flights := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	mgr := flight.NewManager(flights, &mockAirportRepo{})
+
+	incoming := withCabinClasses(sampleFlight("UUEE", "EDDF", base), 0, flight.CabinClassBusiness)
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{incoming})
+
+	require.NoError(t, err)
+	assert.True(t, flights.replaceCalled, "changed airports must replace the whole set")
+	assert.False(t, flights.updateDetailsCalled)
+	assert.Equal(t, []flight.Flight{incoming}, flights.replacedFlights)
 }

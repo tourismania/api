@@ -71,4 +71,5 @@ type OfferFlightSegment struct {
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
+	CabinClass           string
 }

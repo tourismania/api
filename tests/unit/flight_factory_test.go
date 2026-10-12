@@ -157,3 +157,69 @@ func TestNewFlight_ManagerCommentControlChar_ReturnsErr(t *testing.T) {
 		})
 	}
 }
+
+// segmentsWithClasses — два непрерывных сегмента UUEE→LFPG→KJFK с
+// заданными классами обслуживания.
+func segmentsWithClasses(first, second flight.CabinClass) []flight.Segment {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	return []flight.Segment{
+		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: first},
+		{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour), CabinClass: second},
+	}
+}
+
+func TestNewFlight_CabinClassValid_KeptAsIs(t *testing.T) {
+	for _, class := range []flight.CabinClass{"", "economy", "comfort", "comfort_plus", "business"} {
+		t.Run(string(class), func(t *testing.T) {
+			f, err := flight.New(samplePrice(), "", segmentsWithClasses(class, flight.CabinClassUnknown))
+
+			require.NoError(t, err)
+			assert.Equal(t, class, f.Segments[0].CabinClass)
+			assert.Equal(t, flight.CabinClassUnknown, f.Segments[1].CabinClass)
+		})
+	}
+}
+
+func TestNewFlight_DifferentCabinClassesPerSegment_KeptInOrder(t *testing.T) {
+	f, err := flight.New(samplePrice(), "", segmentsWithClasses(flight.CabinClassEconomy, flight.CabinClassComfort))
+
+	require.NoError(t, err)
+	assert.Equal(t, flight.CabinClassEconomy, f.Segments[0].CabinClass)
+	assert.Equal(t, flight.CabinClassComfort, f.Segments[1].CabinClass)
+}
+
+func TestNewFlight_CabinClassInvalid_ReturnsErr(t *testing.T) {
+	for _, class := range []flight.CabinClass{"first", "premium_economy", "comfort+", "Business", " economy", "economy "} {
+		t.Run(string(class), func(t *testing.T) {
+			// Недопустимый класс во втором сегменте: проверяется каждый сегмент.
+			_, err := flight.New(samplePrice(), "", segmentsWithClasses(flight.CabinClassEconomy, class))
+
+			assert.ErrorIs(t, err, flight.ErrCabinClassInvalid)
+		})
+	}
+}
+
+func TestCabinClasses_ReturnsFourKnownClasses(t *testing.T) {
+	assert.Equal(t, []flight.CabinClass{
+		flight.CabinClassEconomy,
+		flight.CabinClassComfort,
+		flight.CabinClassComfortPlus,
+		flight.CabinClassBusiness,
+	}, flight.CabinClasses())
+}
+
+func TestCabinClasses_ReturnsCopy(t *testing.T) {
+	classes := flight.CabinClasses()
+	classes[0] = "first"
+
+	assert.Equal(t, flight.CabinClassEconomy, flight.CabinClasses()[0])
+	assert.False(t, flight.CabinClass("first").IsValid())
+}
+
+func TestCabinClass_IsValid_KnownAndUnknown(t *testing.T) {
+	for _, class := range flight.CabinClasses() {
+		assert.True(t, class.IsValid(), class)
+	}
+	assert.True(t, flight.CabinClassUnknown.IsValid())
+	assert.False(t, flight.CabinClass("ECONOMY").IsValid())
+}

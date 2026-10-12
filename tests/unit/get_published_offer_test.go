@@ -6,6 +6,7 @@ import (
 
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -58,4 +59,17 @@ func TestGetPublishedOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: uuid.New()})
 
 	assert.ErrorIs(t, err, offer.ErrNotFound)
+}
+
+func TestGetPublishedOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}})
+
+	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 1)
+	require.Len(t, res.Flights[0].Segments, 2)
+	assert.Equal(t, "business", res.Flights[0].Segments[0].CabinClass)
+	assert.Equal(t, "", res.Flights[0].Segments[1].CabinClass)
 }

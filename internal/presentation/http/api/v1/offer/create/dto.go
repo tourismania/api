@@ -40,6 +40,11 @@ type FlightSegmentInput struct {
 	ArrivalAirportICAO   string    `json:"arrival_airport_icao"   validate:"required,len=4"`
 	DepartureAt          time.Time `json:"departure_at"           validate:"required"`
 	ArrivalAt            time.Time `json:"arrival_at"             validate:"required"`
+	// CabinClass — класс обслуживания сегмента; необязателен (отсутствие
+	// поля, null и "" — класс неизвестен). Допустимые значения проверяет
+	// домен (справочник flight.CabinClasses), а не валидатор: oneof здесь
+	// дублировал бы список и расходился с доменом при его расширении.
+	CabinClass string `json:"cabin_class" example:"economy" enums:",economy,comfort,comfort_plus,business"`
 }
 
 // CreateOfferResponse is the response envelope.

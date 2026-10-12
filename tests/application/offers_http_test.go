@@ -91,6 +91,8 @@ type stubOfferRepo struct {
 	storeID int
 	// storeCalled — Store вызывался (оффер создан).
 	storeCalled bool
+	// updateCalled — Update вызывался (базовые поля оффера записаны).
+	updateCalled bool
 	gotFilter   offer.Filter
 	// found — оффер, который возвращает FindByUUID (nil — «не найден»).
 	found *offer.Offer
@@ -112,7 +114,10 @@ func (s *stubOfferRepo) List(_ context.Context, f offer.Filter) (offer.ListResul
 	return offer.ListResult{Offers: s.listed, TotalCount: int64(len(s.listed))}, nil
 }
 
-func (s *stubOfferRepo) Update(_ context.Context, _ offer.Offer) error { return nil }
+func (s *stubOfferRepo) Update(_ context.Context, _ offer.Offer) error {
+	s.updateCalled = true
+	return nil
+}
 
 func (s *stubOfferRepo) SoftDelete(_ context.Context, _ uuid.UUID) error { return nil }
 
@@ -172,6 +177,12 @@ func (s *stubOfferFlightRepo) UpdateDetails(_ context.Context, _ int, updates []
 			if s.stored[i].ID == u.FlightID {
 				s.stored[i].Price = u.Price
 				s.stored[i].ManagerComment = u.ManagerComment
+				// Сегменты копируются: срез разделяет массив с replacedFlights.
+				segs := slices.Clone(s.stored[i].Segments)
+				for j, class := range u.SegmentCabinClasses {
+					segs[j].CabinClass = class
+				}
+				s.stored[i].Segments = segs
 			}
 		}
 	}

@@ -100,6 +100,7 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 				DepartureAt:          s.DepartureAt,
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      s.DurationSeconds,
+				CabinClass:           s.CabinClass,
 			})
 		}
 
