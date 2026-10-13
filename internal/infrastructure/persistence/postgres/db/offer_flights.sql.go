@@ -78,8 +78,8 @@ func (q *Queries) DeleteOfferFlightsByOfferID(ctx context.Context, offerID int32
 }
 
 const createOfferFlightSegmentSQL = `INSERT INTO offer_flight_segments (
-    flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at
-) VALUES ($1, $2, $3, $4, $5, $6)`
+    flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class
+) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 // CreateOfferFlightSegmentParams matches the column order of
 // createOfferFlightSegmentSQL.
@@ -90,6 +90,7 @@ type CreateOfferFlightSegmentParams struct {
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
+	CabinClass           string
 }
 
 // CreateOfferFlightSegment inserts one segment row.
@@ -101,13 +102,14 @@ func (q *Queries) CreateOfferFlightSegment(ctx context.Context, arg CreateOfferF
 		arg.ArrivalAirportICAO,
 		arg.DepartureAt,
 		arg.ArrivalAt,
+		arg.CabinClass,
 	)
 	return err
 }
 
 // listOfferFlightSegmentsByFlightIDsSQL orders by flight then sequence
 // so callers can group consecutive rows by flight_id without a map.
-const listOfferFlightSegmentsByFlightIDsSQL = `SELECT id, flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at
+const listOfferFlightSegmentsByFlightIDsSQL = `SELECT id, flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class
 FROM offer_flight_segments
 WHERE flight_id = ANY($1::int[])
 ORDER BY flight_id ASC, sequence ASC`
@@ -128,6 +130,7 @@ func (q *Queries) ListOfferFlightSegmentsByFlightIDs(ctx context.Context, flight
 			&s.ID, &s.FlightID, &s.Sequence,
 			&s.DepartureAirportICAO, &s.ArrivalAirportICAO,
 			&s.DepartureAt, &s.ArrivalAt,
+			&s.CabinClass,
 		); err != nil {
 			return nil, err
 		}
@@ -137,4 +140,23 @@ func (q *Queries) ListOfferFlightSegmentsByFlightIDs(ctx context.Context, flight
 		return nil, err
 	}
 	return result, nil
+}
+
+const updateOfferFlightSegmentCabinClassSQL = `UPDATE offer_flight_segments AS s SET cabin_class = $4 FROM offer_flights AS f WHERE s.flight_id = f.id AND f.id = $1 AND f.offer_id = $2 AND s.sequence = $3`
+
+// UpdateOfferFlightSegmentCabinClassParams matches the column order of
+// updateOfferFlightSegmentCabinClassSQL.
+type UpdateOfferFlightSegmentCabinClassParams struct {
+	FlightID   int32
+	OfferID    int32
+	Sequence   int16
+	CabinClass string
+}
+
+// UpdateOfferFlightSegmentCabinClass overwrites the cabin class of a
+// single segment (by flight and sequence) of a flight of the given
+// offer, leaving its airports, times and id untouched.
+func (q *Queries) UpdateOfferFlightSegmentCabinClass(ctx context.Context, arg UpdateOfferFlightSegmentCabinClassParams) error {
+	_, err := q.db.Exec(ctx, updateOfferFlightSegmentCabinClassSQL, arg.FlightID, arg.OfferID, arg.Sequence, arg.CabinClass)
+	return err
 }

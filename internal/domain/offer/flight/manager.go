@@ -31,13 +31,14 @@ func NewManager(flights Repository, airports airport.Repository) *Manager {
 
 // ReplaceForOffer проверяет, что все коды icao из flights есть в
 // справочнике аэропортов, и сравнивает flights с сохранёнными для offerID —
-// сначала маршрут, потом цены и комментарии:
+// сначала маршрут, потом цены, комментарии и классы сегментов:
 //   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
 //     моменты времени сегментов; ID, назначенные сервером, не учитываются),
-//     цены и комментарии совпали — no-op, БД не трогается;
-//   - маршрут совпал, у части перелётов другая цена, валюта или
-//     комментарий — у этих перелётов обновляются только цена и комментарий,
-//     сегменты и идентификаторы сохраняются;
+//     цены, комментарии и классы совпали — no-op, БД не трогается;
+//   - маршрут совпал, у части перелётов другая цена, валюта, комментарий
+//     или класс хотя бы одного сегмента — у этих перелётов обновляются
+//     только цена, комментарий и классы сегментов; аэропорты и время
+//     сегментов и идентификаторы сохраняются;
 //   - маршрут отличается — набор заменяется целиком.
 //
 // Перелёты сопоставляются по позиции: у входящих перелётов нет ID.
@@ -103,8 +104,8 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 
 // routesEqual сравнивает два набора перелётов только по маршруту: порядок
 // перелётов и порядок сегментов внутри перелёта значимы, ID не учитываются
-// — у входящих перелётов их нет. Цена и комментарий в сравнение маршрута не
-// входят — их сравнивает detailsUpdates.
+// — у входящих перелётов их нет. Цена, комментарий и классы сегментов в
+// сравнение маршрута не входят — их сравнивает detailsUpdates.
 func routesEqual(a, b []Flight) bool {
 	if len(a) != len(b) {
 		return false
@@ -132,22 +133,47 @@ func segmentsEqual(a, b []Segment) bool {
 	return true
 }
 
-// detailsUpdates возвращает новые цену и комментарий для перелётов, у
-// которых цена, валюта или комментарий отличается от сохранённых.
-// Комментарии сравниваются точно, без нормализации ("a" и "a " различны):
-// api хранит текст как есть. existing и incoming — наборы с уже совпавшим
+// detailsUpdates возвращает новые цену, комментарий и классы сегментов для
+// перелётов, у которых цена, валюта, комментарий или класс хотя бы одного
+// сегмента отличается от сохранённых; в обновление идут классы всех
+// сегментов перелёта. Комментарии и классы сравниваются точно, без
+// нормализации ("a" и "a " различны): api хранит значения как есть. existing и incoming — наборы с уже совпавшим
 // маршрутом (routesEqual), сопоставленные по позиции; ID берётся у
 // сохранённого перелёта.
 func detailsUpdates(existing, incoming []Flight) []DetailsUpdate {
 	var updates []DetailsUpdate
 	for i := range existing {
-		if existing[i].Price != incoming[i].Price || existing[i].ManagerComment != incoming[i].ManagerComment {
+		if existing[i].Price != incoming[i].Price ||
+			existing[i].ManagerComment != incoming[i].ManagerComment ||
+			!cabinClassesEqual(existing[i].Segments, incoming[i].Segments) {
 			updates = append(updates, DetailsUpdate{
-				FlightID:       existing[i].ID,
-				Price:          incoming[i].Price,
-				ManagerComment: incoming[i].ManagerComment,
+				FlightID:            existing[i].ID,
+				Price:               incoming[i].Price,
+				ManagerComment:      incoming[i].ManagerComment,
+				SegmentCabinClasses: segmentCabinClasses(incoming[i].Segments),
 			})
 		}
 	}
 	return updates
+}
+
+// cabinClassesEqual сравнивает классы сегментов двух перелётов по позиции.
+// Вызывается только для перелётов с совпавшим маршрутом, поэтому число
+// сегментов одинаково.
+func cabinClassesEqual(a, b []Segment) bool {
+	for i := range a {
+		if a[i].CabinClass != b[i].CabinClass {
+			return false
+		}
+	}
+	return true
+}
+
+// segmentCabinClasses возвращает классы сегментов по порядку.
+func segmentCabinClasses(segs []Segment) []CabinClass {
+	classes := make([]CabinClass, 0, len(segs))
+	for _, s := range segs {
+		classes = append(classes, s.CabinClass)
+	}
+	return classes
 }

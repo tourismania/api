@@ -89,3 +89,31 @@ func TestBuildFlights_StructuralError_IsNotFieldError(t *testing.T) {
 	_, ok := apperror.AsFieldError(err)
 	assert.False(t, ok)
 }
+
+func TestBuildFlights_CabinClass_PassedAsIsWithoutDefault(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	flights, err := helpers.BuildFlights([]helpers.FlightInput{{Price: "100", Currency: "RUB", Segments: []helpers.FlightSegmentInput{
+		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort_plus"},
+		{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+	}}})
+
+	require.NoError(t, err)
+	require.Len(t, flights, 1)
+	assert.Equal(t, flight.CabinClassComfortPlus, flights[0].Segments[0].CabinClass)
+	assert.Equal(t, flight.CabinClassUnknown, flights[0].Segments[1].CabinClass, "empty class must stay empty")
+}
+
+func TestBuildFlights_CabinClassInvalid_ReturnsCabinClassFieldError(t *testing.T) {
+	for _, class := range []string{"first", "premium_economy", "comfort+", "Business", " economy"} {
+		segs := validSegments()
+		segs[0].CabinClass = class
+		_, err := helpers.BuildFlights([]helpers.FlightInput{{Price: "100", Currency: "RUB", Segments: segs}})
+
+		fe, ok := apperror.AsFieldError(err)
+		require.True(t, ok, "%q", class)
+		assert.Equal(t, "CabinClass", fe.Field)
+		assert.Equal(t, "oneof", fe.Rule)
+		assert.ErrorIs(t, err, apperror.ErrValidation)
+		assert.ErrorIs(t, err, flight.ErrCabinClassInvalid)
+	}
+}

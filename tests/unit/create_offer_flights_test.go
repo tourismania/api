@@ -202,3 +202,56 @@ func TestCreateOffer_InvalidPriceOrCurrency_ReturnsValidationError_NeverStoresOf
 		assert.Equal(t, offer.Offer{}, offers.storedOffer, tc)
 	}
 }
+
+func TestCreateOffer_WithCabinClasses_StoresClassesEmptyStaysEmpty(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	offers := &mockOfferRepo{storeID: 42}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{
+				{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort"},
+				{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+			}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, flightRepo.replacedFlights, 1)
+	require.Len(t, flightRepo.replacedFlights[0].Segments, 2)
+	assert.Equal(t, flight.CabinClassComfort, flightRepo.replacedFlights[0].Segments[0].CabinClass)
+	assert.Equal(t, flight.CabinClassUnknown, flightRepo.replacedFlights[0].Segments[1].CabinClass, "no default class")
+}
+
+func TestCreateOffer_CabinClassInvalid_ReturnsFieldError_NeverStoresOffer(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	offers := &mockOfferRepo{storeID: 1}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "first"}}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
+	fe, ok := apperror.AsFieldError(err)
+	require.True(t, ok)
+	assert.Equal(t, "CabinClass", fe.Field)
+	assert.Equal(t, "oneof", fe.Rule)
+	assert.Equal(t, offer.Offer{}, offers.storedOffer)
+	assert.False(t, flightRepo.replaceCalled)
+}

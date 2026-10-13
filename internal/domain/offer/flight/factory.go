@@ -45,7 +45,9 @@ const (
 // money.ErrAmountInvalid. Комментарий сохраняется как есть (без обрезки и
 // экранирования), пустая строка — «комментария нет»; управляющие символы,
 // кроме \t, \n, \r, — ErrManagerCommentInvalid. Длину комментария New не
-// проверяет — это правило формы запроса. Затем проверяются
+// проверяет — это правило формы запроса. Класс обслуживания каждого
+// сегмента должен быть из CabinClasses или пустым (класс неизвестен) —
+// иначе ErrCabinClassInvalid. Затем проверяются
 // все структурные инварианты, не требующие I/O: список сегментов не пуст,
 // хронология внутри каждого сегмента, непрерывность маршрута между
 // соседними сегментами и строго положительная пересадка на каждой
@@ -66,6 +68,9 @@ func New(price money.Money, managerComment string, segments []Segment) (Flight, 
 	}
 
 	for i, seg := range segments {
+		if !seg.CabinClass.IsValid() {
+			return Flight{}, ErrCabinClassInvalid
+		}
 		if !seg.ArrivalAt.After(seg.DepartureAt) {
 			return Flight{}, ErrSegmentChronologyInvalid
 		}

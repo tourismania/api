@@ -6,6 +6,7 @@ import (
 
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-chi/chi/v5"
@@ -80,6 +81,7 @@ func toFlightResponses(flights []getpublishedoffer.FlightResult) []FlightRespons
 				DepartureAt:          s.DepartureAt,
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      s.DurationSeconds,
+				CabinClass:           flight.CabinClass(s.CabinClass),
 			})
 		}
 

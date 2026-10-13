@@ -28,7 +28,7 @@ internal/
     agency/           # Агрегат агентства: Agency, Status, Repository, Manager
     airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
-      flight/         # Дочерний агрегат Flight: Flight, Segment, Layover, New, Repository, Manager, DetailsUpdate
+      flight/         # Дочерний агрегат Flight: Flight, Segment, CabinClass, Layover, New, Repository, Manager, DetailsUpdate; классы обслуживания — см. docs/cabin-classes.md
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)

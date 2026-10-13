@@ -5,6 +5,8 @@ package createofferhttp
 import (
 	"time"
 
+	"api/internal/domain/offer/flight"
+
 	"github.com/google/uuid"
 )
 
@@ -35,11 +37,18 @@ type FlightInput struct {
 }
 
 // FlightSegmentInput is one nonstop leg of a FlightInput.
+//
+// CabinClass имеет доменный тип flight.CabinClass: swag строит список значений
+// (enum) из его констант сам, поэтому в DTO значения не перечисляются ни в
+// oneof, ни в enums — единственный источник — домен, проверку допустимости
+// делает домен. См. docs/cabin-classes.md.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string    `json:"departure_airport_icao" validate:"required,len=4"`
 	ArrivalAirportICAO   string    `json:"arrival_airport_icao"   validate:"required,len=4"`
 	DepartureAt          time.Time `json:"departure_at"           validate:"required"`
 	ArrivalAt            time.Time `json:"arrival_at"             validate:"required"`
+	// CabinClass — класс обслуживания сегмента; необязателен (отсутствие поля, null и "" — класс неизвестен). Допустимые значения — enum схемы flight.CabinClass (справочник классов обслуживания); недопустимое значение — 400 с meta {"CabinClass":"oneof"}.
+	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 }
 
 // CreateOfferResponse is the response envelope.

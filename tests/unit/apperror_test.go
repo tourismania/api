@@ -31,6 +31,13 @@ func TestFromDomainError_ManagerCommentInvalid_IsValidation(t *testing.T) {
 	assert.Contains(t, err.Error(), flight.ErrManagerCommentInvalid.Error())
 }
 
+func TestFromDomainError_CabinClassInvalid_IsValidation(t *testing.T) {
+	err := apperror.FromDomainError(flight.ErrCabinClassInvalid)
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
+	assert.Contains(t, err.Error(), flight.ErrCabinClassInvalid.Error())
+}
+
 func TestFieldError_IsValidationAndKeepsCause(t *testing.T) {
 	err := apperror.NewFieldError("Price", "money", money.ErrAmountInvalid)
 

@@ -86,6 +86,7 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 				ArrivalAirportICAO:   seg.ArrivalAirportICAO,
 				DepartureAt:          seg.DepartureAt,
 				ArrivalAt:            seg.ArrivalAt,
+				CabinClass:           string(seg.CabinClass),
 			}); err != nil {
 				return fmt.Errorf("insert offer flight segment: %w", err)
 			}
@@ -95,7 +96,9 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 }
 
 // UpdateDetails перезаписывает цену, валюту и комментарий менеджера у
-// перечисленных перелётов offerID, не трогая их сегменты и идентификаторы.
+// перечисленных перелётов offerID и классы обслуживания их сегментов
+// (сегмент — по sequence = индекс + 1, как при вставке), не трогая
+// аэропорты и время сегментов и идентификаторы.
 // Как и ReplaceForOffer, своей транзакции не открывает — вызывающий
 // application-хендлер уже внутри txmanager.TxManager.WithinTx.
 func (r *OfferFlightRepository) UpdateDetails(ctx context.Context, offerID int, updates []flight.DetailsUpdate) error {
@@ -110,6 +113,16 @@ func (r *OfferFlightRepository) UpdateDetails(ctx context.Context, offerID int, 
 			ManagerComment: u.ManagerComment,
 		}); err != nil {
 			return fmt.Errorf("update offer flight %d details: %w", u.FlightID, err)
+		}
+		for i, class := range u.SegmentCabinClasses {
+			if err := q.UpdateOfferFlightSegmentCabinClass(ctx, db.UpdateOfferFlightSegmentCabinClassParams{
+				FlightID:   int32(u.FlightID),
+				OfferID:    int32(offerID),
+				Sequence:   int16(i + 1),
+				CabinClass: string(class),
+			}); err != nil {
+				return fmt.Errorf("update offer flight %d segment %d cabin class: %w", u.FlightID, i+1, err)
+			}
 		}
 	}
 	return nil
