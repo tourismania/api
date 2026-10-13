@@ -41,6 +41,7 @@ internal/
     auth/             # JWT-сервис
     broker/kafka/     # Kafka Producer (реализация event.Bus)
     persistence/
+      helpers/        # Общие помощники хранения для любых репозиториев (EscapeLike — буквальный поиск в LIKE)
       postgres/
         db/           # sqlc-генерированный код (НЕ РЕДАКТИРОВАТЬ вручную)
         model/        # Модели БД (≠ доменные entity)

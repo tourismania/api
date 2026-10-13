@@ -2,6 +2,7 @@ package repository
 
 import (
 	"api/internal/domain/airport"
+	"api/internal/infrastructure/persistence/helpers"
 	"api/internal/infrastructure/persistence/postgres/mapper"
 	"context"
 	"errors"
@@ -32,8 +33,10 @@ func NewAirportRepository(queries *db.Queries, pool *pgxpool.Pool) *AirportRepos
 
 // Search executes the airport full-text search and maps results to domain entities.
 func (r *AirportRepository) Search(ctx context.Context, f airport.Filter) (airport.SearchResult, error) {
-	searchLike := "%" + f.Search + "%"
-	searchPrefix := f.Search + "%"
+	// Коды IATA/ICAO сравниваются через `=` — их передаём без экранирования.
+	escaped := helpers.EscapeLike(f.Search)
+	searchLike := "%" + escaped + "%"
+	searchPrefix := escaped + "%"
 
 	rows, err := r.queries.SearchAirports(ctx, db.SearchAirportsParams{
 		Search:       f.Search,
