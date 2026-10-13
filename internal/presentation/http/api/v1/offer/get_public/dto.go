@@ -6,6 +6,8 @@ package getpublicofferhttp
 import (
 	"time"
 
+	"api/internal/domain/offer/flight"
+
 	"github.com/google/uuid"
 )
 
@@ -42,15 +44,19 @@ type FlightResponse struct {
 }
 
 // FlightSegmentResponse is one nonstop leg of a FlightResponse.
+//
+// CabinClass имеет доменный тип flight.CabinClass: swag строит список значений
+// (enum) из его констант сам, поэтому в DTO значения не перечисляются ни в
+// oneof, ни в enums — единственный источник — домен, проверку допустимости
+// делает домен. См. docs/cabin-classes.md.
 type FlightSegmentResponse struct {
 	DepartureAirportICAO string    `json:"departure_airport_icao"`
 	ArrivalAirportICAO   string    `json:"arrival_airport_icao"`
 	DepartureAt          time.Time `json:"departure_at"`
 	ArrivalAt            time.Time `json:"arrival_at"`
 	DurationSeconds      int64     `json:"duration_seconds"`
-	// CabinClass — класс обслуживания сегмента; поле присутствует всегда,
-	// "" — класс неизвестен.
-	CabinClass string `json:"cabin_class" example:"economy" enums:",economy,comfort,comfort_plus,business"`
+	// CabinClass — класс обслуживания сегмента; поле присутствует всегда, "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass (справочник классов обслуживания).
+	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 }
 
 // LayoverResponse is the wait between two consecutive segments of a

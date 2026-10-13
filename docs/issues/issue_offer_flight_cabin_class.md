@@ -26,8 +26,9 @@
   отдаётся как `""`. Класс за клиента не подставляется.
 - **Список значений — только в домене** (`flight.CabinClasses()`), это справочник, а не форма запроса:
   presentation значения не перечисляет (`oneof` в DTO нет), ошибку поля отдаёт `helpers.BuildFlights`
-  (`apperror.FieldError` `CabinClass`/`oneof`). Тег `enums` у DTO — только документация swagger,
-  его сверяет с доменом unit-тест.
+  (`apperror.FieldError` `CabinClass`/`oneof`). Swagger-список тоже не дублируется (ревью api PR №35):
+  поле DTO имеет доменный тип `flight.CabinClass`, swag строит `enum` из его констант; тег `enums`
+  не используется, unit-тест следит за типом поля и отсутствием `enums`/`oneof`.
 - **Виден везде, где виден перелёт**, включая публичную ссылку; в ответе поле есть всегда.
 - **Изменились только классы (и/или цена, комментарий) — обновляются на месте.** Класс в маршрут не
   входит: при том же маршруте `PATCH` пишет классы сегментов через `flight.DetailsUpdate`
@@ -66,7 +67,7 @@
 
 - [ ] Сценарии из дельты `offers/flights` покрыты HTTP-тестами (`tests/application/offer_flight_cabin_class_http_test.go`)
 - [ ] Доменный инвариант и обновление на месте покрыты unit-тестами; запись/чтение — интеграционными
-- [ ] Swagger: `cabin_class` в запросе и ответе со списком значений (`enums`), unit-тест сверки с `flight.CabinClasses()`
+- [ ] Swagger: `cabin_class` в запросе и ответе ссылается на схему `flight.CabinClass` с `enum`, построенным из констант домена; в DTO нет `enums`/`oneof` (unit-тест)
 - [ ] README, `docs/test_cases/test_cases.md` обновлены; инструкция `docs/cabin-classes.md`
 
 ## Non-goals

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"api/internal/domain/offer/flight"
@@ -15,16 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Тег enums у cabin_class в DTO — только документация swagger, источник
-// правды — flight.CabinClasses(). Тест ловит расхождение при добавлении,
-// переименовании или удалении класса (см. docs/cabin-classes.md).
-func TestCabinClassSwaggerEnums_MatchDomainCabinClasses(t *testing.T) {
-	classes := []string{string(flight.CabinClassUnknown)}
-	for _, c := range flight.CabinClasses() {
-		classes = append(classes, string(c))
-	}
-	want := strings.Join(classes, ",")
-
+// Список классов обслуживания живёт только в домене (flight.CabinClasses).
+// Presentation его не дублирует — ни проверкой (validate:"oneof=…"), ни
+// документацией swagger (enums:"…"): поле имеет доменный тип
+// flight.CabinClass, и swag строит enum из его констант сам. Иначе при
+// добавлении класса список пришлось бы править в нескольких местах (см.
+// docs/cabin-classes.md).
+func TestCabinClassDTO_DoesNotDuplicateDomainCabinClasses(t *testing.T) {
 	for name, dto := range map[string]any{
 		"create.FlightSegmentInput":        createofferhttp.FlightSegmentInput{},
 		"update.FlightSegmentInput":        updateofferhttp.FlightSegmentInput{},
@@ -33,7 +29,8 @@ func TestCabinClassSwaggerEnums_MatchDomainCabinClasses(t *testing.T) {
 	} {
 		field, ok := reflect.TypeOf(dto).FieldByName("CabinClass")
 		require.True(t, ok, name)
-		assert.Equal(t, want, field.Tag.Get("enums"), name)
+		assert.Equal(t, reflect.TypeOf(flight.CabinClass("")), field.Type, "%s: тип поля — доменный enum, swag берёт значения из его констант", name)
 		assert.Empty(t, field.Tag.Get("validate"), "%s: допустимые классы проверяет домен, не валидатор", name)
+		assert.Empty(t, field.Tag.Get("enums"), "%s: список классов не дублируется в swagger", name)
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"api/internal/application/apperror"
 	getoffer "api/internal/application/query/get_offer"
+	"api/internal/domain/offer/flight"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -100,7 +101,7 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 				DepartureAt:          s.DepartureAt,
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      s.DurationSeconds,
-				CabinClass:           s.CabinClass,
+				CabinClass:           flight.CabinClass(s.CabinClass),
 			})
 		}
 

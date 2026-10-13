@@ -93,7 +93,7 @@ type stubOfferRepo struct {
 	storeCalled bool
 	// updateCalled — Update вызывался (базовые поля оффера записаны).
 	updateCalled bool
-	gotFilter   offer.Filter
+	gotFilter    offer.Filter
 	// found — оффер, который возвращает FindByUUID (nil — «не найден»).
 	found *offer.Offer
 	// listed — офферы, которые возвращает List.
