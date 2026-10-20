@@ -4,7 +4,7 @@
 > **Источник требований:** изменение SDD `add-flight-segment-airline` в `tourismania/sdd`
 > (`openspec/changes/add-flight-segment-airline/`: proposal, дельты спеков `travel-services/airlines` и
 > `offers/flights`, design, tasks), принято в [sdd PR №27](https://github.com/tourismania/sdd/pull/27).
-> **Реализация:** ветка `feature/flight-segment-airline`.
+> **Реализация:** [api PR №36](https://github.com/tourismania/api/pull/36).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
