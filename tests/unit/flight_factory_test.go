@@ -18,7 +18,7 @@ func TestNewFlight_EmptySegments_ReturnsErr(t *testing.T) {
 func TestNewFlight_ArrivalNotAfterDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base},
 	})
 	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
@@ -26,7 +26,7 @@ func TestNewFlight_ArrivalNotAfterDeparture_ReturnsErr(t *testing.T) {
 func TestNewFlight_ArrivalBeforeDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(-time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(-time.Hour)},
 	})
 	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
@@ -34,9 +34,9 @@ func TestNewFlight_ArrivalBeforeDeparture_ReturnsErr(t *testing.T) {
 func TestNewFlight_DiscontinuousRoute_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs from EDDF, not UUDD (the previous segment's arrival) — the route breaks.
-		{DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(4 * time.Hour), ArrivalAt: base.Add(6 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(4 * time.Hour), ArrivalAt: base.Add(6 * time.Hour)},
 	})
 	assert.ErrorIs(t, err, flight.ErrSegmentDiscontinuous)
 }
@@ -44,9 +44,9 @@ func TestNewFlight_DiscontinuousRoute_ReturnsErr(t *testing.T) {
 func TestNewFlight_ZeroLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs exactly when the previous segment arrives: zero layover.
-		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(2 * time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(2 * time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
 	})
 	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
@@ -54,9 +54,9 @@ func TestNewFlight_ZeroLayover_ReturnsErr(t *testing.T) {
 func TestNewFlight_NegativeLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs before the previous segment even arrives.
-		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
 	})
 	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
@@ -64,7 +64,7 @@ func TestNewFlight_NegativeLayover_ReturnsErr(t *testing.T) {
 func TestNewFlight_ValidNonstop_ReturnsFlight(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	f, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
 	})
 	require.NoError(t, err)
 	assert.Len(t, f.Segments, 1)
@@ -73,9 +73,9 @@ func TestNewFlight_ValidNonstop_ReturnsFlight(t *testing.T) {
 func TestNewFlight_ValidWithLayovers_ReturnsFlight(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	f, err := flight.New(samplePrice(), "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
-		{DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "EDDF", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
-		{DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(7 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "EDDF", DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "EDDF", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(7 * time.Hour)},
 	})
 	require.NoError(t, err)
 	assert.Len(t, f.Segments, 3)
@@ -84,7 +84,7 @@ func TestNewFlight_ValidWithLayovers_ReturnsFlight(t *testing.T) {
 func TestNewFlight_ZeroPrice_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	_, err := flight.New(money.Money{}, "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	})
 	assert.ErrorIs(t, err, money.ErrCurrencyUnsupported)
 }
@@ -94,7 +94,7 @@ func TestNewFlight_NegativePrice_ReturnsErr(t *testing.T) {
 	price := samplePrice()
 	price.AmountMinor = -1
 	_, err := flight.New(price, "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	})
 	assert.ErrorIs(t, err, money.ErrAmountInvalid)
 }
@@ -103,7 +103,7 @@ func TestNewFlight_Valid_KeepsPrice(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	price := mustMoney("12345.5", money.CodeEUR)
 	f, err := flight.New(price, "", []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, price, f.Price)
@@ -113,7 +113,7 @@ func TestNewFlight_Valid_KeepsPrice(t *testing.T) {
 func nonstopSegments() []flight.Segment {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	return []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}
 }
 
@@ -163,8 +163,8 @@ func TestNewFlight_ManagerCommentControlChar_ReturnsErr(t *testing.T) {
 func segmentsWithClasses(first, second flight.CabinClass) []flight.Segment {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	return []flight.Segment{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: first},
-		{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour), CabinClass: second},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: first},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour), CabinClass: second},
 	}
 }
 

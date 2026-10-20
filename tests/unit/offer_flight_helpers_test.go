@@ -1,10 +1,13 @@
 package unit_test
 
 import (
+	"api/internal/domain/airline"
 	"api/internal/domain/airport"
 	"api/internal/domain/money"
 	"api/internal/domain/offer/flight"
 	"context"
+	"fmt"
+	"time"
 )
 
 // mustMoney разбирает сумму для тестов и паникует на некорректном вводе —
@@ -99,10 +102,65 @@ func (m *mockAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airp
 	return airports, nil
 }
 
+// sampleAirlineID — id авиакомпании по умолчанию в тестовых сегментах;
+// mockAirlineRepo без настройки считает его существующим.
+const sampleAirlineID = 42
+
+// mockAirlineRepo — ручной двойник airline.Repository. FindByIDs без
+// настройки (airlines == nil) считает существующим каждый id ≥ 1 (не
+// скрытым), чтобы тестам, которым авиакомпании не важны, ничего не
+// настраивать; с airlines — возвращает только записи из неё. Запросы
+// FindByIDs запоминаются.
+type mockAirlineRepo struct {
+	airlines     map[int]airline.Airline
+	findByIDsErr error
+	findCalls    [][]int
+}
+
+func (m *mockAirlineRepo) Search(_ context.Context, _ airline.Filter) (airline.SearchResult, error) {
+	return airline.SearchResult{}, nil
+}
+
+func (m *mockAirlineRepo) FindByIDs(_ context.Context, ids []int) ([]airline.Airline, error) {
+	m.findCalls = append(m.findCalls, ids)
+	if m.findByIDsErr != nil {
+		return nil, m.findByIDsErr
+	}
+	out := make([]airline.Airline, 0, len(ids))
+	for _, id := range ids {
+		if m.airlines == nil {
+			if id >= 1 {
+				out = append(out, airline.Airline{ID: id, Name: fmt.Sprintf("Airline %d", id)})
+			}
+			continue
+		}
+		if a, ok := m.airlines[id]; ok {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockAirlineRepo) Insert(_ context.Context, _ string, _ airline.Airline) (int, error) {
+	return 0, nil
+}
+
+func (m *mockAirlineRepo) Update(_ context.Context, _ int, _ airline.Airline) error { return nil }
+
+func (m *mockAirlineRepo) ListSourceIDs(_ context.Context) (map[string][]airline.SourceRecord, error) {
+	return nil, nil
+}
+
+func (m *mockAirlineRepo) MarkMerged(_ context.Context, _, _ int) error { return nil }
+
+func (m *mockAirlineRepo) MarkMissing(_ context.Context, _ []int, _ time.Time) error { return nil }
+
+func (m *mockAirlineRepo) ClearMissing(_ context.Context, _ []int) error { return nil }
+
 // noFlightManager wires an flight.Manager over empty/permissive
-// mocks — every icao "exists", nothing was stored before.
+// mocks — every icao and airline "exists", nothing was stored before.
 func noFlightManager() *flight.Manager {
-	return flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+	return flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{}, &mockAirlineRepo{})
 }
 
 // stubFlightFinder is a hand-written test double shared by get_offer's

@@ -5,6 +5,9 @@
 package config
 
 import (
+	"log/slog"
+	"os"
+
 	"api/internal/domain/agency"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
@@ -20,13 +23,16 @@ import (
 	createusercmd "api/internal/application/command/create_user"
 	deactivateagencycmd "api/internal/application/command/deactivate_agency"
 	deleteoffercmd "api/internal/application/command/delete_offer"
+	syncairlinescmd "api/internal/application/command/sync_airlines"
 	syncairportscmd "api/internal/application/command/sync_airports"
 	updateoffercmd "api/internal/application/command/update_offer"
+	getairlineq "api/internal/application/query/get_airline"
 	getmeq "api/internal/application/query/get_me"
 	getofferq "api/internal/application/query/get_offer"
 	getoffersq "api/internal/application/query/get_offers"
 	getpublishedofferq "api/internal/application/query/get_published_offer"
 	listcurrencies "api/internal/application/query/list_currencies"
+	searchairlines "api/internal/application/query/search_airlines"
 	searchairports "api/internal/application/query/search_airports"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
@@ -39,6 +45,8 @@ import (
 	pgtxmanager "api/internal/infrastructure/persistence/postgres/txmanager"
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
+	getairlinehttp "api/internal/presentation/http/api/v1/airline/get"
+	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
@@ -73,6 +81,9 @@ type Container struct {
 		SearchAirports    *searchairports.Handler
 		ListCurrencies    *listcurrencies.Handler
 		SyncAirports      *syncairportscmd.Handler
+		SearchAirlines    *searchairlines.Handler
+		GetAirline        *getairlineq.Handler
+		SyncAirlines      *syncairlinescmd.Handler
 		CreateOffer       *createoffercmd.Handler
 		UpdateOffer       *updateoffercmd.Handler
 		DeleteOffer       *deleteoffercmd.Handler
@@ -87,6 +98,8 @@ type Container struct {
 		CreateUser        *createuserhttp.Handler
 		GetMe             *getmehttp.Handler
 		Airports          *searchairporthttp.Handler
+		Airlines          *searchairlinehttp.Handler
+		Airline           *getairlinehttp.Handler
 		Currencies        *listcurrencieshttp.Handler
 		CreateOffer       *createofferhttp.Handler
 		GetOffer          *getofferhttp.Handler
@@ -144,10 +157,15 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 	listCurrenciesApp := listcurrencies.NewHandler()
 
+	// Airline reference wiring.
+	airlineRepo := pgrepo.NewAirlineRepository(queries)
+	searchAirlinesApp := searchairlines.NewHandler(airlineRepo)
+	getAirlineApp := getairlineq.NewHandler(airlineRepo)
+
 	// Offer flight domain wiring (issue №20). TxManager makes offer +
 	// flight writes commit/roll back together across the two repositories.
 	offerFlightRepo := pgrepo.NewOfferFlightRepository(queries)
-	offerFlightManager := flight.NewManager(offerFlightRepo, airportRepo)
+	offerFlightManager := flight.NewManager(offerFlightRepo, airportRepo, airlineRepo)
 	txManager := pgtxmanager.New(pool)
 
 	countryRepo := pgrepo.NewCountryRepository(pool)
@@ -162,6 +180,15 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 		wikidata.New(),
 		static.CountryNames{},
 	)
+	// Журнал аномалий синхронизации авиакомпаний — JSON в stderr CLI, отдельно
+	// от строк прогресса в stdout (см. docs/cli/sync_airlines.md).
+	syncAirlinesApp := syncairlinescmd.NewHandler(
+		airlineRepo,
+		countryRepo,
+		wikidata.New(),
+		static.CountryNames{},
+		slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+	)
 
 	// Application handlers.
 	createUserApp := createusercmd.NewHandler(userCreator)
@@ -172,9 +199,9 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createOfferApp := createoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	updateOfferApp := updateoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userFinder)
-	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, userFinder)
+	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, airlineRepo, userFinder)
 	getOffersApp := getoffersq.NewHandler(offerRepo, userFinder)
-	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo)
+	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo, airlineRepo)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -184,6 +211,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp)
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
+	airlinesH := searchairlinehttp.NewHandler(searchAirlinesApp, validate)
+	airlineH := getairlinehttp.NewHandler(getAirlineApp)
 	currenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
@@ -209,6 +238,9 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.SearchAirports = searchAirportsApp
 	c.App.ListCurrencies = listCurrenciesApp
 	c.App.SyncAirports = syncAirportsApp
+	c.App.SearchAirlines = searchAirlinesApp
+	c.App.GetAirline = getAirlineApp
+	c.App.SyncAirlines = syncAirlinesApp
 	c.App.CreateOffer = createOfferApp
 	c.App.UpdateOffer = updateOfferApp
 	c.App.DeleteOffer = deleteOfferApp
@@ -220,6 +252,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.Http.CreateUser = createUserH
 	c.Http.GetMe = getMeH
 	c.Http.Airports = airportsH
+	c.Http.Airlines = airlinesH
+	c.Http.Airline = airlineH
 	c.Http.Currencies = currenciesH
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH

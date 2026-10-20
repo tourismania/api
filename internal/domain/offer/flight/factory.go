@@ -32,6 +32,12 @@ var ErrLayoverNonPositive = errors.New("flight layover between segments must be 
 // остальные в тексте для клиента бессмысленны и ломают вывод.
 var ErrManagerCommentInvalid = errors.New("flight manager comment contains a forbidden control character")
 
+// ErrAirlineRequired возвращается New, если у сегмента не указана
+// авиакомпания (AirlineID = 0). Авиакомпания обязательна: если перевозчик ещё
+// неизвестен, клиент явно передаёт airline.UnknownID, api сам ничего не
+// подставляет. Существование авиакомпании проверяет Manager.
+var ErrAirlineRequired = errors.New("flight segment airline is required")
+
 // Границы запрещённых в комментарии менеджера управляющих символов.
 const (
 	lastC0Control = '\u001f'
@@ -47,12 +53,14 @@ const (
 // кроме \t, \n, \r, — ErrManagerCommentInvalid. Длину комментария New не
 // проверяет — это правило формы запроса. Класс обслуживания каждого
 // сегмента должен быть из CabinClasses или пустым (класс неизвестен) —
-// иначе ErrCabinClassInvalid. Затем проверяются
+// иначе ErrCabinClassInvalid. Авиакомпания каждого сегмента обязательна:
+// AirlineID = 0 — ErrAirlineRequired (отрицательный id проходит дальше и
+// отклоняется Manager как несуществующий). Затем проверяются
 // все структурные инварианты, не требующие I/O: список сегментов не пуст,
 // хронология внутри каждого сегмента, непрерывность маршрута между
 // соседними сегментами и строго положительная пересадка на каждой
-// остановке. Существование аэропортов New не проверяет — для этого нужен
-// запрос к БД, это делает Manager.
+// остановке. Существование аэропортов и авиакомпаний New не проверяет — для
+// этого нужен запрос к БД, это делает Manager.
 func New(price money.Money, managerComment string, segments []Segment) (Flight, error) {
 	if _, err := money.LookupCurrency(price.Currency.Code); err != nil {
 		return Flight{}, err
@@ -70,6 +78,9 @@ func New(price money.Money, managerComment string, segments []Segment) (Flight, 
 	for i, seg := range segments {
 		if !seg.CabinClass.IsValid() {
 			return Flight{}, ErrCabinClassInvalid
+		}
+		if seg.AirlineID == 0 {
+			return Flight{}, ErrAirlineRequired
 		}
 		if !seg.ArrivalAt.After(seg.DepartureAt) {
 			return Flight{}, ErrSegmentChronologyInvalid

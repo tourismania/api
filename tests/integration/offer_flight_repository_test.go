@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"api/internal/domain/airline"
 	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
@@ -99,7 +100,7 @@ func TestOfferFlightRepository_ReplaceForOffer_StoreThenFindByOfferID_ReturnsSto
 
 	flights := []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 	}
 
@@ -127,8 +128,8 @@ func TestOfferFlightRepository_ReplaceForOffer_PreservesSegmentOrder(t *testing.
 
 	flights := []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
-			{DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(3 * time.Hour), ArrivalAt: base.Add(5 * time.Hour)},
 		}},
 	}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, flights))
@@ -154,12 +155,12 @@ func TestOfferFlightRepository_ReplaceForOffer_ReplacesPreviousSet(t *testing.T)
 	base := time.Now().UTC().Truncate(time.Second)
 
 	first := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, first))
 
 	second := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-		{DepartureAirportICAO: dep, ArrivalAirportICAO: newArr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
+		{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: newArr, DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 	}}}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, second))
 
@@ -180,7 +181,7 @@ func TestOfferFlightRepository_ReplaceForOffer_EmptySet_ClearsFlights(t *testing
 	base := time.Now().UTC().Truncate(time.Second)
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-		{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}))
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, nil))
@@ -197,7 +198,7 @@ func TestOfferFlightRepository_ReplaceForOffer_UnknownAirportICAO_ReturnsFKError
 	base := time.Now().UTC().Truncate(time.Second)
 
 	flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-		{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "YYYY", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+		{AirlineID: airline.UnknownID, DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "YYYY", DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 	}}}
 
 	err := repo.ReplaceForOffer(context.Background(), offerID, flights)
@@ -222,7 +223,7 @@ func TestOfferFlightRepository_WithinRealTransaction_RollsBackOnError(t *testing
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
 		flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		if err := repo.ReplaceForOffer(txCtx, offerID, flights); err != nil {
 			return err
@@ -249,7 +250,7 @@ func TestOfferFlightRepository_WithinRealTransaction_CommitsOnSuccess(t *testing
 
 	err := txMgr.WithinTx(context.Background(), func(txCtx context.Context) error {
 		flights := []flight.Flight{{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(time.Hour)},
 		}}}
 		return repo.ReplaceForOffer(txCtx, offerID, flights)
 	})
@@ -271,7 +272,7 @@ func TestOfferFlightRepository_ReplaceForOffer_StoresAndReadsPrice(t *testing.T)
 	require.NoError(t, err)
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
 		{Price: price, Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 	}))
 
@@ -291,10 +292,10 @@ func TestOfferFlightRepository_UpdateDetails_KeepsIDsAndSegments(t *testing.T) {
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
 		}},
 	}))
 	before, err := repo.FindByOfferID(context.Background(), offerID)
@@ -334,7 +335,7 @@ func TestOfferFlightRepository_ManagerComment_StoredAndReadAsIs(t *testing.T) {
 	for i, c := range comments {
 		at := base.Add(time.Duration(i) * 24 * time.Hour)
 		flights = append(flights, flight.Flight{Price: testFlightPrice(t), ManagerComment: c, Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: at, ArrivalAt: at.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: at, ArrivalAt: at.Add(3 * time.Hour)},
 		}})
 	}
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, flights))
@@ -356,10 +357,10 @@ func TestOfferFlightRepository_UpdateDetails_ChangesPriceAndComment_KeepsIDsAndS
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
 		{Price: testFlightPrice(t), ManagerComment: "первый", Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 		{Price: testFlightPrice(t), ManagerComment: "второй", Segments: []flight.Segment{
-			{DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour)},
 		}},
 	}))
 	before, err := repo.FindByOfferID(context.Background(), offerID)
@@ -396,7 +397,7 @@ func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_NotChanged(t *test
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), ownerID, []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour)},
 		}},
 	}))
 	owned, err := repo.FindByOfferID(context.Background(), ownerID)
@@ -407,7 +408,7 @@ func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_NotChanged(t *test
 	require.NoError(t, err)
 	// Чужой offerID: перелёт ownerID и классы его сегментов обновляться не должны.
 	require.NoError(t, repo.UpdateDetails(context.Background(), otherID, []flight.DetailsUpdate{
-		{FlightID: owned[0].ID, Price: newPrice, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness}},
+		{FlightID: owned[0].ID, Price: newPrice, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness}, SegmentAirlineIDs: []int{airline.UnknownID}},
 	}))
 
 	after, err := repo.FindByOfferID(context.Background(), ownerID)
@@ -441,9 +442,9 @@ func TestOfferFlightRepository_CabinClass_StoredAndReadPerSegment(t *testing.T) 
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), CabinClass: flight.CabinClassComfortPlus},
-			{DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour)},
-			{DepartureAirportICAO: c, ArrivalAirportICAO: a, DepartureAt: base.Add(10 * time.Hour), ArrivalAt: base.Add(13 * time.Hour), CabinClass: flight.CabinClassBusiness},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), CabinClass: flight.CabinClassComfortPlus},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: c, ArrivalAirportICAO: a, DepartureAt: base.Add(10 * time.Hour), ArrivalAt: base.Add(13 * time.Hour), CabinClass: flight.CabinClassBusiness},
 		}},
 	}))
 
@@ -465,11 +466,11 @@ func TestOfferFlightRepository_UpdateDetails_ChangesCabinClasses_KeepsIDsAirport
 
 	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: dep, ArrivalAirportICAO: mid, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), CabinClass: flight.CabinClassBusiness},
-			{DepartureAirportICAO: mid, ArrivalAirportICAO: arr, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour), CabinClass: flight.CabinClassEconomy},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: mid, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), CabinClass: flight.CabinClassBusiness},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: mid, ArrivalAirportICAO: arr, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour), CabinClass: flight.CabinClassEconomy},
 		}},
 		{Price: testFlightPrice(t), Segments: []flight.Segment{
-			{DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour), CabinClass: flight.CabinClassComfort},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour), CabinClass: flight.CabinClassComfort},
 		}},
 	}))
 	before, err := repo.FindByOfferID(context.Background(), offerID)
@@ -478,7 +479,7 @@ func TestOfferFlightRepository_UpdateDetails_ChangesCabinClasses_KeepsIDsAirport
 
 	// Классы первого перелёта: бизнес → неизвестен, эконом → комфорт плюс.
 	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{
-		{FlightID: before[0].ID, Price: before[0].Price, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassUnknown, flight.CabinClassComfortPlus}},
+		{FlightID: before[0].ID, Price: before[0].Price, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassUnknown, flight.CabinClassComfortPlus}, SegmentAirlineIDs: []int{airline.UnknownID, airline.UnknownID}},
 	}))
 
 	after, err := repo.FindByOfferID(context.Background(), offerID)

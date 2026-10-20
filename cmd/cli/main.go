@@ -40,6 +40,7 @@ func run() error {
 	}
 	root.AddCommand(clicmd.NewUserCommand(container.App.CreateUser))
 	root.AddCommand(clicmd.NewAirportsCommand(container.App.SyncAirports))
+	root.AddCommand(clicmd.NewAirlinesCommand(container.App.SyncAirlines))
 	root.AddCommand(clicmd.NewAgencyCommand(container.App.CreateAgency, container.App.DeactivateAgency, container.App.ActivateAgency))
 	return root.Execute()
 }

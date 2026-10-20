@@ -26,7 +26,7 @@ func (s stubOfferFinder) FindByUUID(_ context.Context, _ uuid.UUID) (*offer.Offe
 
 func TestGetPublishedOffer_Published_Visible(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{}, &mockAirlineRepo{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 
@@ -37,7 +37,7 @@ func TestGetPublishedOffer_Published_Visible(t *testing.T) {
 
 func TestGetPublishedOffer_Draft_NotFound(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{}, &mockAirlineRepo{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 
@@ -46,7 +46,7 @@ func TestGetPublishedOffer_Draft_NotFound(t *testing.T) {
 
 func TestGetPublishedOffer_Ready_NotFound(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusReady}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{}, &mockAirlineRepo{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 
@@ -54,7 +54,7 @@ func TestGetPublishedOffer_Ready_NotFound(t *testing.T) {
 }
 
 func TestGetPublishedOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: nil}, stubFlightFinder{})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: nil}, stubFlightFinder{}, &mockAirlineRepo{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: uuid.New()})
 
@@ -63,7 +63,7 @@ func TestGetPublishedOffer_NotFound_ReturnsErrOfferNotFound(t *testing.T) {
 
 func TestGetPublishedOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}}, &mockAirlineRepo{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 

@@ -72,4 +72,19 @@ type OfferFlightSegment struct {
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
 	CabinClass           string
+	AirlineID            int32
+}
+
+// Airline — строка таблицы airlines в стиле sqlc.
+type Airline struct {
+	ID           int32
+	SourceID     *string
+	Icao         *string
+	Name         string
+	NameRu       string
+	CountryIso2  *string
+	DissolvedOn  *time.Time
+	IataCodes    []string
+	MergedIntoID *int32
+	MissingSince *time.Time
 }

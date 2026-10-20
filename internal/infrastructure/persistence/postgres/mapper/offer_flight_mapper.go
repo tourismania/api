@@ -31,6 +31,7 @@ func ToFlightsDomain(flightRows []db.OfferFlight, segRows []db.OfferFlightSegmen
 			DepartureAt:          s.DepartureAt,
 			ArrivalAt:            s.ArrivalAt,
 			CabinClass:           flight.CabinClass(s.CabinClass),
+			AirlineID:            int(s.AirlineID),
 		})
 	}
 

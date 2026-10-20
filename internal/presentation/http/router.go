@@ -9,6 +9,8 @@ import (
 
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
+	getairlinehttp "api/internal/presentation/http/api/v1/airline/get"
+	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
@@ -34,6 +36,8 @@ type Server struct {
 	CreateUser        *createuserhttp.Handler
 	GetMe             *getmehttp.Handler
 	Airports          *searchairporthttp.Handler
+	Airlines          *searchairlinehttp.Handler
+	Airline           *getairlinehttp.Handler
 	Currencies        *listcurrencieshttp.Handler
 	CreateOffer       *createofferhttp.Handler
 	GetOffer          *getofferhttp.Handler
@@ -118,6 +122,11 @@ func (s Server) Build() http.Handler {
 
 			// Airports
 			priv.Get("/airports", s.Airports.Handle)
+
+			// Airlines: справочник авиакомпаний, любой аутентифицированный.
+			// Поиск отдаёт только выбираемые записи; по id — в т. ч. скрытые.
+			priv.Get("/airlines", s.Airlines.Handle)
+			priv.Get("/airlines/{id}", s.Airline.Handle)
 
 			// Currencies: системный справочник валют, любой аутентифицированный.
 			priv.Get("/currencies", s.Currencies.Handle)

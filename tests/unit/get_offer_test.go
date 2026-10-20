@@ -44,7 +44,7 @@ func noUserFound() *user.Finder {
 func TestGetOffer_MatchingAgency_SeesDraftOffer(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: o.UUID,
@@ -57,7 +57,7 @@ func TestGetOffer_MatchingAgency_SeesDraftOffer(t *testing.T) {
 func TestGetOffer_MatchingAgency_SeesPublishedOffer(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: o.UUID,
@@ -70,7 +70,7 @@ func TestGetOffer_MatchingAgency_SeesPublishedOffer(t *testing.T) {
 func TestGetOffer_DifferentAgency_DraftOffer_NotFound(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, userRecordWithAgency(1))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: o.UUID,
@@ -85,7 +85,7 @@ func TestGetOffer_DifferentAgency_PublishedOffer_StillNotFound(t *testing.T) {
 	// cross-agency published reads separately, with no identity at all.
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, userRecordWithAgency(1))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: o.UUID,
@@ -96,7 +96,7 @@ func TestGetOffer_DifferentAgency_PublishedOffer_StillNotFound(t *testing.T) {
 
 func TestGetOffer_NotFound_ReturnsErrNotFound(t *testing.T) {
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: nil}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, userRecordWithAgency(1))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, userRecordWithAgency(1))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: uuid.New(),
@@ -107,7 +107,7 @@ func TestGetOffer_NotFound_ReturnsErrNotFound(t *testing.T) {
 
 func TestGetOffer_ActorNotFound_ReturnsErrUnauthenticated(t *testing.T) {
 	mgr := offer.NewManager(&mockOfferRepo{}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, noUserFound())
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, &mockAirlineRepo{}, noUserFound())
 
 	_, err := h.Handle(context.Background(), getoffer.Query{
 		UUID: uuid.New(),
@@ -126,7 +126,7 @@ func cabinClassFlight() flight.Flight {
 func TestGetOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}}, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{cabinClassFlight()}}, &mockAirlineRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 

@@ -25,7 +25,7 @@ func TestOffersHTTP_CreateFlight_NonRFC3339Time_Returns400(t *testing.T) {
 	e := newPriceTestEnv(t)
 
 	body := createBody(`{"price":"100","currency":"RUB","segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01 10:00","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01 10:00","arrival_at":"2026-08-01T14:00:00Z"}
 	]}`)
 	rr := e.do(t, http.MethodPost, "/api/v1/offers", body)
 

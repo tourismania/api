@@ -27,8 +27,9 @@ internal/
     user/             # Агрегат пользователя: User, Record, Role, Actor, RightsDescribe, Repository, Creator, Finder, PasswordHasher, событие Registered
     agency/           # Агрегат агентства: Agency, Status, Repository, Manager
     airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
+    airline/          # Справочник авиакомпаний: Airline, Country, Filter, SourceRecord, UnknownID («Неизвестная» = 1), Repository; ключ — id записи, коды ICAO/IATA — атрибуты (см. docs/cli/sync_airlines.md)
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
-      flight/         # Дочерний агрегат Flight: Flight, Segment, CabinClass, Layover, New, Repository, Manager, DetailsUpdate; классы обслуживания — см. docs/cabin-classes.md
+      flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID), CabinClass, Layover, New, Repository, Manager, DetailsUpdate; классы обслуживания — см. docs/cabin-classes.md
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
@@ -102,10 +103,10 @@ tests/
 
 ### Architecture
 
-- Domain-слой организован **resource-first**: один агрегат/bounded context = один пакет (`domain/user`, `domain/agency`, `domain/airport`, `domain/offer`). Внутри пакета — плоские файлы (`entity`, `repository`, `manager` и т.д. как файлы, а не подпакеты). Общее ядро (интерфейсы `DomainEvent`/`Bus`) — в `domain/event`.
+- Domain-слой организован **resource-first**: один агрегат/bounded context = один пакет (`domain/user`, `domain/agency`, `domain/airport`, `domain/airline`, `domain/offer`). Внутри пакета — плоские файлы (`entity`, `repository`, `manager` и т.д. как файлы, а не подпакеты). Общее ядро (интерфейсы `DomainEvent`/`Bus`) — в `domain/event`.
 - **Дочерние агрегаты — подпакетами родителя**: сущность, не живущая вне родительского агрегата (все контракты скоупятся id родителя), лежит в подпакете: `domain/offer/flight`; будущие дети оффера — `domain/offer/hotel`, `domain/offer/transfer` и т.д. Пакет родителя остаётся только корнем агрегата. Дети могут импортировать пакет родителя; родитель детей — никогда (композиция — в application-слое).
 - Имена типов не дублируют имя пакета (без stutter): `user.Repository` (не `user.UserRepository`), `agency.Manager`, `offer.Status`, `flight.Segment` (не `flight.FlightSegment`). Имя самого агрегата совпадает с пакетом — это допустимый Go-идиоматический stutter: `user.User`, `offer.Offer`, `flight.Flight`.
-- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, money}`; `agency`, `airport` и `money` ни от кого не зависят. Циклы запрещены.
+- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, airline, money}`; `agency`, `airport`, `airline` и `money` ни от кого не зависят. Циклы запрещены.
 - Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
 - Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
 - CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights`).

@@ -168,7 +168,7 @@ func TestOffersHTTP_CreateFlight_CommentInsideSegment_Returns400UnknownField(t *
 	e := newPriceTestEnv(t)
 
 	body := createBody(`{"price":"100","currency":"RUB","segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z","manager_comment":"a"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z","manager_comment":"a"}
 	]}`)
 	rr := e.do(t, http.MethodPost, "/api/v1/offers", body)
 
@@ -286,7 +286,7 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesManagerComment(t *testing
 	// Публичная карточка через настоящий use case поверх тех же хранилищ.
 	published := *e.offers.found
 	published.Status = offer.StatusPublished
-	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights)
+	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, &stubAirlineRepo{})
 	r := newOffersTestRouter(newTestJWTService(t), e.offers, stubUserFinder{}, publicUC, e.flights)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+e.offerID.String(), nil)

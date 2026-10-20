@@ -17,14 +17,18 @@ import (
 
 // Segment is one nonstop leg of a Flight. CabinClass — класс обслуживания
 // сегмента (у сегментов одного перелёта классы могут различаться);
-// CabinClassUnknown — класс неизвестен. Класс в маршрут не входит: его
-// изменение обновляет сегмент на месте (см. Manager.ReplaceForOffer).
+// CabinClassUnknown — класс неизвестен. AirlineID — id авиакомпании в
+// справочнике airline, обязателен (перевозчик неизвестен — явно
+// airline.UnknownID); сегмент ссылается именно на эту запись, какие бы коды
+// ни были у неё и у других авиакомпаний. Класс и авиакомпания в маршрут не
+// входят: их изменение обновляет сегмент на месте (см. Manager.ReplaceForOffer).
 type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
 	CabinClass           CabinClass
+	AirlineID            int
 }
 
 // Duration is the segment's own flight time.

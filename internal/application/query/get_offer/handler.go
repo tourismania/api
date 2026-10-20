@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"api/internal/application/apperror"
+	"api/internal/application/helpers"
+	"api/internal/domain/airline"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
 	"api/internal/domain/user"
@@ -21,6 +23,9 @@ type FlightFinder interface {
 	FindByOfferID(ctx context.Context, offerID int) ([]flight.Flight, error)
 }
 
+// AirlineFinder — порт чтения авиакомпаний сегментов по id.
+type AirlineFinder = helpers.AirlineFinder
+
 // Handler fetches a single offer for its own agency's staff/users: the
 // caller sees it regardless of status as long as it belongs to their
 // agency; any other agency's offer is reported as not found. Published
@@ -32,12 +37,13 @@ type FlightFinder interface {
 type Handler struct {
 	offerManager *offer.Manager
 	flights      FlightFinder
+	airlines     AirlineFinder
 	userFinder   *user.Finder
 }
 
 // NewHandler constructs the handler.
-func NewHandler(offerManager *offer.Manager, flights FlightFinder, userFinder *user.Finder) *Handler {
-	return &Handler{offerManager: offerManager, flights: flights, userFinder: userFinder}
+func NewHandler(offerManager *offer.Manager, flights FlightFinder, airlines AirlineFinder, userFinder *user.Finder) *Handler {
+	return &Handler{offerManager: offerManager, flights: flights, airlines: airlines, userFinder: userFinder}
 }
 
 // Handle satisfies UseCase.
@@ -56,6 +62,10 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("find offer flights: %w", err)
 	}
+	airlines, err := helpers.FindSegmentAirlines(ctx, h.airlines, flights)
+	if err != nil {
+		return Result{}, err
+	}
 
 	return Result{
 		ID:          offer.ID,
@@ -67,7 +77,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		Status:      offer.Status,
 		CreatedAt:   offer.CreatedAt,
 		UpdatedAt:   offer.UpdatedAt,
-		Flights:     toFlightResults(flights),
+		Flights:     toFlightResults(flights, airlines),
 	}, nil
 }
 
@@ -75,8 +85,9 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 // сегмента и пересадки через доменные методы flight.Flight (они нигде
 // не хранятся, а вычисляются на лету) и превращает их в плоский
 // FlightResult. Это единственное место, где вызывается доменное
-// поведение полёта — presentation получает уже готовые числа.
-func toFlightResults(flights []flight.Flight) []FlightResult {
+// поведение полёта — presentation получает уже готовые числа. Данные
+// авиакомпаний сегментов берутся из airlines (уже загружены по всем id).
+func toFlightResults(flights []flight.Flight, airlines map[int]airline.Airline) []FlightResult {
 	out := make([]FlightResult, 0, len(flights))
 	for _, f := range flights {
 		segments := make([]FlightSegmentResult, 0, len(f.Segments))
@@ -88,6 +99,8 @@ func toFlightResults(flights []flight.Flight) []FlightResult {
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      int64(s.Duration().Seconds()),
 				CabinClass:           string(s.CabinClass),
+				AirlineID:            s.AirlineID,
+				Airline:              toAirlineResult(airlines[s.AirlineID]),
 			})
 		}
 
@@ -113,4 +126,15 @@ func toFlightResults(flights []flight.Flight) []FlightResult {
 		})
 	}
 	return out
+}
+
+// toAirlineResult — проекция авиакомпании сегмента.
+func toAirlineResult(a airline.Airline) AirlineResult {
+	return AirlineResult{
+		ID:          a.ID,
+		ICAO:        a.ICAO,
+		Name:        a.Name,
+		NameRU:      a.NameRU,
+		DissolvedOn: a.DissolvedOn,
+	}
 }

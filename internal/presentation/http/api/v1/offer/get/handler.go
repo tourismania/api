@@ -102,6 +102,8 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      s.DurationSeconds,
 				CabinClass:           flight.CabinClass(s.CabinClass),
+				AirlineID:            s.AirlineID,
+				Airline:              toAirlineResponse(s.Airline),
 			})
 		}
 
@@ -126,4 +128,15 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 		})
 	}
 	return out
+}
+
+// toAirlineResponse — авиакомпания сегмента в формате ответа; дата —
+// YYYY-MM-DD.
+func toAirlineResponse(a getoffer.AirlineResult) AirlineResponse {
+	resp := AirlineResponse{ID: a.ID, ICAO: a.ICAO, Name: a.Name, NameRU: a.NameRU}
+	if a.DissolvedOn != nil {
+		d := a.DissolvedOn.Format(airlineDateLayout)
+		resp.DissolvedOn = &d
+	}
+	return resp
 }

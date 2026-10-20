@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"api/internal/domain/airline"
 	"api/internal/domain/airport"
 )
 
@@ -14,6 +15,12 @@ import (
 // lookup, so it is raised here rather than by the factory.
 var ErrAirportNotFound = errors.New("flight segment references an unknown airport icao")
 
+// ErrAirlineNotFound возвращается Manager, если сегмент ссылается на id,
+// которого нет в справочнике авиакомпаний (в т. ч. отрицательный), или на
+// скрытую из поиска запись (дубль, пропавшая из источника), на которую оффер
+// до этой записи не ссылался.
+var ErrAirlineNotFound = errors.New("flight segment references an unknown airline")
+
 // Manager orchestrates replacing the full set of flights attached to
 // an Offer. It does not check role/agency ownership: it is only ever
 // called from create_offer/update_offer handlers after
@@ -22,23 +29,27 @@ var ErrAirportNotFound = errors.New("flight segment references an unknown airpor
 type Manager struct {
 	flights  Repository
 	airports airport.Repository
+	airlines airline.Repository
 }
 
 // NewManager wires the collaborators.
-func NewManager(flights Repository, airports airport.Repository) *Manager {
-	return &Manager{flights: flights, airports: airports}
+func NewManager(flights Repository, airports airport.Repository, airlines airline.Repository) *Manager {
+	return &Manager{flights: flights, airports: airports, airlines: airlines}
 }
 
 // ReplaceForOffer проверяет, что все коды icao из flights есть в
-// справочнике аэропортов, и сравнивает flights с сохранёнными для offerID —
-// сначала маршрут, потом цены, комментарии и классы сегментов:
+// справочнике аэропортов, а авиакомпании сегментов — в справочнике
+// авиакомпаний (скрытая запись допустима, только если на неё уже ссылается
+// сохранённый сегмент оффера), и сравнивает flights с сохранёнными для
+// offerID — сначала маршрут, потом цены, комментарии, классы и авиакомпании
+// сегментов:
 //   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
 //     моменты времени сегментов; ID, назначенные сервером, не учитываются),
-//     цены, комментарии и классы совпали — no-op, БД не трогается;
-//   - маршрут совпал, у части перелётов другая цена, валюта, комментарий
-//     или класс хотя бы одного сегмента — у этих перелётов обновляются
-//     только цена, комментарий и классы сегментов; аэропорты и время
-//     сегментов и идентификаторы сохраняются;
+//     цены, комментарии, классы и авиакомпании совпали — no-op, БД не трогается;
+//   - маршрут совпал, у части перелётов другая цена, валюта, комментарий,
+//     класс или авиакомпания хотя бы одного сегмента — у этих перелётов
+//     обновляются только цена, комментарий, классы и авиакомпании сегментов;
+//     аэропорты и время сегментов и идентификаторы сохраняются;
 //   - маршрут отличается — набор заменяется целиком.
 //
 // Перелёты сопоставляются по позиции: у входящих перелётов нет ID.
@@ -47,9 +58,14 @@ func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Fl
 		return err
 	}
 
+	// Сохранённые перелёты нужны и для сравнения, и для проверки скрытых
+	// авиакомпаний, поэтому загружаются до неё.
 	existing, err := m.flights.FindByOfferID(ctx, offerID)
 	if err != nil {
 		return fmt.Errorf("find existing flights: %w", err)
+	}
+	if err := m.checkAirlinesExist(ctx, flights, existing); err != nil {
+		return err
 	}
 	if routesEqual(existing, flights) {
 		updates := detailsUpdates(existing, flights)
@@ -102,10 +118,59 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 	return nil
 }
 
+// checkAirlinesExist одним запросом проверяет авиакомпании сегментов flights:
+// id должен быть в справочнике, а скрытая из поиска запись (дубль или
+// пропавшая) допустима, только если её id уже есть у сохранённых сегментов
+// оффера existing — тогда сохранение старого оффера не ломается из-за правки
+// в источнике, а новых ссылок на скрытые записи не появляется. Сравнение —
+// по всему офферу, а не по позиции: набор передаётся целиком, и сегменты при
+// правке могут сдвигаться.
+func (m *Manager) checkAirlinesExist(ctx context.Context, flights, existing []Flight) error {
+	ids := segmentAirlineIDSet(flights)
+	if len(ids) == 0 {
+		return nil
+	}
+	unique := make([]int, 0, len(ids))
+	for id := range ids {
+		unique = append(unique, id)
+	}
+
+	found, err := m.airlines.FindByIDs(ctx, unique)
+	if err != nil {
+		return fmt.Errorf("find airlines by id: %w", err)
+	}
+	hidden := make(map[int]bool, len(found))
+	for _, a := range found {
+		hidden[a.ID] = a.Hidden
+	}
+	stored := segmentAirlineIDSet(existing)
+	for _, id := range unique {
+		isHidden, ok := hidden[id]
+		if !ok {
+			return ErrAirlineNotFound
+		}
+		if _, referenced := stored[id]; isHidden && !referenced {
+			return ErrAirlineNotFound
+		}
+	}
+	return nil
+}
+
+// segmentAirlineIDSet — множество id авиакомпаний всех сегментов flights.
+func segmentAirlineIDSet(flights []Flight) map[int]struct{} {
+	ids := make(map[int]struct{})
+	for _, f := range flights {
+		for _, seg := range f.Segments {
+			ids[seg.AirlineID] = struct{}{}
+		}
+	}
+	return ids
+}
+
 // routesEqual сравнивает два набора перелётов только по маршруту: порядок
 // перелётов и порядок сегментов внутри перелёта значимы, ID не учитываются
-// — у входящих перелётов их нет. Цена, комментарий и классы сегментов в
-// сравнение маршрута не входят — их сравнивает detailsUpdates.
+// — у входящих перелётов их нет. Цена, комментарий, классы и авиакомпании
+// сегментов в сравнение маршрута не входят — их сравнивает detailsUpdates.
 func routesEqual(a, b []Flight) bool {
 	if len(a) != len(b) {
 		return false
@@ -133,10 +198,10 @@ func segmentsEqual(a, b []Segment) bool {
 	return true
 }
 
-// detailsUpdates возвращает новые цену, комментарий и классы сегментов для
-// перелётов, у которых цена, валюта, комментарий или класс хотя бы одного
-// сегмента отличается от сохранённых; в обновление идут классы всех
-// сегментов перелёта. Комментарии и классы сравниваются точно, без
+// detailsUpdates возвращает новые цену, комментарий, классы и авиакомпании
+// сегментов для перелётов, у которых цена, валюта, комментарий, класс или
+// авиакомпания хотя бы одного сегмента отличается от сохранённых; в
+// обновление идут классы и авиакомпании всех сегментов перелёта. Комментарии и классы сравниваются точно, без
 // нормализации ("a" и "a " различны): api хранит значения как есть. existing и incoming — наборы с уже совпавшим
 // маршрутом (routesEqual), сопоставленные по позиции; ID берётся у
 // сохранённого перелёта.
@@ -145,24 +210,25 @@ func detailsUpdates(existing, incoming []Flight) []DetailsUpdate {
 	for i := range existing {
 		if existing[i].Price != incoming[i].Price ||
 			existing[i].ManagerComment != incoming[i].ManagerComment ||
-			!cabinClassesEqual(existing[i].Segments, incoming[i].Segments) {
+			!segmentDetailsEqual(existing[i].Segments, incoming[i].Segments) {
 			updates = append(updates, DetailsUpdate{
 				FlightID:            existing[i].ID,
 				Price:               incoming[i].Price,
 				ManagerComment:      incoming[i].ManagerComment,
 				SegmentCabinClasses: segmentCabinClasses(incoming[i].Segments),
+				SegmentAirlineIDs:   segmentAirlineIDs(incoming[i].Segments),
 			})
 		}
 	}
 	return updates
 }
 
-// cabinClassesEqual сравнивает классы сегментов двух перелётов по позиции.
-// Вызывается только для перелётов с совпавшим маршрутом, поэтому число
-// сегментов одинаково.
-func cabinClassesEqual(a, b []Segment) bool {
+// segmentDetailsEqual сравнивает классы и авиакомпании сегментов двух
+// перелётов по позиции. Вызывается только для перелётов с совпавшим
+// маршрутом, поэтому число сегментов одинаково.
+func segmentDetailsEqual(a, b []Segment) bool {
 	for i := range a {
-		if a[i].CabinClass != b[i].CabinClass {
+		if a[i].CabinClass != b[i].CabinClass || a[i].AirlineID != b[i].AirlineID {
 			return false
 		}
 	}
@@ -176,4 +242,13 @@ func segmentCabinClasses(segs []Segment) []CabinClass {
 		classes = append(classes, s.CabinClass)
 	}
 	return classes
+}
+
+// segmentAirlineIDs возвращает id авиакомпаний сегментов по порядку.
+func segmentAirlineIDs(segs []Segment) []int {
+	ids := make([]int, 0, len(segs))
+	for _, s := range segs {
+		ids = append(ids, s.AirlineID)
+	}
+	return ids
 }

@@ -19,8 +19,8 @@ import (
 
 // Сегменты UUEE→LFPG и LFPG→KJFK одного перелёта с пересадкой в LFPG.
 const (
-	firstSegmentFields  = `"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"`
-	secondSegmentFields = `"departure_airport_icao":"LFPG","arrival_airport_icao":"KJFK","departure_at":"2026-08-01T16:00:00Z","arrival_at":"2026-08-02T00:00:00Z"`
+	firstSegmentFields  = `"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"`
+	secondSegmentFields = `"airline_id":1,"departure_airport_icao":"LFPG","arrival_airport_icao":"KJFK","departure_at":"2026-08-01T16:00:00Z","arrival_at":"2026-08-02T00:00:00Z"`
 )
 
 // segmentWithClass — сегмент из полей fields и cabin_class со значением
@@ -297,7 +297,7 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesCabinClass(t *testing.T) 
 	// Публичная карточка через настоящий use case поверх тех же хранилищ.
 	published := *e.offers.found
 	published.Status = offer.StatusPublished
-	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights)
+	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, &stubAirlineRepo{})
 	r := newOffersTestRouter(newTestJWTService(t), e.offers, stubUserFinder{}, publicUC, e.flights)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+e.offerID.String(), nil)

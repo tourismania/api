@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +22,7 @@ import (
 	getoffers "api/internal/application/query/get_offers"
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/agency"
+	"api/internal/domain/airline"
 	"api/internal/domain/airport"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
@@ -181,6 +183,7 @@ func (s *stubOfferFlightRepo) UpdateDetails(_ context.Context, _ int, updates []
 				segs := slices.Clone(s.stored[i].Segments)
 				for j, class := range u.SegmentCabinClasses {
 					segs[j].CabinClass = class
+					segs[j].AirlineID = u.SegmentAirlineIDs[j]
 				}
 				s.stored[i].Segments = segs
 			}
@@ -211,6 +214,55 @@ func (stubAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airport
 	return airports, nil
 }
 
+// stubAirlineRepo — airline.Repository для HTTP-тестов. Без настройки
+// (airlines == nil) существует каждый id ≥ 1: 1 — служебная «Неизвестная»,
+// остальные — «Airline <id>»; с airlines — только записи из неё. Запросы
+// FindByIDs считаются.
+type stubAirlineRepo struct {
+	airlines  map[int]airline.Airline
+	findCalls int
+}
+
+func (s *stubAirlineRepo) Search(_ context.Context, _ airline.Filter) (airline.SearchResult, error) {
+	return airline.SearchResult{}, nil
+}
+
+func (s *stubAirlineRepo) FindByIDs(_ context.Context, ids []int) ([]airline.Airline, error) {
+	s.findCalls++
+	out := make([]airline.Airline, 0, len(ids))
+	for _, id := range ids {
+		if s.airlines != nil {
+			if a, ok := s.airlines[id]; ok {
+				out = append(out, a)
+			}
+			continue
+		}
+		switch {
+		case id == airline.UnknownID:
+			out = append(out, airline.Airline{ID: id, Name: "Unknown", NameRU: "Неизвестная"})
+		case id > airline.UnknownID:
+			out = append(out, airline.Airline{ID: id, Name: fmt.Sprintf("Airline %d", id)})
+		}
+	}
+	return out, nil
+}
+
+func (s *stubAirlineRepo) Insert(_ context.Context, _ string, _ airline.Airline) (int, error) {
+	return 0, nil
+}
+
+func (s *stubAirlineRepo) Update(_ context.Context, _ int, _ airline.Airline) error { return nil }
+
+func (s *stubAirlineRepo) ListSourceIDs(_ context.Context) (map[string][]airline.SourceRecord, error) {
+	return nil, nil
+}
+
+func (s *stubAirlineRepo) MarkMerged(_ context.Context, _, _ int) error { return nil }
+
+func (s *stubAirlineRepo) MarkMissing(_ context.Context, _ []int, _ time.Time) error { return nil }
+
+func (s *stubAirlineRepo) ClearMissing(_ context.Context, _ []int) error { return nil }
+
 // noopTxManager is a hand-written test double for txmanager.TxManager
 // that runs fn directly against the given context.
 type noopTxManager struct{}
@@ -237,10 +289,16 @@ func (s *stubGetPublishedOfferUseCase) Handle(_ context.Context, _ getpublishedo
 // offer.Manager, reached through the real application command/query
 // handlers wired here.
 func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo) http.Handler {
+	return newOffersTestRouterWithAirlines(jwtSvc, offers, users, publicUC, flights, &stubAirlineRepo{})
+}
+
+// newOffersTestRouterWithAirlines — newOffersTestRouter со справочником
+// авиакомпаний airlines.
+func newOffersTestRouterWithAirlines(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo, airlines *stubAirlineRepo) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	offerManager := offer.NewManager(offers, stubAgencyRepo{})
-	offerFlightManager := flight.NewManager(flights, stubAirportRepo{})
+	offerFlightManager := flight.NewManager(flights, stubAirportRepo{}, airlines)
 	userFinder := user.NewFinder(users)
 
 	createApp := createoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
@@ -252,7 +310,7 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 	updateApp := updateoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
 	updateH := updateofferhttp.NewHandler(updateApp, validate)
 
-	getApp := getoffer.NewHandler(offerManager, flights, userFinder)
+	getApp := getoffer.NewHandler(offerManager, flights, airlines, userFinder)
 	getH := getofferhttp.NewHandler(getApp)
 
 	publicH := getpublicofferhttp.NewHandler(publicUC)
@@ -344,7 +402,7 @@ func TestOffersHTTP_CreateOffer_WithFlights_Returns201_AndReplacesFlights(t *tes
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights)
 
 	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -376,7 +434,7 @@ func TestOffersHTTP_CreateOffer_InvalidFlightSegments_Returns400_NeverStores(t *
 	// arrival_at before departure_at violates the domain chronology
 	// invariant, surfaced as a 400 by apperror.ErrValidation.
 	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T14:00:00Z","arrival_at":"2026-08-01T10:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T14:00:00Z","arrival_at":"2026-08-01T10:00:00Z"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
