@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"api/internal/application/apperror"
 	searchairlines "api/internal/application/query/search_airlines"
 	"api/internal/domain/airline"
 
@@ -36,6 +37,7 @@ func TestSearchAirlines_SearchNormalized(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Turkish Airlines", repo.got.Search)
 	assert.Equal(t, "Turkish Airlines", *res.Search, "в meta — нормализованная строка")
+	assert.Nil(t, res.Country)
 }
 
 func TestSearchAirlines_ShortOrMissingSearch_ErrSearchTooShort(t *testing.T) {
@@ -75,13 +77,25 @@ func TestSearchAirlines_IDsWithoutSearch_NoNameFilter(t *testing.T) {
 	assert.Nil(t, res.Search, "meta.search — null")
 }
 
-func TestSearchAirlines_Country_PassedToFilter(t *testing.T) {
+func TestSearchAirlines_Country_UppercasedOrFieldError(t *testing.T) {
 	repo := &recordingSearcher{}
-
-	_, err := searchairlines.NewHandler(repo).Handle(context.Background(), searchQuery(strp("air"), "TR"))
-
+	res, err := searchairlines.NewHandler(repo).Handle(context.Background(), searchQuery(strp("air"), "tr"))
 	require.NoError(t, err)
-	assert.Equal(t, "TR", repo.got.CountryISO2, "формат и регистр уже проверил presentation")
+	assert.Equal(t, "TR", repo.got.CountryISO2)
+	assert.Equal(t, "TR", *res.Country)
+
+	for _, raw := range []string{"TUR", "1", "T", "т1"} {
+		repo := &recordingSearcher{}
+
+		_, err := searchairlines.NewHandler(repo).Handle(context.Background(), searchQuery(strp("air"), raw))
+
+		fe, ok := apperror.AsFieldError(err)
+		require.True(t, ok, "%q: %v", raw, err)
+		assert.Equal(t, "Country", fe.Field)
+		assert.Equal(t, "iso2", fe.Rule)
+		assert.ErrorIs(t, err, searchairlines.ErrCountryInvalid)
+		assert.False(t, repo.called)
+	}
 }
 
 func TestSearchAirlines_MinSearchLen(t *testing.T) {

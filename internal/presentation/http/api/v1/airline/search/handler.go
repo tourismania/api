@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"api/internal/application/apperror"
 	searchairlines "api/internal/application/query/search_airlines"
 	airlinehttp "api/internal/presentation/http/api/v1/airline"
 	"api/internal/presentation/http/httpx"
@@ -31,10 +32,9 @@ func NewHandler(uc searchairlines.UseCase, v *validator.Validate) *Handler {
 	return &Handler{useCase: uc, validate: v}
 }
 
-// Handle — http.HandlerFunc. Здесь разбор и проверка формы query-строки:
-// список ids, формат country, границы limit/offset. Нормализацию строки
-// поиска и правило «без ids строка обязательна» делает use case
-// searchairlines.
+// Handle — http.HandlerFunc. Здесь только разбор query-строки (форма
+// запроса); нормализацию строки поиска, правило «без ids строка обязательна»
+// и проверку страны делает use case searchairlines.
 //
 //	@Summary      Search airlines
 //	@Description  Поиск авиакомпаний справочника по подстроке английского или русского названия либо названия страны (без учёта регистра и диакритики, символы сравниваются буквально), с отбором по стране и по списку id. По кодам ICAO/IATA не ищет. Возвращает только выбираемые для сегмента записи: дубли и пропавшие из источника не возвращаются (их отдаёт GET /api/v1/airlines/{id}). Действующие выше прекративших работу; внутри — начало названия, подстрока названия, только страна. id из выдачи — значение airline_id сегмента перелёта; «Неизвестная» — id 1.
@@ -65,26 +65,18 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 		ids = parsed
 	}
-	var country *string
-	if raw := q.Get("country"); raw != "" {
-		c, err := httpx.ParseISO2(raw)
-		if err != nil {
-			httpx.WriteFieldValidationError(w, "Country", "iso2")
-			return
-		}
-		country = &c
-	}
 	params := SearchParams{
-		Limit:  httpx.QueryInt(q.Get("limit"), DefaultLimit),
-		Offset: httpx.QueryInt(q.Get("offset"), DefaultOffset),
-		IDs:    ids,
+		Limit:   httpx.QueryInt(q.Get("limit"), DefaultLimit),
+		Offset:  httpx.QueryInt(q.Get("offset"), DefaultOffset),
+		IDs:     ids,
+		Country: q.Get("country"),
 	}
 	if err := h.validate.Struct(params); err != nil {
 		httpx.WriteValidationErrorWithParams(w, err)
 		return
 	}
 
-	query := searchairlines.Query{Country: valueOf(country), IDs: ids, Limit: params.Limit, Offset: params.Offset}
+	query := searchairlines.Query{Country: params.Country, IDs: ids, Limit: params.Limit, Offset: params.Offset}
 	if q.Has("search") {
 		s := q.Get("search")
 		query.Search = &s
@@ -97,7 +89,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	slog.InfoContext(r.Context(), "airline search",
 		"search", valueOf(res.Search),
-		"country", valueOf(country),
+		"country", valueOf(res.Country),
 		"ids", len(ids),
 		"limit", params.Limit,
 		"offset", params.Offset,
@@ -113,18 +105,22 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			Limit:   params.Limit,
 			Offset:  params.Offset,
 			Search:  res.Search,
-			Country: country,
+			Country: res.Country,
 			IDs:     ids,
 		},
 	})
 }
 
 // writeError переводит ошибку use case в ответ: короткая строка поиска —
-// INVALID_SEARCH, прочее — 500.
+// INVALID_SEARCH, ошибка поля (страна) — 400 validation failed, прочее — 500.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, searchairlines.ErrSearchTooShort) {
 		httpx.WriteStructuredError(w, http.StatusBadRequest, "INVALID_SEARCH",
 			"Parameter 'search' must be at least 3 characters long", "search")
+		return
+	}
+	if fe, ok := apperror.AsFieldError(err); ok {
+		httpx.WriteFieldValidationError(w, fe.Field, fe.Rule)
 		return
 	}
 	slog.ErrorContext(r.Context(), "airline search failed", "err", err)
