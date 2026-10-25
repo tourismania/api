@@ -48,6 +48,29 @@ func WriteFieldValidationError(w http.ResponseWriter, field, rule string) {
 	})
 }
 
+// WriteValidationErrorWithParams — как WriteValidationError, но правило в meta
+// указано с параметром: {"Limit": "max=100"} вместо {"Limit": "max"}, чтобы
+// клиент видел границу. Пока так отвечает только поиск авиакомпаний; общий
+// формат для всех эндпоинтов — строка бэклога sdd.
+func WriteValidationErrorWithParams(w http.ResponseWriter, err error) {
+	meta := map[string]any{}
+	var verrs validator.ValidationErrors
+	if errors.As(err, &verrs) {
+		for _, fe := range verrs {
+			rule := fe.Tag()
+			if fe.Param() != "" {
+				rule += "=" + fe.Param()
+			}
+			meta[fe.Field()] = rule
+		}
+	}
+	WriteJSON(w, http.StatusBadRequest, ErrorBody{
+		Error: "validation failed",
+		Code:  http.StatusBadRequest,
+		Meta:  meta,
+	})
+}
+
 // WriteValidationError flattens validator errors into a 400 response.
 func WriteValidationError(w http.ResponseWriter, err error) {
 	meta := map[string]any{}

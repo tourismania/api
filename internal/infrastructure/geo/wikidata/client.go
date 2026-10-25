@@ -1,5 +1,6 @@
 // Package wikidata queries the Wikidata SPARQL endpoint for Russian-language
-// geographic names keyed by ICAO airport code.
+// geographic names keyed by ICAO airport code and for airlines (codes ICAO
+// and IATA, names, country, dissolution date, redirects of merged items).
 package wikidata
 
 import (
@@ -45,6 +46,12 @@ type sparqlResult struct {
 	} `json:"results"`
 }
 
+// sparqlBinding — одна строка ответа SPARQL: переменная → значение.
+// Псевдоним того же анонимного типа, что в sparqlResult.
+type sparqlBinding = map[string]struct {
+	Value string `json:"value"`
+}
+
 // transientErr marks a failure that warrants a retry (5xx, 429, network).
 type transientErr struct{ cause error }
 
@@ -56,15 +63,21 @@ func isTransient(err error) bool {
 	return errors.As(err, &t)
 }
 
-// Client queries Wikidata for Russian airport and city names.
+// Client queries Wikidata for Russian airport and city names and for the
+// airline reference data. endpoint и baseDelay — поля, а не константы, чтобы
+// тесты могли подставить httptest.Server и короткие паузы.
 type Client struct {
-	http *http.Client
+	http      *http.Client
+	endpoint  string
+	baseDelay time.Duration
 }
 
 // New returns a Wikidata Client.
 func New() *Client {
 	return &Client{
-		http: &http.Client{Timeout: 120 * time.Second},
+		http:      &http.Client{Timeout: 120 * time.Second},
+		endpoint:  sparqlEndpoint,
+		baseDelay: baseDelay,
 	}
 }
 
@@ -239,12 +252,12 @@ func (c *Client) sparql(ctx context.Context, query string) ([]map[string]struct 
 	Value string `json:"value"`
 }, error) {
 	params := url.Values{"query": {query}, "format": {"json"}}
-	reqURL := sparqlEndpoint + "?" + params.Encode()
+	reqURL := c.endpoint + "?" + params.Encode()
 
 	var lastErr error
 	for attempt := range maxRetries {
 		if attempt > 0 {
-			delay := baseDelay * time.Duration(1<<(attempt-1)) // 3s, 6s, 12s
+			delay := c.baseDelay * time.Duration(1<<(attempt-1)) // 3s, 6s, 12s
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()

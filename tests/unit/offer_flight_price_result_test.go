@@ -27,7 +27,7 @@ func pricedFlight() flight.Flight {
 func TestGetOffer_FlightWithPrice_ReturnsFormattedPriceAndCurrency(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
-	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{pricedFlight()}}, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{pricedFlight()}}, &mockAirlineRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 
@@ -40,7 +40,7 @@ func TestGetOffer_FlightWithPrice_ReturnsFormattedPriceAndCurrency(t *testing.T)
 
 func TestGetPublishedOffer_FlightWithPrice_ReturnsFormattedPriceAndCurrency(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{pricedFlight()}})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{pricedFlight()}}, &mockAirlineRepo{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 
@@ -55,7 +55,7 @@ func TestGetOffer_FlightManagerComment_ReturnedAsIs(t *testing.T) {
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
 	commented := pricedFlight()
 	commented.ManagerComment = "Багаж оплачивается отдельно\n"
-	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}}, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}}, &mockAirlineRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 
@@ -69,7 +69,7 @@ func TestGetPublishedOffer_FlightManagerComment_ReturnedAsIs(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
 	commented := pricedFlight()
 	commented.ManagerComment = "Ночная пересадка"
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}})
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{commented, pricedFlight()}}, &mockAirlineRepo{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 

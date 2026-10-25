@@ -52,6 +52,21 @@ type FlightSegmentResult struct {
 	DurationSeconds      int64
 	// CabinClass — класс обслуживания сегмента; "" — класс неизвестен.
 	CabinClass string
+	// AirlineID — id авиакомпании сегмента в справочнике.
+	AirlineID int
+	// Airline — текущие данные этой авиакомпании из справочника.
+	Airline AirlineResult
+}
+
+// AirlineResult — авиакомпания сегмента: ICAO nil — у служебной записи
+// «Неизвестная»; NameRU "" — русского названия нет; DissolvedOn nil —
+// действует. Коды IATA не отдаются.
+type AirlineResult struct {
+	ID          int
+	ICAO        *string
+	Name        string
+	NameRU      string
+	DissolvedOn *time.Time
 }
 
 // LayoverResult — пересадка между двумя соседними сегментами FlightResult.

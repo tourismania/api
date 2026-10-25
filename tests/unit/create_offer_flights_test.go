@@ -28,7 +28,7 @@ func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 	agencies := &mockAgencyRepo{findByIDAgency: activeAgency(5)}
 	mgr := offer.NewManager(offers, agencies)
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	res, err := h.Handle(context.Background(), createoffer.Command{
@@ -36,7 +36,7 @@ func TestCreateOffer_WithValidFlights_ReplacesFlightsForNewOffer(t *testing.T) {
 		Description: "desc",
 		Status:      offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "15000", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+			{Price: "15000", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -53,7 +53,7 @@ func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -70,7 +70,7 @@ func TestCreateOffer_NoFlights_DoesNotCallReplace(t *testing.T) {
 func TestCreateOffer_InvalidFlightStructure_ReturnsValidationError_NeverStoresOffer(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -91,7 +91,7 @@ func TestCreateOffer_UnknownAirport_ReturnsValidationError(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	airports := &mockAirportRepo{findByICAOsAirports: []airport.Airport{}}
-	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, airports)
+	flightMgr := flight.NewManager(&mockOfferFlightRepo{}, airports, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -99,7 +99,7 @@ func TestCreateOffer_UnknownAirport_ReturnsValidationError(t *testing.T) {
 		Description: "desc",
 		Status:      offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "15000", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+			{Price: "15000", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "ZZZZ", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -112,14 +112,14 @@ func TestCreateOffer_WithValidFlights_StoresParsedPrice(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 42}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:  "Title",
 		Status: offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "12345.5", Currency: "EUR", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+			{Price: "12345.5", Currency: "EUR", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -134,14 +134,14 @@ func TestCreateOffer_WithManagerComment_StoresComment(t *testing.T) {
 	offers := &mockOfferRepo{storeID: 42}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:  "Title",
 		Status: offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "100", Currency: "RUB", ManagerComment: "Багаж оплачивается отдельно", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+			{Price: "100", Currency: "RUB", ManagerComment: "Багаж оплачивается отдельно", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -156,14 +156,14 @@ func TestCreateOffer_ManagerCommentControlChar_ReturnsFieldError_NeverStoresOffe
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:  "Title",
 		Status: offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "100", Currency: "RUB", ManagerComment: "до\u0000после", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+			{Price: "100", Currency: "RUB", ManagerComment: "до\u0000после", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})
@@ -186,14 +186,14 @@ func TestCreateOffer_InvalidPriceOrCurrency_ReturnsValidationError_NeverStoresOf
 	} {
 		offers := &mockOfferRepo{storeID: 1}
 		mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
-		flightMgr := flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{})
+		flightMgr := flight.NewManager(&mockOfferFlightRepo{}, &mockAirportRepo{}, &mockAirlineRepo{})
 		h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 		_, err := h.Handle(context.Background(), createoffer.Command{
 			Title:  "Title",
 			Status: offer.StatusDraft,
 			Flights: []createoffer.FlightInput{
-				{Price: tc.price, Currency: tc.currency, Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
+				{Price: tc.price, Currency: tc.currency, Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)}}},
 			},
 			CurrentUserUUID: uuid.New(),
 		})
@@ -208,7 +208,7 @@ func TestCreateOffer_WithCabinClasses_StoresClassesEmptyStaysEmpty(t *testing.T)
 	offers := &mockOfferRepo{storeID: 42}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
@@ -216,8 +216,8 @@ func TestCreateOffer_WithCabinClasses_StoresClassesEmptyStaysEmpty(t *testing.T)
 		Status: offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
 			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{
-				{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort"},
-				{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+				{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort"},
+				{AirlineID: sampleAirlineID, DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
 			}},
 		},
 		CurrentUserUUID: uuid.New(),
@@ -235,14 +235,14 @@ func TestCreateOffer_CabinClassInvalid_ReturnsFieldError_NeverStoresOffer(t *tes
 	offers := &mockOfferRepo{storeID: 1}
 	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
 	flightRepo := &mockOfferFlightRepo{}
-	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{})
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
 	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
 
 	_, err := h.Handle(context.Background(), createoffer.Command{
 		Title:  "Title",
 		Status: offer.StatusDraft,
 		Flights: []createoffer.FlightInput{
-			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "first"}}},
+			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "first"}}},
 		},
 		CurrentUserUUID: uuid.New(),
 	})

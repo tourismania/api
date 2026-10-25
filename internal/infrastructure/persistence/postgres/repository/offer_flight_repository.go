@@ -87,6 +87,7 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 				DepartureAt:          seg.DepartureAt,
 				ArrivalAt:            seg.ArrivalAt,
 				CabinClass:           string(seg.CabinClass),
+				AirlineID:            int32(seg.AirlineID),
 			}); err != nil {
 				return fmt.Errorf("insert offer flight segment: %w", err)
 			}
@@ -96,8 +97,8 @@ func (r *OfferFlightRepository) ReplaceForOffer(ctx context.Context, offerID int
 }
 
 // UpdateDetails перезаписывает цену, валюту и комментарий менеджера у
-// перечисленных перелётов offerID и классы обслуживания их сегментов
-// (сегмент — по sequence = индекс + 1, как при вставке), не трогая
+// перечисленных перелётов offerID и классы обслуживания и авиакомпании их
+// сегментов (сегмент — по sequence = индекс + 1, как при вставке), не трогая
 // аэропорты и время сегментов и идентификаторы.
 // Как и ReplaceForOffer, своей транзакции не открывает — вызывающий
 // application-хендлер уже внутри txmanager.TxManager.WithinTx.
@@ -114,14 +115,19 @@ func (r *OfferFlightRepository) UpdateDetails(ctx context.Context, offerID int, 
 		}); err != nil {
 			return fmt.Errorf("update offer flight %d details: %w", u.FlightID, err)
 		}
+		if len(u.SegmentAirlineIDs) != len(u.SegmentCabinClasses) {
+			return fmt.Errorf("update offer flight %d: %d segment cabin classes but %d airlines",
+				u.FlightID, len(u.SegmentCabinClasses), len(u.SegmentAirlineIDs))
+		}
 		for i, class := range u.SegmentCabinClasses {
-			if err := q.UpdateOfferFlightSegmentCabinClass(ctx, db.UpdateOfferFlightSegmentCabinClassParams{
+			if err := q.UpdateOfferFlightSegmentDetails(ctx, db.UpdateOfferFlightSegmentDetailsParams{
 				FlightID:   int32(u.FlightID),
 				OfferID:    int32(offerID),
 				Sequence:   int16(i + 1),
 				CabinClass: string(class),
+				AirlineID:  int32(u.SegmentAirlineIDs[i]),
 			}); err != nil {
-				return fmt.Errorf("update offer flight %d segment %d cabin class: %w", u.FlightID, i+1, err)
+				return fmt.Errorf("update offer flight %d segment %d details: %w", u.FlightID, i+1, err)
 			}
 		}
 	}

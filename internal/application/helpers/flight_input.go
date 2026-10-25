@@ -32,6 +32,10 @@ const (
 	// валидатора presentation, хотя проверяет его домен.
 	cabinClassField = "CabinClass"
 	cabinClassRule  = "oneof"
+	// airlineField / airlineRule — у сегмента не указана авиакомпания; так же
+	// отвечает и validate:"required" presentation, если поле не передано.
+	airlineField = "AirlineID"
+	airlineRule  = "required"
 )
 
 // FlightInput — DTO одного перелёта на границе Application-слоя: цена
@@ -48,20 +52,23 @@ type FlightInput struct {
 // FlightSegmentInput — DTO одного беспосадочного сегмента перелёта.
 // CabinClass — класс обслуживания как пришёл ("" — класс неизвестен);
 // значение по умолчанию не подставляется, допустимость проверяет домен.
+// AirlineID — id авиакомпании из справочника как пришёл; 0 — не указана
+// (домен отклоняет), существование проверяет flight.Manager.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
 	DepartureAt          time.Time
 	ArrivalAt            time.Time
 	CabinClass           string
+	AirlineID            int
 }
 
 // BuildFlights разбирает цену каждого перелёта по справочнику валют и проверяет
 // структурные инварианты через flight.New до любой записи в БД, поэтому
 // некорректный перелёт даже не открывает транзакцию. Ошибка цены, валюты,
-// комментария или класса сегмента возвращается как *apperror.FieldError
-// (поле Price / Currency / ManagerComment / CabinClass), остальные доменные
-// ошибки — как есть.
+// комментария, класса или отсутствующей авиакомпании сегмента возвращается
+// как *apperror.FieldError (поле Price / Currency / ManagerComment /
+// CabinClass / AirlineID), остальные доменные ошибки — как есть.
 func BuildFlights(inputs []FlightInput) ([]flight.Flight, error) {
 	if len(inputs) == 0 {
 		return nil, nil
@@ -78,6 +85,9 @@ func BuildFlights(inputs []FlightInput) ([]flight.Flight, error) {
 		}
 		if errors.Is(err, flight.ErrCabinClassInvalid) {
 			return nil, apperror.NewFieldError(cabinClassField, cabinClassRule, err)
+		}
+		if errors.Is(err, flight.ErrAirlineRequired) {
+			return nil, apperror.NewFieldError(airlineField, airlineRule, err)
 		}
 		if err != nil {
 			return nil, err
@@ -105,6 +115,7 @@ func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
 			DepartureAt:          s.DepartureAt,
 			ArrivalAt:            s.ArrivalAt,
 			CabinClass:           flight.CabinClass(s.CabinClass),
+			AirlineID:            s.AirlineID,
 		})
 	}
 	return segs

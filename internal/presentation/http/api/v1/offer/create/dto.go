@@ -49,6 +49,8 @@ type FlightSegmentInput struct {
 	ArrivalAt            time.Time `json:"arrival_at"             validate:"required"`
 	// CabinClass — класс обслуживания сегмента; необязателен (отсутствие поля, null и "" — класс неизвестен). Допустимые значения — enum схемы flight.CabinClass (справочник классов обслуживания); недопустимое значение — 400 с meta {"CabinClass":"oneof"}.
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
+	// AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска запись, на которую оффер ещё не ссылался, — 400 «flight segment references an unknown airline».
+	AirlineID int `json:"airline_id" validate:"required" example:"1"`
 }
 
 // CreateOfferResponse is the response envelope.

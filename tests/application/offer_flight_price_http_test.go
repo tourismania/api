@@ -71,7 +71,7 @@ func flightJSON(priceJSON string) string {
 		sep = ","
 	}
 	return `{` + priceJSON + sep + `"segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
 	]}`
 }
 
@@ -201,7 +201,7 @@ func TestOffersHTTP_CreateFlight_PriceInsideSegment_Returns400UnknownField(t *te
 	e := newPriceTestEnv(t)
 
 	body := createBody(`{"price":"100","currency":"RUB","segments":[
-		{"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z","price":"100"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z","price":"100"}
 	]}`)
 	rr := e.do(t, http.MethodPost, "/api/v1/offers", body)
 

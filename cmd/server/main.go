@@ -56,6 +56,8 @@ func run() error {
 		CreateUser:         container.Http.CreateUser,
 		GetMe:              container.Http.GetMe,
 		Airports:           container.Http.Airports,
+		SearchAirlines:     container.Http.SearchAirlines,
+		GetAirline:         container.Http.GetAirline,
 		Currencies:         container.Http.Currencies,
 		CreateOffer:        container.Http.CreateOffer,
 		GetOffer:           container.Http.GetOffer,

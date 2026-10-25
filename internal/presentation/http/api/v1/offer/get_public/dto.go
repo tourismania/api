@@ -57,6 +57,26 @@ type FlightSegmentResponse struct {
 	DurationSeconds      int64     `json:"duration_seconds"`
 	// CabinClass — класс обслуживания сегмента; поле присутствует всегда, "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass (справочник классов обслуживания).
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
+	// AirlineID — id авиакомпании сегмента в справочнике.
+	AirlineID int `json:"airline_id" example:"1"`
+	// Airline — текущие данные авиакомпании сегмента из справочника; всегда объект.
+	Airline AirlineResponse `json:"airline"`
+}
+
+// airlineDateLayout — формат даты прекращения деятельности авиакомпании.
+const airlineDateLayout = "2006-01-02"
+
+// AirlineResponse — авиакомпания сегмента. Коды IATA не отдаются.
+type AirlineResponse struct {
+	ID int `json:"id" example:"1"`
+	// ICAO — код ICAO; null только у служебной записи «Неизвестная» (id 1).
+	ICAO *string `json:"icao" example:"AFL"`
+	// Name — английское название.
+	Name string `json:"name" example:"Aeroflot"`
+	// NameRU — русское название, только у авиакомпаний России; поле присутствует всегда, "" — нет.
+	NameRU string `json:"name_ru" example:"Аэрофлот"`
+	// DissolvedOn — дата прекращения деятельности YYYY-MM-DD; null — действует.
+	DissolvedOn *string `json:"dissolved_on" example:"2015-10-26"`
 }
 
 // LayoverResponse is the wait between two consecutive segments of a

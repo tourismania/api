@@ -16,7 +16,7 @@ import (
 func validSegments() []helpers.FlightSegmentInput {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	return []helpers.FlightSegmentInput{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour)},
 	}
 }
 
@@ -93,8 +93,8 @@ func TestBuildFlights_StructuralError_IsNotFieldError(t *testing.T) {
 func TestBuildFlights_CabinClass_PassedAsIsWithoutDefault(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	flights, err := helpers.BuildFlights([]helpers.FlightInput{{Price: "100", Currency: "RUB", Segments: []helpers.FlightSegmentInput{
-		{DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort_plus"},
-		{DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), CabinClass: "comfort_plus"},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
 	}}})
 
 	require.NoError(t, err)
