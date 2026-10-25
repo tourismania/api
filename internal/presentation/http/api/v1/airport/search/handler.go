@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -76,8 +75,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse limit/offset with defaults.
-	limit := parseIntDefault(q.Get("limit"), DefaultLimit)
-	offset := parseIntDefault(q.Get("offset"), DefaultOffset)
+	limit := httpx.QueryInt(q.Get("limit"), DefaultLimit)
+	offset := httpx.QueryInt(q.Get("offset"), DefaultOffset)
 
 	// Validate bounds via go-playground/validator.
 	params := SearchParams{
@@ -148,15 +147,4 @@ func buildResponse(res searchairports.Result, search string, limit, offset int) 
 			Search: search,
 		},
 	}
-}
-
-func parseIntDefault(raw string, def int) int {
-	if raw == "" {
-		return def
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < 0 {
-		return def
-	}
-	return v
 }

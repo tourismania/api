@@ -1,5 +1,5 @@
-// Package getairline — авиакомпания справочника по id, включая скрытые из
-// поиска (GET /api/v1/airlines/{id}).
+// Package getairline — авиакомпания справочника по id, в т. ч. дубль или
+// пропавшая из источника, которых поиск не возвращает (GET /api/v1/airlines/{id}).
 package getairline
 
 // Query — id запрошенной авиакомпании.

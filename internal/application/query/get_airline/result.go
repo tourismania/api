@@ -8,9 +8,8 @@ type CountryResult struct {
 	Name string
 }
 
-// Result — авиакомпания с признаком Hidden: дубль или пропавшая из
-// источника, для нового сегмента не выбирается. Остальные поля — как у
-// элемента поиска; коды IATA не отдаются.
+// Result — авиакомпания; поля — как у элемента поиска, коды IATA не
+// отдаются.
 type Result struct {
 	ID          int
 	ICAO        *string
@@ -18,5 +17,4 @@ type Result struct {
 	NameRU      string
 	Country     *CountryResult
 	DissolvedOn *time.Time
-	Hidden      bool
 }

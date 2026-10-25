@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"time"
 
 	"api/internal/domain/airline"
@@ -122,7 +122,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	}
 
 	progress("Syncing %d airlines...", len(parsed))
-	idsBySource, dissolved, err := h.upsertAirlines(ctx, parsed, known, cmd.DryRun)
+	idsBySource, err := h.upsertAirlines(ctx, parsed, known, cmd.DryRun)
 	if err != nil {
 		return Result{}, err
 	}
@@ -134,7 +134,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	res := Result{
 		Countries: len(countries),
 		Airlines:  len(parsed),
-		Dissolved: dissolved,
+		Dissolved: countDissolved(parsed),
 		Skipped:   skipped,
 		Anomalies: anomalies.counts,
 	}
@@ -142,7 +142,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (Result, error) {
 	for event := range res.Anomalies {
 		events = append(events, event)
 	}
-	sort.Strings(events)
+	slices.Sort(events)
 	for _, event := range events {
 		progress("anomaly %s=%d", event, res.Anomalies[event])
 	}
@@ -165,7 +165,7 @@ func checkUniqueSourceIDs(known map[string][]airline.SourceRecord) error {
 	if len(dups) == 0 {
 		return nil
 	}
-	sort.Strings(dups)
+	slices.Sort(dups)
 	return fmt.Errorf("source ids with several airline records, resolve manually before sync: %v", dups)
 }
 
@@ -195,13 +195,14 @@ func checkCompleteness(known map[string][]airline.SourceRecord, arrived map[stri
 
 // collectCountries — коды стран авиакомпаний по алфавиту.
 func collectCountries(parsed []parsedAirline) []string {
-	set := make(map[string]struct{})
+	var codes []string
 	for _, p := range parsed {
 		if p.Airline.Country != nil {
-			set[p.Airline.Country.ISO2] = struct{}{}
+			codes = append(codes, p.Airline.Country.ISO2)
 		}
 	}
-	return sortedKeys(set)
+	slices.Sort(codes)
+	return slices.Compact(codes)
 }
 
 // upsertCountries записывает страны с русскими названиями (неизвестный код —
@@ -219,16 +220,26 @@ func (h *Handler) upsertCountries(ctx context.Context, countries []string) error
 	return nil
 }
 
+// countDissolved — сколько авиакомпаний источника прекратили деятельность.
+func countDissolved(parsed []parsedAirline) int {
+	n := 0
+	for _, p := range parsed {
+		if p.Airline.DissolvedOn != nil {
+			n++
+		}
+	}
+	return n
+}
+
 // upsertAirlines обновляет известные записи по id и вставляет новые, снимает
 // пометку «пропала» с вернувшихся. Возвращает id не слитых записей по
-// идентификатору источника (с новыми; в dry-run у новых pendingID) и число
-// прекративших деятельность.
+// идентификатору источника (с новыми; в dry-run у новых pendingID).
 func (h *Handler) upsertAirlines(
 	ctx context.Context,
 	parsed []parsedAirline,
 	known map[string][]airline.SourceRecord,
 	dryRun bool,
-) (map[string]int, int, error) {
+) (map[string]int, error) {
 	idsBySource := make(map[string]int, len(known)+len(parsed))
 	for sourceID, recs := range known {
 		if !recs[0].Merged {
@@ -236,12 +247,8 @@ func (h *Handler) upsertAirlines(
 		}
 	}
 
-	dissolved := 0
 	var returned []int
 	for _, p := range parsed {
-		if p.Airline.DissolvedOn != nil {
-			dissolved++
-		}
 		recs, ok := known[p.SourceID]
 		if ok && recs[0].Missing {
 			returned = append(returned, recs[0].ID)
@@ -262,16 +269,16 @@ func (h *Handler) upsertAirlines(
 			idsBySource[p.SourceID] = id
 		}
 		if err != nil {
-			return nil, 0, fmt.Errorf("upsert airline %s (%s): %w", p.SourceID, p.Airline.Name, err)
+			return nil, fmt.Errorf("upsert airline %s (%s): %w", p.SourceID, p.Airline.Name, err)
 		}
 	}
 
 	if !dryRun {
 		if err := h.airlines.ClearMissing(ctx, returned); err != nil {
-			return nil, 0, fmt.Errorf("clear missing airlines: %w", err)
+			return nil, fmt.Errorf("clear missing airlines: %w", err)
 		}
 	}
-	return idsBySource, dissolved, nil
+	return idsBySource, nil
 }
 
 // markGone разбирает записи, не пришедшие из источника (кроме уже слитых):
@@ -295,7 +302,7 @@ func (h *Handler) markGone(
 	if len(gone) == 0 {
 		return nil
 	}
-	sort.Strings(gone)
+	slices.Sort(gone)
 
 	redirects, err := h.source.FetchRedirects(ctx, gone)
 	if err != nil {

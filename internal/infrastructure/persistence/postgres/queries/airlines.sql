@@ -41,10 +41,10 @@ LIMIT @limit_val::int
 OFFSET @offset_val::int;
 
 -- name: ListAirlinesByIDs :many
--- Все записи с перечисленными id, включая скрытые (hidden).
+-- Все записи с перечисленными id, включая дубли и пропавшие.
 SELECT a.id, a.icao, a.name, a.name_ru, a.dissolved_on, a.iata_codes,
        co.iso2 AS country_iso2, co.name AS country_name,
-       (a.merged_into_id IS NOT NULL OR a.missing_since IS NOT NULL) AS hidden
+       a.merged_into_id, a.missing_since
 FROM airlines a
 LEFT JOIN countries co ON co.iso2 = a.country_iso2
 WHERE a.id = ANY(@ids::int[]);

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"api/internal/domain/airline"
 	"api/internal/domain/airport"
@@ -119,52 +120,50 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 }
 
 // checkAirlinesExist одним запросом проверяет авиакомпании сегментов flights:
-// id должен быть в справочнике, а скрытая из поиска запись (дубль или
-// пропавшая) допустима, только если её id уже есть у сохранённых сегментов
-// оффера existing — тогда сохранение старого оффера не ломается из-за правки
-// в источнике, а новых ссылок на скрытые записи не появляется. Сравнение —
-// по всему офферу, а не по позиции: набор передаётся целиком, и сегменты при
-// правке могут сдвигаться.
+// id должен быть в справочнике, а невыбираемая запись (дубль или пропавшая из
+// источника, см. airline.Airline.Selectable) допустима, только если её id уже
+// есть у сохранённых сегментов оффера existing — тогда сохранение старого
+// оффера не ломается из-за правки в источнике, а новых ссылок на такие записи
+// не появляется. Сравнение — по всему офферу, а не по позиции: набор
+// передаётся целиком, и сегменты при правке могут сдвигаться.
 func (m *Manager) checkAirlinesExist(ctx context.Context, flights, existing []Flight) error {
-	ids := segmentAirlineIDSet(flights)
+	ids := AirlineIDs(flights)
 	if len(ids) == 0 {
 		return nil
 	}
-	unique := make([]int, 0, len(ids))
-	for id := range ids {
-		unique = append(unique, id)
-	}
 
-	found, err := m.airlines.FindByIDs(ctx, unique)
+	found, err := m.airlines.FindByIDs(ctx, ids)
 	if err != nil {
 		return fmt.Errorf("find airlines by id: %w", err)
 	}
-	hidden := make(map[int]bool, len(found))
+	byID := make(map[int]airline.Airline, len(found))
 	for _, a := range found {
-		hidden[a.ID] = a.Hidden
+		byID[a.ID] = a
 	}
-	stored := segmentAirlineIDSet(existing)
-	for _, id := range unique {
-		isHidden, ok := hidden[id]
+	stored := AirlineIDs(existing)
+	for _, id := range ids {
+		a, ok := byID[id]
 		if !ok {
 			return ErrAirlineNotFound
 		}
-		if _, referenced := stored[id]; isHidden && !referenced {
+		if _, referenced := slices.BinarySearch(stored, id); !a.Selectable() && !referenced {
 			return ErrAirlineNotFound
 		}
 	}
 	return nil
 }
 
-// segmentAirlineIDSet — множество id авиакомпаний всех сегментов flights.
-func segmentAirlineIDSet(flights []Flight) map[int]struct{} {
-	ids := make(map[int]struct{})
+// AirlineIDs возвращает id авиакомпаний всех сегментов flights без повторов,
+// по возрастанию.
+func AirlineIDs(flights []Flight) []int {
+	var ids []int
 	for _, f := range flights {
 		for _, seg := range f.Segments {
-			ids[seg.AirlineID] = struct{}{}
+			ids = append(ids, seg.AirlineID)
 		}
 	}
-	return ids
+	slices.Sort(ids)
+	return slices.Compact(ids)
 }
 
 // routesEqual сравнивает два набора перелётов только по маршруту: порядок

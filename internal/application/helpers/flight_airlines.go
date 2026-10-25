@@ -8,7 +8,7 @@ import (
 	"api/internal/domain/offer/flight"
 )
 
-// AirlineFinder — порт чтения авиакомпаний по id (включая скрытые из поиска):
+// AirlineFinder — порт чтения авиакомпаний по id (включая дубли и пропавшие):
 // карточке оффера нужны данные авиакомпаний сегментов.
 type AirlineFinder interface {
 	FindByIDs(ctx context.Context, ids []int) ([]airline.Airline, error)
@@ -19,17 +19,7 @@ type AirlineFinder interface {
 // невозможен из-за внешнего ключа; если всё же — это порча данных, а не ошибка
 // клиента: ошибка с id (500), не apperror.
 func FindSegmentAirlines(ctx context.Context, finder AirlineFinder, flights []flight.Flight) (map[int]airline.Airline, error) {
-	seen := make(map[int]struct{})
-	var ids []int
-	for _, f := range flights {
-		for _, s := range f.Segments {
-			if _, ok := seen[s.AirlineID]; ok {
-				continue
-			}
-			seen[s.AirlineID] = struct{}{}
-			ids = append(ids, s.AirlineID)
-		}
-	}
+	ids := flight.AirlineIDs(flights)
 	if len(ids) == 0 {
 		return map[int]airline.Airline{}, nil
 	}

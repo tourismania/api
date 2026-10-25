@@ -20,8 +20,12 @@ type AirlineResult struct {
 	DissolvedOn *time.Time
 }
 
-// Result — страница выдачи и общее число найденных.
+// Result — страница выдачи, общее число найденных и параметры, по которым
+// искали: Search — нормализованная строка, Country — код заглавными; nil —
+// параметр не передан.
 type Result struct {
 	Airlines   []AirlineResult
 	TotalCount int64
+	Search     *string
+	Country    *string
 }

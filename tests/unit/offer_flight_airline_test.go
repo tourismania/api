@@ -49,15 +49,17 @@ func airlinesDirectory(airlines ...airline.Airline) *mockAirlineRepo {
 
 func icaoPtr(s string) *string { return &s }
 
+func intPtr(i int) *int { return &i }
+
 // Записи справочника для тестов: 42 — «Аэрофлот», 57 — «Азимут», 61 —
 // прекратившая работу, 501 — дубль 502, 503 — пропавшая из источника.
 var (
 	aeroflot     = airline.Airline{ID: 42, ICAO: icaoPtr("AFL"), Name: "Aeroflot", NameRU: "Аэрофлот", Country: &airline.Country{ISO2: "RU"}}
 	azimuth      = airline.Airline{ID: 57, ICAO: icaoPtr("AZO"), Name: "Azimuth", NameRU: "Азимут"}
 	transaero    = airline.Airline{ID: 61, ICAO: icaoPtr("TSO"), Name: "Transaero", DissolvedOn: date(2015, 10, 26)}
-	azimuthDup   = airline.Airline{ID: 501, ICAO: icaoPtr("AZO"), Name: "Azimuth", Hidden: true}
+	azimuthDup   = airline.Airline{ID: 501, ICAO: icaoPtr("AZO"), Name: "Azimuth", MergedIntoID: intPtr(502)}
 	azimuthLive  = airline.Airline{ID: 502, ICAO: icaoPtr("AZO"), Name: "Azimuth Airlines"}
-	goneAirline  = airline.Airline{ID: 503, ICAO: icaoPtr("GON"), Name: "Gone Air", Hidden: true}
+	goneAirline  = airline.Airline{ID: 503, ICAO: icaoPtr("GON"), Name: "Gone Air", MissingSince: date(2026, 10, 1)}
 	unknownEntry = airline.Airline{ID: airline.UnknownID, Name: "Unknown", NameRU: "Неизвестная"}
 )
 
@@ -117,7 +119,7 @@ func TestOfferFlightManager_UnknownOrNegativeAirline_ErrAirlineNotFound(t *testi
 	}
 }
 
-func TestOfferFlightManager_HiddenAirlineNotReferencedBefore_ErrAirlineNotFound(t *testing.T) {
+func TestOfferFlightManager_NotSelectableAirlineNotReferencedBefore_ErrAirlineNotFound(t *testing.T) {
 	for name, id := range map[string]int{"дубль": azimuthDup.ID, "пропавшая": goneAirline.ID} {
 		t.Run(name+" при создании", func(t *testing.T) {
 			flights, err := replaceWithAirlines(t, testDirectory(), nil,
@@ -139,7 +141,7 @@ func TestOfferFlightManager_HiddenAirlineNotReferencedBefore_ErrAirlineNotFound(
 	}
 }
 
-func TestOfferFlightManager_HiddenAirlineAlreadyInOffer_Accepted(t *testing.T) {
+func TestOfferFlightManager_NotSelectableAirlineAlreadyInOffer_Accepted(t *testing.T) {
 	// Сохранён прямой перелёт с дублем 501 и перелёт с 42; в PATCH 501 стоит
 	// у другого (нового) перелёта — сравнение по всему офферу, не по позиции.
 	stored := []flight.Flight{

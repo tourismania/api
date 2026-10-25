@@ -36,8 +36,8 @@ type Server struct {
 	CreateUser        *createuserhttp.Handler
 	GetMe             *getmehttp.Handler
 	Airports          *searchairporthttp.Handler
-	Airlines          *searchairlinehttp.Handler
-	Airline           *getairlinehttp.Handler
+	SearchAirlines    *searchairlinehttp.Handler
+	GetAirline        *getairlinehttp.Handler
 	Currencies        *listcurrencieshttp.Handler
 	CreateOffer       *createofferhttp.Handler
 	GetOffer          *getofferhttp.Handler
@@ -125,8 +125,8 @@ func (s Server) Build() http.Handler {
 
 			// Airlines: справочник авиакомпаний, любой аутентифицированный.
 			// Поиск отдаёт только выбираемые записи; по id — в т. ч. скрытые.
-			priv.Get("/airlines", s.Airlines.Handle)
-			priv.Get("/airlines/{id}", s.Airline.Handle)
+			priv.Get("/airlines", s.SearchAirlines.Handle)
+			priv.Get("/airlines/{id}", s.GetAirline.Handle)
 
 			// Currencies: системный справочник валют, любой аутентифицированный.
 			priv.Get("/currencies", s.Currencies.Handle)

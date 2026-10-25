@@ -112,25 +112,27 @@ func (q *Queries) SearchAirlines(ctx context.Context, arg SearchAirlinesParams) 
 
 const listAirlinesByIDsSQL = `SELECT a.id, a.icao, a.name, a.name_ru, a.dissolved_on, a.iata_codes,
        co.iso2 AS country_iso2, co.name AS country_name,
-       (a.merged_into_id IS NOT NULL OR a.missing_since IS NOT NULL) AS hidden
+       a.merged_into_id, a.missing_since
 FROM airlines a
 LEFT JOIN countries co ON co.iso2 = a.country_iso2
 WHERE a.id = ANY($1::int[])`
 
 // ListAirlinesByIDsRow — одна строка ListAirlinesByIDs.
 type ListAirlinesByIDsRow struct {
-	ID          int32
-	Icao        *string
-	Name        string
-	NameRu      string
-	DissolvedOn *time.Time
-	IataCodes   []string
-	CountryIso2 *string
-	CountryName *string
-	Hidden      bool
+	ID           int32
+	Icao         *string
+	Name         string
+	NameRu       string
+	DissolvedOn  *time.Time
+	IataCodes    []string
+	CountryIso2  *string
+	CountryName  *string
+	MergedIntoID *int32
+	MissingSince *time.Time
 }
 
-// ListAirlinesByIDs возвращает записи с перечисленными id, включая скрытые.
+// ListAirlinesByIDs возвращает записи с перечисленными id, включая дубли и
+// пропавшие.
 // Отсутствующих id в результате нет.
 func (q *Queries) ListAirlinesByIDs(ctx context.Context, ids []int32) ([]ListAirlinesByIDsRow, error) {
 	rows, err := q.db.Query(ctx, listAirlinesByIDsSQL, ids)
@@ -151,7 +153,8 @@ func (q *Queries) ListAirlinesByIDs(ctx context.Context, ids []int32) ([]ListAir
 			&row.IataCodes,
 			&row.CountryIso2,
 			&row.CountryName,
-			&row.Hidden,
+			&row.MergedIntoID,
+			&row.MissingSince,
 		); err != nil {
 			return nil, err
 		}

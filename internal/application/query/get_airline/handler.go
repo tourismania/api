@@ -13,7 +13,7 @@ type UseCase interface {
 	Handle(ctx context.Context, q Query) (Result, error)
 }
 
-// AirlineFinder — порт чтения авиакомпаний по id (включая скрытые).
+// AirlineFinder — порт чтения авиакомпаний по id (включая дубли и пропавшие).
 type AirlineFinder interface {
 	FindByIDs(ctx context.Context, ids []int) ([]airline.Airline, error)
 }
@@ -45,7 +45,6 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 		Name:        a.Name,
 		NameRU:      a.NameRU,
 		DissolvedOn: a.DissolvedOn,
-		Hidden:      a.Hidden,
 	}
 	if a.Country != nil {
 		r.Country = &CountryResult{ISO2: a.Country.ISO2, Name: a.Country.Name}

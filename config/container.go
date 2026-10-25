@@ -98,8 +98,8 @@ type Container struct {
 		CreateUser        *createuserhttp.Handler
 		GetMe             *getmehttp.Handler
 		Airports          *searchairporthttp.Handler
-		Airlines          *searchairlinehttp.Handler
-		Airline           *getairlinehttp.Handler
+		SearchAirlines    *searchairlinehttp.Handler
+		GetAirline        *getairlinehttp.Handler
 		Currencies        *listcurrencieshttp.Handler
 		CreateOffer       *createofferhttp.Handler
 		GetOffer          *getofferhttp.Handler
@@ -211,8 +211,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp)
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
-	airlinesH := searchairlinehttp.NewHandler(searchAirlinesApp, validate)
-	airlineH := getairlinehttp.NewHandler(getAirlineApp)
+	searchAirlineH := searchairlinehttp.NewHandler(searchAirlinesApp, validate)
+	getAirlineH := getairlinehttp.NewHandler(getAirlineApp)
 	currenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
@@ -252,8 +252,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.Http.CreateUser = createUserH
 	c.Http.GetMe = getMeH
 	c.Http.Airports = airportsH
-	c.Http.Airlines = airlinesH
-	c.Http.Airline = airlineH
+	c.Http.SearchAirlines = searchAirlineH
+	c.Http.GetAirline = getAirlineH
 	c.Http.Currencies = currenciesH
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH

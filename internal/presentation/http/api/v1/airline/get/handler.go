@@ -1,5 +1,6 @@
 // Package getairlinehttp — HTTP-граница GET /api/v1/airlines/{id}:
-// авиакомпания по id, в том числе скрытая из поиска.
+// авиакомпания по id, в том числе дубль или пропавшая из источника, которых
+// поиск не возвращает.
 package getairlinehttp
 
 import (
@@ -10,47 +11,18 @@ import (
 
 	"api/internal/application/apperror"
 	getairline "api/internal/application/query/get_airline"
+	airlinehttp "api/internal/presentation/http/api/v1/airline"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-chi/chi/v5"
 )
 
-const (
-	// dateLayout — формат dissolved_on в ответе.
-	dateLayout = "2006-01-02"
-	// cacheControl — как у поиска авиакомпаний.
-	cacheControl = "private, max-age=3600"
-	// notFoundMessage — ответ на отсутствующую запись и некорректный id.
-	notFoundMessage = "airline not found"
-)
-
-// CountryResponse — страна авиакомпании.
-type CountryResponse struct {
-	ISO2 string `json:"iso2" example:"RU"`
-	Name string `json:"name" example:"Россия"`
-}
-
-// AirlineResponse — авиакомпания: поля элемента поиска и hidden.
-type AirlineResponse struct {
-	ID int `json:"id" example:"42"`
-	// ICAO — код ICAO; null только у служебной записи «Неизвестная» (id 1).
-	ICAO *string `json:"icao" example:"AFL"`
-	// Name — английское название.
-	Name string `json:"name" example:"Aeroflot"`
-	// NameRU — русское название, только у авиакомпаний России; "" — нет.
-	NameRU string `json:"name_ru" example:"Аэрофлот"`
-	// Country — страна или null, если неизвестна.
-	Country *CountryResponse `json:"country"`
-	// DissolvedOn — дата прекращения деятельности YYYY-MM-DD; null — действует.
-	DissolvedOn *string `json:"dissolved_on" example:"2015-10-26"`
-	// Hidden — запись скрыта из поиска (дубль или пропавшая из источника) и для
-	// нового сегмента не выбирается; ссылки сохранённых сегментов на неё верны.
-	Hidden bool `json:"hidden" example:"false"`
-}
+// notFoundMessage — ответ на отсутствующую запись и некорректный id.
+const notFoundMessage = "airline not found"
 
 // GetResponse — тело успешного ответа.
 type GetResponse struct {
-	Data AirlineResponse `json:"data"`
+	Data airlinehttp.AirlineResponse `json:"data"`
 }
 
 // Handler отдаёт авиакомпанию по id.
@@ -66,7 +38,7 @@ func NewHandler(uc getairline.UseCase) *Handler {
 // Handle — http.HandlerFunc.
 //
 //	@Summary      Get an airline
-//	@Description  Авиакомпания справочника по id, в том числе скрытая из поиска (дубль или пропавшая из источника) — чтобы показать авиакомпанию, на которую уже ссылается сохранённый сегмент. hidden=true — для нового сегмента не выбирается. Нет записи или id не целое ≥ 1 — 404.
+//	@Description  Авиакомпания справочника по id, в том числе дубль или пропавшая из источника, которых поиск не возвращает, — чтобы показать авиакомпанию, на которую уже ссылается сохранённый сегмент. Нет записи или id не целое ≥ 1 — 404.
 //	@Tags         Airlines
 //	@Produce      json
 //	@Param        id   path      int  true  "Id авиакомпании"
@@ -96,20 +68,16 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := AirlineResponse{
-		ID:     res.ID,
-		ICAO:   res.ICAO,
-		Name:   res.Name,
-		NameRU: res.NameRU,
-		Hidden: res.Hidden,
+	resp := airlinehttp.AirlineResponse{
+		ID:          res.ID,
+		ICAO:        res.ICAO,
+		Name:        res.Name,
+		NameRU:      res.NameRU,
+		DissolvedOn: airlinehttp.FormatDate(res.DissolvedOn),
 	}
 	if res.Country != nil {
-		resp.Country = &CountryResponse{ISO2: res.Country.ISO2, Name: res.Country.Name}
+		resp.Country = &airlinehttp.CountryResponse{ISO2: res.Country.ISO2, Name: res.Country.Name}
 	}
-	if res.DissolvedOn != nil {
-		d := res.DissolvedOn.Format(dateLayout)
-		resp.DissolvedOn = &d
-	}
-	w.Header().Set("Cache-Control", cacheControl)
+	w.Header().Set("Cache-Control", airlinehttp.CacheControl)
 	httpx.WriteJSON(w, http.StatusOK, GetResponse{Data: resp})
 }

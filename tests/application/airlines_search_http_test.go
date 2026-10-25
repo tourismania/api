@@ -369,29 +369,27 @@ func (e airlineHTTPEnv) getOne(t *testing.T, id string) (int, map[string]any) {
 	return rr.Code, body.Data
 }
 
-func TestAirlinesHTTP_GetByID_IncludingHidden(t *testing.T) {
+func TestAirlinesHTTP_GetByID_IncludingMergedAndMissing(t *testing.T) {
 	e := newAirlineHTTPEnv(t)
 
 	code, data := e.getOne(t, fmt.Sprint(e.f.ru))
 	require.Equal(t, http.StatusOK, code)
-	assert.Equal(t, false, data["hidden"])
 	assert.Equal(t, "Россия "+e.f.token, data["name_ru"])
 
 	code, data = e.getOne(t, fmt.Sprint(e.f.dup))
-	require.Equal(t, http.StatusOK, code)
-	assert.Equal(t, true, data["hidden"], "дубль отдаётся с hidden")
+	require.Equal(t, http.StatusOK, code, "дубль, которого нет в поиске, по id отдаётся")
 	assert.Equal(t, "Shared "+e.f.token+" Dup", data["name"])
 	assert.Equal(t, "ZXA", data["icao"])
 
 	code, data = e.getOne(t, fmt.Sprint(e.f.gone))
-	require.Equal(t, http.StatusOK, code)
-	assert.Equal(t, true, data["hidden"], "пропавшая отдаётся с hidden")
+	require.Equal(t, http.StatusOK, code, "пропавшая по id отдаётся")
+	assert.Equal(t, "Shared "+e.f.token+" Gone", data["name"])
 
 	code, data = e.getOne(t, "1")
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, map[string]any{
-		"id": float64(1), "icao": nil, "name": "Unknown", "name_ru": "Неизвестная", "country": nil, "dissolved_on": nil, "hidden": false,
-	}, data)
+		"id": float64(1), "icao": nil, "name": "Unknown", "name_ru": "Неизвестная", "country": nil, "dissolved_on": nil,
+	}, data, "поля — как у элемента поиска, без hidden")
 }
 
 func TestAirlinesHTTP_GetByID_NotFound_Returns404(t *testing.T) {

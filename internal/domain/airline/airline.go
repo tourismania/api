@@ -26,18 +26,28 @@ type Country struct {
 // NameRU — русское название, только у авиакомпаний России ("" — нет).
 // Country nil — страна в источнике не указана или неоднозначна. DissolvedOn
 // nil — авиакомпания действует. IATACodes — все коды IATA из источника
-// (наружу api их не отдаёт). Hidden — запись скрыта из поиска: дубль,
-// слитый в источнике с другой авиакомпанией, или пропавшая из источника;
-// на неё можно ссылаться только из оффера, который уже ссылался на неё.
+// (наружу api их не отдаёт). MergedIntoID — запись оказалась дублем: источник
+// слил её элемент с элементом записи MergedIntoID. MissingSince — с этой даты
+// элемента записи нет в источнике. Что из этого следует для выбора
+// авиакомпании, решает Selectable.
 type Airline struct {
-	ID          int
-	ICAO        *string
-	Name        string
-	NameRU      string
-	Country     *Country
-	DissolvedOn *time.Time
-	IATACodes   []string
-	Hidden      bool
+	ID           int
+	ICAO         *string
+	Name         string
+	NameRU       string
+	Country      *Country
+	DissolvedOn  *time.Time
+	IATACodes    []string
+	MergedIntoID *int
+	MissingSince *time.Time
+}
+
+// Selectable сообщает, можно ли выбрать авиакомпанию для нового сегмента:
+// дубль и пропавшая из источника — нельзя (поиск их не возвращает), на них
+// можно только сохранить уже существующую ссылку. Прекратившая работу —
+// можно.
+func (a Airline) Selectable() bool {
+	return a.MergedIntoID == nil && a.MissingSince == nil
 }
 
 // Filter — нормализованные параметры поиска. Search — подстрока названия

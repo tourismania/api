@@ -21,7 +21,7 @@ func ToAirlineDomainFromSearchRow(row db.SearchAirlinesRow) airline.Airline {
 }
 
 // ToAirlineDomainFromIDRow собирает авиакомпанию из строки ListAirlinesByIDs,
-// с кодами IATA и признаком скрытости.
+// с кодами IATA и состоянием в источнике (дубль, пропавшая).
 func ToAirlineDomainFromIDRow(row db.ListAirlinesByIDsRow) airline.Airline {
 	codes := make([]string, 0, len(row.IataCodes))
 	for _, c := range row.IataCodes {
@@ -30,15 +30,25 @@ func ToAirlineDomainFromIDRow(row db.ListAirlinesByIDsRow) airline.Airline {
 		codes = append(codes, strings.TrimSpace(c))
 	}
 	return airline.Airline{
-		ID:          int(row.ID),
-		ICAO:        row.Icao,
-		Name:        row.Name,
-		NameRU:      row.NameRu,
-		Country:     toAirlineCountry(row.CountryIso2, row.CountryName),
-		DissolvedOn: row.DissolvedOn,
-		IATACodes:   codes,
-		Hidden:      row.Hidden,
+		ID:           int(row.ID),
+		ICAO:         row.Icao,
+		Name:         row.Name,
+		NameRU:       row.NameRu,
+		Country:      toAirlineCountry(row.CountryIso2, row.CountryName),
+		DissolvedOn:  row.DissolvedOn,
+		IATACodes:    codes,
+		MergedIntoID: toIntPtr(row.MergedIntoID),
+		MissingSince: row.MissingSince,
 	}
+}
+
+// toIntPtr переводит nullable int32 столбца в *int домена.
+func toIntPtr(v *int32) *int {
+	if v == nil {
+		return nil
+	}
+	i := int(*v)
+	return &i
 }
 
 // toAirlineCountry — страна авиакомпании или nil, если её нет (LEFT JOIN).

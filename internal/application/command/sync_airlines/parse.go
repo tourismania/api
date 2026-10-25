@@ -1,11 +1,8 @@
 package syncairlines
 
 import (
-	"context"
-	"log/slog"
 	"regexp"
 	"slices"
-	"sort"
 	"time"
 
 	"api/internal/domain/airline"
@@ -22,11 +19,14 @@ var (
 	iataPattern = regexp.MustCompile(`^[A-Z0-9]{2}$`)
 	// iso2Pattern — код страны ISO 3166-1 alpha-2.
 	iso2Pattern = regexp.MustCompile(`^[A-Z]{2}$`)
+	// anyValue — любое непустое значение (названия).
+	anyValue = regexp.MustCompile(`.`)
 )
 
-// AirlineRecord — строка источника: одно сочетание значений элемента
-// (элемент с двумя кодами IATA даёт две строки). Пустая строка — значения
-// нет; DissolvedOn nil — даты нет.
+// AirlineRecord — строка источника: одно сочетание значений элемента. SPARQL
+// отдаёт декартово произведение необязательных свойств, поэтому элемент с
+// двумя кодами IATA и двумя странами приходит четырьмя строками. Пустая
+// строка — значения нет; DissolvedOn nil — даты нет.
 type AirlineRecord struct {
 	SourceID    string
 	ICAO        string
@@ -48,78 +48,25 @@ func (p parsedAirline) ICAO() string {
 	return *p.Airline.ICAO
 }
 
-// anomalyLog пишет аномалии источника в журнал и считает их по видам.
-type anomalyLog struct {
-	ctx    context.Context
-	logger *slog.Logger
-	counts map[string]int
-}
-
-func newAnomalyLog(ctx context.Context, logger *slog.Logger) *anomalyLog {
-	return &anomalyLog{ctx: ctx, logger: logger, counts: make(map[string]int)}
-}
-
-// warn записывает предупреждение event с общими атрибутами записи и
-// специфичными attrs.
-func (l *anomalyLog) warn(event, sourceID, icao, name string, attrs ...any) {
-	l.counts[event]++
-	args := append([]any{"event", event, "source_id", sourceID, "icao", icao, "name", name}, attrs...)
-	l.logger.WarnContext(l.ctx, "airline source anomaly", args...)
-}
-
-// sourceGroup — все строки одного элемента источника.
-type sourceGroup struct {
-	icao, iata, nameEN, nameRU, countries map[string]struct{}
-	invalidICAO                           []string
-	dissolvedOn                           *time.Time
-}
-
-// parseRecords группирует строки источника по SourceID и разбирает каждую
-// авиакомпанию по правилам требования «однозначно разбирать данные
-// источника». Возвращает авиакомпании в порядке SourceID и число
-// пропущенных.
+// parseRecords разбирает ответ источника в два шага. Сначала строки
+// собираются по элементу (groupBySource): по одной строке нельзя решить, какой
+// код ICAO сохранить, одна ли у авиакомпании страна и какая дата закрытия
+// последняя, — для этого нужны все строки элемента. Затем каждый элемент
+// разбирается целиком (parseAirline). Возвращает авиакомпании в порядке
+// SourceID (детерминированный порядок записи и журнала) и число пропущенных.
 func parseRecords(records []AirlineRecord, log *anomalyLog) ([]parsedAirline, int) {
-	groups := make(map[string]*sourceGroup)
-	for _, r := range records {
-		g, ok := groups[r.SourceID]
-		if !ok {
-			g = &sourceGroup{
-				icao: map[string]struct{}{}, iata: map[string]struct{}{},
-				nameEN: map[string]struct{}{}, nameRU: map[string]struct{}{},
-				countries: map[string]struct{}{},
-			}
-			groups[r.SourceID] = g
-		}
-		switch {
-		case icaoPattern.MatchString(r.ICAO):
-			g.icao[r.ICAO] = struct{}{}
-		case r.ICAO != "":
-			g.invalidICAO = append(g.invalidICAO, r.ICAO)
-		}
-		if iataPattern.MatchString(r.IATA) {
-			g.iata[r.IATA] = struct{}{}
-		}
-		addNonEmpty(g.nameEN, r.NameEN)
-		addNonEmpty(g.nameRU, r.NameRU)
-		if iso2Pattern.MatchString(r.CountryISO2) {
-			g.countries[r.CountryISO2] = struct{}{}
-		}
-		if r.DissolvedOn != nil && (g.dissolvedOn == nil || r.DissolvedOn.After(*g.dissolvedOn)) {
-			d := *r.DissolvedOn
-			g.dissolvedOn = &d
-		}
-	}
+	groups := groupBySource(records)
 
 	sourceIDs := make([]string, 0, len(groups))
 	for id := range groups {
 		sourceIDs = append(sourceIDs, id)
 	}
-	sort.Strings(sourceIDs)
+	slices.Sort(sourceIDs)
 
 	parsed := make([]parsedAirline, 0, len(sourceIDs))
 	skipped := 0
 	for _, id := range sourceIDs {
-		p, ok := parseGroup(id, groups[id], log)
+		p, ok := parseAirline(id, groups[id], log)
 		if !ok {
 			skipped++
 			continue
@@ -129,13 +76,24 @@ func parseRecords(records []AirlineRecord, log *anomalyLog) ([]parsedAirline, in
 	return parsed, skipped
 }
 
-// parseGroup разбирает один элемент источника; false — элемент пропущен.
-func parseGroup(sourceID string, g *sourceGroup, log *anomalyLog) (parsedAirline, bool) {
-	icaos := sortedKeys(g.icao)
-	nameEN := first(sortedKeys(g.nameEN))
+// groupBySource собирает строки источника по идентификатору элемента.
+func groupBySource(records []AirlineRecord) map[string][]AirlineRecord {
+	groups := make(map[string][]AirlineRecord)
+	for _, r := range records {
+		groups[r.SourceID] = append(groups[r.SourceID], r)
+	}
+	return groups
+}
+
+// parseAirline разбирает все строки одного элемента по правилам требования
+// «однозначно разбирать данные источника»; false — элемент пропущен.
+func parseAirline(sourceID string, rows []AirlineRecord, log *anomalyLog) (parsedAirline, bool) {
+	icaos, invalidICAOs := distinct(rows, func(r AirlineRecord) string { return r.ICAO }, icaoPattern)
+	names, _ := distinct(rows, func(r AirlineRecord) string { return r.NameEN }, anyValue)
+	nameEN := first(names)
+
 	if len(icaos) == 0 {
-		slices.Sort(g.invalidICAO)
-		log.warn(EventICAOInvalid, sourceID, "", nameEN, "codes", slices.Compact(g.invalidICAO))
+		log.warn(EventICAOInvalid, sourceID, "", nameEN, "codes", invalidICAOs)
 		return parsedAirline{}, false
 	}
 	icao := icaos[0]
@@ -146,24 +104,26 @@ func parseGroup(sourceID string, g *sourceGroup, log *anomalyLog) (parsedAirline
 	if len(icaos) > 1 {
 		log.warn(EventICAOMultiple, sourceID, icao, nameEN, "codes", icaos, "kept", icao)
 	}
-	iatas := sortedKeys(g.iata)
+
+	iatas, _ := distinct(rows, func(r AirlineRecord) string { return r.IATA }, iataPattern)
 	if len(iatas) > 1 {
 		log.warn(EventIATAMultiple, sourceID, icao, nameEN, "codes", iatas)
 	}
 
 	var country *airline.Country
-	countries := sortedKeys(g.countries)
+	countries, _ := distinct(rows, func(r AirlineRecord) string { return r.CountryISO2 }, iso2Pattern)
 	switch len(countries) {
+	case 0:
 	case 1:
 		country = &airline.Country{ISO2: countries[0]}
-	case 0:
 	default:
 		log.warn(EventCountryMultiple, sourceID, icao, nameEN, "countries", countries)
 	}
 
 	nameRU := ""
 	if country != nil && country.ISO2 == countryRU {
-		nameRU = first(sortedKeys(g.nameRU))
+		namesRU, _ := distinct(rows, func(r AirlineRecord) string { return r.NameRU }, anyValue)
+		nameRU = first(namesRU)
 	}
 
 	return parsedAirline{
@@ -173,54 +133,40 @@ func parseGroup(sourceID string, g *sourceGroup, log *anomalyLog) (parsedAirline
 			Name:        nameEN,
 			NameRU:      nameRU,
 			Country:     country,
-			DissolvedOn: g.dissolvedOn,
+			DissolvedOn: latestDate(rows),
 			IATACodes:   iatas,
 		},
 	}, true
 }
 
-// logSharedICAO журналирует коды ICAO, общие для нескольких действующих
-// авиакомпаний (только журнал: обе записываются и обе видны в поиске).
-func logSharedICAO(parsed []parsedAirline, log *anomalyLog) {
-	byICAO := make(map[string][]parsedAirline)
-	for _, p := range parsed {
-		if p.Airline.DissolvedOn == nil {
-			byICAO[p.ICAO()] = append(byICAO[p.ICAO()], p)
+// distinct возвращает различные непустые значения поля строк по алфавиту:
+// подходящие под pattern и отброшенные.
+func distinct(rows []AirlineRecord, field func(AirlineRecord) string, pattern *regexp.Regexp) (valid, invalid []string) {
+	for _, r := range rows {
+		v := field(r)
+		switch {
+		case v == "":
+		case pattern.MatchString(v):
+			valid = append(valid, v)
+		default:
+			invalid = append(invalid, v)
 		}
 	}
-	codes := make([]string, 0, len(byICAO))
-	for code, group := range byICAO {
-		if len(group) > 1 {
-			codes = append(codes, code)
-		}
-	}
-	sort.Strings(codes)
-	for _, code := range codes {
-		group := byICAO[code]
-		sourceIDs := make([]string, 0, len(group))
-		names := make([]string, 0, len(group))
-		for _, p := range group {
-			sourceIDs = append(sourceIDs, p.SourceID)
-			names = append(names, p.Airline.Name)
-		}
-		log.warn(EventICAOShared, group[0].SourceID, code, group[0].Airline.Name,
-			"source_ids", sourceIDs, "names", names)
-	}
+	slices.Sort(valid)
+	slices.Sort(invalid)
+	return slices.Compact(valid), slices.Compact(invalid)
 }
 
-func addNonEmpty(set map[string]struct{}, v string) {
-	if v != "" {
-		set[v] = struct{}{}
+// latestDate — самая поздняя дата прекращения деятельности среди строк.
+func latestDate(rows []AirlineRecord) *time.Time {
+	var latest *time.Time
+	for _, r := range rows {
+		if r.DissolvedOn != nil && (latest == nil || r.DissolvedOn.After(*latest)) {
+			d := *r.DissolvedOn
+			latest = &d
+		}
 	}
-}
-
-func sortedKeys(set map[string]struct{}) []string {
-	keys := make([]string, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return latest
 }
 
 func first(values []string) string {

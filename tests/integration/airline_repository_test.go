@@ -262,7 +262,7 @@ func TestAirlineRepository_Search_UnknownRecordFoundByBothNames(t *testing.T) {
 	}
 }
 
-func TestAirlineRepository_HiddenRecords_NotSearchedUntilBack(t *testing.T) {
+func TestAirlineRepository_MergedAndMissing_NotSearchedUntilBack(t *testing.T) {
 	repo, f, _ := newSeededAirlineRepo(t)
 	ctx := context.Background()
 	dup := insertAirline(t, repo, f.Token, "dup", airline.Airline{ICAO: strPtr("ZQA"), Name: "Alpha " + f.Token + " Dup"})
@@ -280,11 +280,20 @@ func TestAirlineRepository_HiddenRecords_NotSearchedUntilBack(t *testing.T) {
 
 	found, err := repo.FindByIDs(ctx, []int{dup, gone, f.Alpha, 999_999_999})
 	require.NoError(t, err, "отсутствующий id не ошибка")
-	hidden := map[int]bool{}
+	selectable := map[int]bool{}
 	for _, a := range found {
-		hidden[a.ID] = a.Hidden
+		selectable[a.ID] = a.Selectable()
 	}
-	assert.Equal(t, map[int]bool{dup: true, gone: true, f.Alpha: false}, hidden)
+	assert.Equal(t, map[int]bool{dup: false, gone: false, f.Alpha: true}, selectable)
+	for _, a := range found {
+		switch a.ID {
+		case dup:
+			require.NotNil(t, a.MergedIntoID)
+			assert.Equal(t, f.Alpha, *a.MergedIntoID, "дубль знает, во что слит")
+		case gone:
+			assert.NotNil(t, a.MissingSince, "у пропавшей — дата пропажи")
+		}
+	}
 
 	require.NoError(t, repo.ClearMissing(ctx, []int{gone}))
 	ids, _ = searchAirlineIDs(t, repo, airline.Filter{Search: "alpha " + f.Token})
@@ -360,5 +369,5 @@ func TestAirlineRepository_UnknownRecord_FixedAndUntouchedBySync(t *testing.T) {
 	assert.Equal(t, "Неизвестная", got.NameRU)
 	assert.Nil(t, got.Country)
 	assert.Nil(t, got.DissolvedOn)
-	assert.False(t, got.Hidden)
+	assert.True(t, got.Selectable())
 }

@@ -38,6 +38,13 @@ const (
 
 func icao(s string) *string { return &s }
 
+// liveIDValue и goneSince — адресуемые значения для записей справочника:
+// 501 — дубль 502, 503 — пропала из источника.
+var (
+	liveIDValue = liveID
+	goneSince   = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+)
+
 func airlineDirectory() *stubAirlineRepo {
 	dissolved := time.Date(2015, 10, 26, 0, 0, 0, 0, time.UTC)
 	return &stubAirlineRepo{airlines: map[int]airline.Airline{
@@ -46,9 +53,9 @@ func airlineDirectory() *stubAirlineRepo {
 		azimuthID:         {ID: azimuthID, ICAO: icao("AZO"), Name: "Azimuth", NameRU: "Азимут"},
 		transaeroID:       {ID: transaeroID, ICAO: icao("TSO"), Name: "Transaero", NameRU: "Трансаэро", DissolvedOn: &dissolved},
 		turkishID:         {ID: turkishID, ICAO: icao("THY"), Name: "Turkish Airlines"},
-		dupID:             {ID: dupID, ICAO: icao("AZM"), Name: "Azimuth", Hidden: true},
+		dupID:             {ID: dupID, ICAO: icao("AZM"), Name: "Azimuth", MergedIntoID: &liveIDValue},
 		liveID:            {ID: liveID, ICAO: icao("AZM"), Name: "Azimuth Airlines"},
-		goneID:            {ID: goneID, ICAO: icao("GON"), Name: "Gone Air", Hidden: true},
+		goneID:            {ID: goneID, ICAO: icao("GON"), Name: "Gone Air", MissingSince: &goneSince},
 		oldCodeID:         {ID: oldCodeID, ICAO: icao("XAA"), Name: "Old Air"},
 	}}
 }
@@ -229,7 +236,7 @@ func TestOffersHTTP_CreateFlight_SegmentsInOldFormat_Returns400Required(t *testi
 	assert.Equal(t, map[string]any{"AirlineID": "required"}, decodeError(t, rr).Meta)
 }
 
-func TestOffersHTTP_CreateFlight_UnknownOrHiddenAirline_Returns400(t *testing.T) {
+func TestOffersHTTP_CreateFlight_UnknownOrNotSelectableAirline_Returns400(t *testing.T) {
 	for name, id := range map[string]int{
 		"нет в справочнике": unknownAirID,
 		"отрицательный":     -1,
@@ -374,12 +381,12 @@ func TestOffersHTTP_SegmentAirlineBecameDuplicate_OldOfferStillSaves(t *testing.
 	e := newAirlineTestEnv(t)
 	// До слияния 501 был выбираемым.
 	visible := e.airlines.airlines[dupID]
-	visible.Hidden = false
+	visible.MergedIntoID = nil
 	e.airlines.airlines[dupID] = visible
 	e.create(t, nonstopWithAirline(fmt.Sprint(dupID)))
 
 	// Синхронизация признала 501 дублем 502.
-	visible.Hidden = true
+	visible.MergedIntoID = &liveIDValue
 	e.airlines.airlines[dupID] = visible
 
 	ids, objects := e.cardAirlines(t)
@@ -406,10 +413,10 @@ func TestOffersHTTP_SegmentAirlineBecameDuplicate_OldOfferStillSaves(t *testing.
 func TestOffersHTTP_SegmentAirlineGoneFromSource_SameOfferSavesOtherRejected(t *testing.T) {
 	e := newAirlineTestEnv(t)
 	visible := e.airlines.airlines[goneID]
-	visible.Hidden = false
+	visible.MissingSince = nil
 	e.airlines.airlines[goneID] = visible
 	e.create(t, nonstopWithAirline(fmt.Sprint(goneID)))
-	visible.Hidden = true
+	visible.MissingSince = &goneSince
 	e.airlines.airlines[goneID] = visible
 
 	rr := e.do(t, http.MethodPatch, "/api/v1/offers/"+e.offerID.String(), patchBody(nonstopWithAirline(fmt.Sprint(goneID))))

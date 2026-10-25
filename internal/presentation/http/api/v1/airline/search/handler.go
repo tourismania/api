@@ -4,12 +4,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
+	"api/internal/application/apperror"
 	searchairlines "api/internal/application/query/search_airlines"
+	airlinehttp "api/internal/presentation/http/api/v1/airline"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-playground/validator/v10"
@@ -20,84 +19,7 @@ const (
 	DefaultLimit = 20
 	// DefaultOffset — сдвиг, если offset не передан или некорректен.
 	DefaultOffset = 0
-	// MinSearchLen — минимальная длина строки поиска после нормализации.
-	MinSearchLen = 3
-	// DateLayout — формат dissolved_on в ответе.
-	DateLayout = "2006-01-02"
-	// cacheControl — ответ справочника можно кэшировать в браузере час.
-	cacheControl = "private, max-age=3600"
 )
-
-var (
-	// ErrSearchTooShort — строка поиска короче MinSearchLen.
-	ErrSearchTooShort = errors.New("search must be at least 3 characters")
-	// ErrIDsInvalid — в ids есть значение, не являющееся целым ≥ 1.
-	ErrIDsInvalid = errors.New("ids must be positive integers")
-	// ErrCountryInvalid — country не две латинские буквы.
-	ErrCountryInvalid = errors.New("country must be an ISO 3166-1 alpha-2 code")
-
-	// multiSpace — подряд идущие пробельные символы.
-	multiSpace = regexp.MustCompile(`\s+`)
-	// countryPattern — код страны ISO 3166-1 alpha-2 в любом регистре.
-	countryPattern = regexp.MustCompile(`^[A-Za-z]{2}$`)
-)
-
-// NormalizeSearch обрезает пробелы по краям и схлопывает подряд идущие
-// пробельные символы; короче MinSearchLen — ErrSearchTooShort.
-func NormalizeSearch(raw string) (string, error) {
-	s := multiSpace.ReplaceAllString(strings.TrimSpace(raw), " ")
-	if len([]rune(s)) < MinSearchLen {
-		return "", ErrSearchTooShort
-	}
-	return s, nil
-}
-
-// ParseIDs разбирает список id через запятую: каждый — целое ≥ 1 (иначе
-// ErrIDsInvalid), повторы убираются с сохранением порядка. Число id
-// проверяет валидатор (SearchParams.IDs).
-func ParseIDs(raw string) ([]int, error) {
-	parts := strings.Split(raw, ",")
-	ids := make([]int, 0, len(parts))
-	seen := make(map[int]struct{}, len(parts))
-	for _, p := range parts {
-		id, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil || id < 1 {
-			return nil, ErrIDsInvalid
-		}
-		if _, dup := seen[id]; dup {
-			continue
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	return ids, nil
-}
-
-// ParseCountry проверяет код страны и приводит его к верхнему регистру.
-func ParseCountry(raw string) (string, error) {
-	if !countryPattern.MatchString(raw) {
-		return "", ErrCountryInvalid
-	}
-	return strings.ToUpper(raw), nil
-}
-
-// ValidationMeta собирает meta ошибки валидации с границей правила:
-// {"Limit": "max=100"}. Общий перевод в httpx пишет только тег — граница
-// там пока не нужна остальным эндпоинтам (строка бэклога).
-func ValidationMeta(err error) map[string]any {
-	meta := map[string]any{}
-	var verrs validator.ValidationErrors
-	if errors.As(err, &verrs) {
-		for _, fe := range verrs {
-			rule := fe.Tag()
-			if fe.Param() != "" {
-				rule += "=" + fe.Param()
-			}
-			meta[fe.Field()] = rule
-		}
-	}
-	return meta
-}
 
 // Handler отдаёт результаты поиска авиакомпаний.
 type Handler struct {
@@ -110,7 +32,9 @@ func NewHandler(uc searchairlines.UseCase, v *validator.Validate) *Handler {
 	return &Handler{useCase: uc, validate: v}
 }
 
-// Handle — http.HandlerFunc.
+// Handle — http.HandlerFunc. Здесь только разбор query-строки (форма
+// запроса); нормализацию строки поиска, правило «без ids строка обязательна»
+// и проверку страны делает use case searchairlines.
 //
 //	@Summary      Search airlines
 //	@Description  Поиск авиакомпаний справочника по подстроке английского или русского названия либо названия страны (без учёта регистра и диакритики, символы сравниваются буквально), с отбором по стране и по списку id. По кодам ICAO/IATA не ищет. Возвращает только выбираемые для сегмента записи: дубли и пропавшие из источника не возвращаются (их отдаёт GET /api/v1/airlines/{id}). Действующие выше прекративших работу; внутри — начало названия, подстрока названия, только страна. id из выдачи — значение airline_id сегмента перелёта; «Неизвестная» — id 1.
@@ -134,67 +58,37 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	var ids []int
 	if q.Has("ids") {
-		parsed, err := ParseIDs(q.Get("ids"))
+		parsed, err := httpx.ParseIDList(q.Get("ids"))
 		if err != nil {
 			httpx.WriteFieldValidationError(w, "IDs", "min=1")
 			return
 		}
 		ids = parsed
 	}
-
-	// Без ids строка поиска обязательна; переданная строка проверяется всегда.
-	var search *string
-	if q.Has("search") || ids == nil {
-		s, err := NormalizeSearch(q.Get("search"))
-		if err != nil {
-			httpx.WriteStructuredError(w, http.StatusBadRequest, "INVALID_SEARCH",
-				"Parameter 'search' must be at least 3 characters long", "search")
-			return
-		}
-		search = &s
-	}
-
-	var country *string
-	if raw := q.Get("country"); raw != "" {
-		c, err := ParseCountry(raw)
-		if err != nil {
-			httpx.WriteFieldValidationError(w, "Country", "iso2")
-			return
-		}
-		country = &c
-	}
-
 	params := SearchParams{
-		Limit:  parseIntDefault(q.Get("limit"), DefaultLimit),
-		Offset: parseIntDefault(q.Get("offset"), DefaultOffset),
+		Limit:  httpx.QueryInt(q.Get("limit"), DefaultLimit),
+		Offset: httpx.QueryInt(q.Get("offset"), DefaultOffset),
 		IDs:    ids,
 	}
 	if err := h.validate.Struct(params); err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorBody{
-			Error: "validation failed",
-			Code:  http.StatusBadRequest,
-			Meta:  ValidationMeta(err),
-		})
+		httpx.WriteValidationErrorWithParams(w, err)
 		return
 	}
 
-	res, err := h.useCase.Handle(r.Context(), searchairlines.Query{
-		Search:      deref(search),
-		CountryISO2: deref(country),
-		IDs:         ids,
-		Limit:       params.Limit,
-		Offset:      params.Offset,
-	})
+	query := searchairlines.Query{Country: q.Get("country"), IDs: ids, Limit: params.Limit, Offset: params.Offset}
+	if q.Has("search") {
+		s := q.Get("search")
+		query.Search = &s
+	}
+	res, err := h.useCase.Handle(r.Context(), query)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "airline search failed", "err", err)
-		httpx.WriteStructuredError(w, http.StatusInternalServerError, "INTERNAL_ERROR",
-			"An unexpected error occurred", "")
+		writeError(w, r, err)
 		return
 	}
 
 	slog.InfoContext(r.Context(), "airline search",
-		"search", deref(search),
-		"country", deref(country),
+		"search", valueOf(res.Search),
+		"country", valueOf(res.Country),
 		"ids", len(ids),
 		"limit", params.Limit,
 		"offset", params.Offset,
@@ -202,54 +96,57 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
 
-	w.Header().Set("Cache-Control", cacheControl)
+	w.Header().Set("Cache-Control", airlinehttp.CacheControl)
 	httpx.WriteJSON(w, http.StatusOK, SearchResponse{
 		Data: toAirlineResponses(res.Airlines),
 		Meta: MetaResponse{
 			Total:   res.TotalCount,
 			Limit:   params.Limit,
 			Offset:  params.Offset,
-			Search:  search,
-			Country: country,
+			Search:  res.Search,
+			Country: res.Country,
 			IDs:     ids,
 		},
 	})
 }
 
-func toAirlineResponses(airlines []searchairlines.AirlineResult) []AirlineResponse {
-	out := make([]AirlineResponse, 0, len(airlines))
+// writeError переводит ошибку use case в ответ: короткая строка поиска —
+// INVALID_SEARCH, ошибка поля (страна) — 400 validation failed, прочее — 500.
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, searchairlines.ErrSearchTooShort) {
+		httpx.WriteStructuredError(w, http.StatusBadRequest, "INVALID_SEARCH",
+			"Parameter 'search' must be at least 3 characters long", "search")
+		return
+	}
+	if fe, ok := apperror.AsFieldError(err); ok {
+		httpx.WriteFieldValidationError(w, fe.Field, fe.Rule)
+		return
+	}
+	slog.ErrorContext(r.Context(), "airline search failed", "err", err)
+	httpx.WriteStructuredError(w, http.StatusInternalServerError, "INTERNAL_ERROR",
+		"An unexpected error occurred", "")
+}
+
+func toAirlineResponses(airlines []searchairlines.AirlineResult) []airlinehttp.AirlineResponse {
+	out := make([]airlinehttp.AirlineResponse, 0, len(airlines))
 	for _, a := range airlines {
-		resp := AirlineResponse{
-			ID:     a.ID,
-			ICAO:   a.ICAO,
-			Name:   a.Name,
-			NameRU: a.NameRU,
+		resp := airlinehttp.AirlineResponse{
+			ID:          a.ID,
+			ICAO:        a.ICAO,
+			Name:        a.Name,
+			NameRU:      a.NameRU,
+			DissolvedOn: airlinehttp.FormatDate(a.DissolvedOn),
 		}
 		if a.Country != nil {
-			resp.Country = &CountryResponse{ISO2: a.Country.ISO2, Name: a.Country.Name}
-		}
-		if a.DissolvedOn != nil {
-			d := a.DissolvedOn.Format(DateLayout)
-			resp.DissolvedOn = &d
+			resp.Country = &airlinehttp.CountryResponse{ISO2: a.Country.ISO2, Name: a.Country.Name}
 		}
 		out = append(out, resp)
 	}
 	return out
 }
 
-// parseIntDefault — нечисловое или отрицательное значение заменяется def.
-func parseIntDefault(raw string, def int) int {
-	if raw == "" {
-		return def
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < 0 {
-		return def
-	}
-	return v
-}
-
-func deref(s *string) string {
+// valueOf — значение необязательной строки для журнала ("" — не передана).
+func valueOf(s *string) string {
 	if s == nil {
 		return ""
 	}
