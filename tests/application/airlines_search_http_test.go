@@ -389,7 +389,7 @@ func TestAirlinesHTTP_GetByID_IncludingMergedAndMissing(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, map[string]any{
 		"id": float64(1), "icao": nil, "name": "Unknown", "name_ru": "Неизвестная", "country": nil, "dissolved_on": nil,
-	}, data, "поля — как у элемента поиска, без hidden")
+	}, data, "поля — как у элемента поиска")
 }
 
 func TestAirlinesHTTP_GetByID_NotFound_Returns404(t *testing.T) {
