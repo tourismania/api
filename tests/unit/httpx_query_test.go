@@ -26,6 +26,17 @@ func TestParseIDList_Invalid_Error(t *testing.T) {
 	}
 }
 
+func TestParseISO2_UppercasedOrError(t *testing.T) {
+	got, err := httpx.ParseISO2("tr")
+	require.NoError(t, err)
+	assert.Equal(t, "TR", got)
+
+	for _, raw := range []string{"TUR", "1", "T", "т1", "t1"} {
+		_, err := httpx.ParseISO2(raw)
+		assert.ErrorIs(t, err, httpx.ErrISO2Invalid, "%q", raw)
+	}
+}
+
 func TestQueryInt_InvalidOrEmpty_Default(t *testing.T) {
 	for raw, want := range map[string]int{"": 20, "abc": 20, "-5": 20, "0": 0, "35": 35} {
 		assert.Equal(t, want, httpx.QueryInt(raw, 20), "%q", raw)

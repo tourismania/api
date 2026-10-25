@@ -2,12 +2,30 @@ package httpx
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-// ErrIDListInvalid — в списке id есть значение, не являющееся целым ≥ 1.
-var ErrIDListInvalid = errors.New("ids must be positive integers")
+var (
+	// ErrIDListInvalid — в списке id есть значение, не являющееся целым ≥ 1.
+	ErrIDListInvalid = errors.New("ids must be positive integers")
+	// ErrISO2Invalid — значение не код страны ISO 3166-1 alpha-2 (две латинские буквы).
+	ErrISO2Invalid = errors.New("country must be an ISO 3166-1 alpha-2 code")
+
+	// iso2Pattern — код страны ISO 3166-1 alpha-2 в любом регистре.
+	iso2Pattern = regexp.MustCompile(`^[A-Za-z]{2}$`)
+)
+
+// ParseISO2 проверяет формат кода страны (`country=tr`) и приводит его к
+// верхнему регистру; не две латинские буквы — ErrISO2Invalid. Есть ли такая
+// страна в справочнике, не проверяет: неизвестный код просто ничего не найдёт.
+func ParseISO2(raw string) (string, error) {
+	if !iso2Pattern.MatchString(raw) {
+		return "", ErrISO2Invalid
+	}
+	return strings.ToUpper(raw), nil
+}
 
 // QueryInt разбирает целый параметр query-строки; пустое, нечисловое или
 // отрицательное значение заменяется def.
