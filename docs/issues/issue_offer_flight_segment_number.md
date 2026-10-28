@@ -4,6 +4,7 @@
 > **Источник требований:** изменение SDD `add-flight-segment-number` в `tourismania/sdd`
 > (`openspec/changes/add-flight-segment-number/`: proposal, дельта спеки `offers/flights`, design, tasks),
 > принято в [sdd PR №28](https://github.com/tourismania/sdd/pull/28).
+> **Реализация:** [api PR №37](https://github.com/tourismania/api/pull/37).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
