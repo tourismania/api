@@ -157,6 +157,18 @@ func (m *mockAirlineRepo) MarkMissing(_ context.Context, _ []int, _ time.Time) e
 
 func (m *mockAirlineRepo) ClearMissing(_ context.Context, _ []int) error { return nil }
 
+// withFlightNumbers возвращает копию перелёта с другими номерами рейсов
+// сегментов (по порядку) и ID; сегменты копируются, исходный перелёт не
+// меняется.
+func withFlightNumbers(f flight.Flight, id int, numbers ...string) flight.Flight {
+	f.ID = id
+	f.Segments = append([]flight.Segment(nil), f.Segments...)
+	for i, n := range numbers {
+		f.Segments[i].FlightNumber = n
+	}
+	return f
+}
+
 // noFlightManager wires an flight.Manager over empty/permissive
 // mocks — every icao and airline "exists", nothing was stored before.
 func noFlightManager() *flight.Manager {

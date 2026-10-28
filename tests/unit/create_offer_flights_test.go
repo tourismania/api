@@ -255,3 +255,30 @@ func TestCreateOffer_CabinClassInvalid_ReturnsFieldError_NeverStoresOffer(t *tes
 	assert.Equal(t, offer.Offer{}, offers.storedOffer)
 	assert.False(t, flightRepo.replaceCalled)
 }
+
+func TestCreateOffer_WithFlightNumbers_StoresNumbersEmptyStaysEmpty(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	offers := &mockOfferRepo{storeID: 42}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "100", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{
+				{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), FlightNumber: "ЮТ-773"},
+				{AirlineID: sampleAirlineID, DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+			}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, flightRepo.replacedFlights, 1)
+	require.Len(t, flightRepo.replacedFlights[0].Segments, 2)
+	assert.Equal(t, "ЮТ-773", flightRepo.replacedFlights[0].Segments[0].FlightNumber)
+	assert.Equal(t, "", flightRepo.replacedFlights[0].Segments[1].FlightNumber, "no default number")
+}

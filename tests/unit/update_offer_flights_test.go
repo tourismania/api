@@ -141,7 +141,7 @@ func TestUpdateOffer_OnlyPriceChanged_UpdatesPricesKeepsFlights(t *testing.T) {
 	assert.False(t, flightRepo.replaceCalled, "price-only change must not replace flights")
 	require.True(t, flightRepo.updateDetailsCalled)
 	assert.Equal(t, 7, flightRepo.updateDetailsOfferID)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 31, Price: mustMoney("17500", money.CodeRUB), SegmentCabinClasses: unknownCabinClass, SegmentAirlineIDs: []int{sampleAirlineID}}}, flightRepo.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 31, Price: mustMoney("17500", money.CodeRUB), Segments: sampleSegmentDetails}}, flightRepo.updatedDetails)
 }
 
 func TestUpdateOffer_OnlyCommentChanged_UpdatesDetailsKeepsFlights(t *testing.T) {
@@ -168,7 +168,7 @@ func TestUpdateOffer_OnlyCommentChanged_UpdatesDetailsKeepsFlights(t *testing.T)
 	require.NoError(t, err)
 	assert.False(t, flightRepo.replaceCalled, "comment-only change must not replace flights")
 	require.True(t, flightRepo.updateDetailsCalled)
-	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 31, Price: mustMoney("15000", money.CodeRUB), ManagerComment: "новый", SegmentCabinClasses: unknownCabinClass, SegmentAirlineIDs: []int{sampleAirlineID}}}, flightRepo.updatedDetails)
+	assert.Equal(t, []flight.DetailsUpdate{{FlightID: 31, Price: mustMoney("15000", money.CodeRUB), ManagerComment: "новый", Segments: sampleSegmentDetails}}, flightRepo.updatedDetails)
 }
 
 func TestUpdateOffer_ManagerCommentControlChar_ReturnsFieldError_NothingChanged(t *testing.T) {
@@ -224,10 +224,9 @@ func TestUpdateOffer_OnlyCabinClassChanged_UpdatesDetailsKeepsFlights(t *testing
 	assert.False(t, flightRepo.replaceCalled, "class-only change must not replace flights")
 	require.True(t, flightRepo.updateDetailsCalled)
 	assert.Equal(t, []flight.DetailsUpdate{{
-		FlightID:            31,
-		Price:               mustMoney("15000", money.CodeRUB),
-		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness},
-		SegmentAirlineIDs:   []int{sampleAirlineID},
+		FlightID: 31,
+		Price:    mustMoney("15000", money.CodeRUB),
+		Segments: []flight.SegmentDetails{{CabinClass: flight.CabinClassBusiness, AirlineID: sampleAirlineID}},
 	}}, flightRepo.updatedDetails)
 }
 
@@ -284,4 +283,60 @@ func TestUpdateOffer_CabinClassInvalid_ReturnsFieldError_NothingChanged(t *testi
 	assert.Equal(t, offer.Offer{}, offers.updatedOffer)
 	assert.False(t, flightRepo.replaceCalled)
 	assert.False(t, flightRepo.updateDetailsCalled)
+}
+
+func TestUpdateOffer_OnlyFlightNumberChanged_UpdatesDetailsKeepsFlights(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	existing := &offer.Offer{ID: 7, UUID: uuid.New(), AgencyID: 5, Status: offer.StatusDraft}
+	offers := &mockOfferRepo{findByUUIDOffer: existing}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{})
+	stored := withFlightNumbers(sampleFlight("UUEE", "LFPG", base), 31, "SU1234")
+	stored.Price = mustMoney("15000", money.CodeRUB)
+	flightRepo := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
+	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	renumbered := []updateoffer.FlightInput{
+		{Price: "15000", Currency: "RUB", Segments: []updateoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour), FlightNumber: "su 1234"}}},
+	}
+	_, err := h.Handle(context.Background(), updateoffer.Command{
+		UUID:            existing.UUID,
+		Flights:         &renumbered,
+		CurrentUserUUID: uuid.New(),
+	})
+
+	require.NoError(t, err)
+	assert.False(t, flightRepo.replaceCalled, "number-only change must not replace flights")
+	require.True(t, flightRepo.updateDetailsCalled)
+	assert.Equal(t, []flight.DetailsUpdate{{
+		FlightID: 31,
+		Price:    mustMoney("15000", money.CodeRUB),
+		Segments: []flight.SegmentDetails{{AirlineID: sampleAirlineID, FlightNumber: "su 1234"}},
+	}}, flightRepo.updatedDetails)
+}
+
+func TestUpdateOffer_FlightNumberOmitted_KeepsEmptyNumber_IsNoOp(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	existing := &offer.Offer{ID: 7, UUID: uuid.New(), AgencyID: 5, Status: offer.StatusDraft}
+	offers := &mockOfferRepo{findByUUIDOffer: existing}
+	mgr := offer.NewManager(offers, &mockAgencyRepo{})
+	stored := sampleFlight("UUEE", "LFPG", base)
+	stored.ID = 31
+	stored.Price = mustMoney("15000", money.CodeRUB)
+	flightRepo := &mockOfferFlightRepo{findByOfferIDFlights: []flight.Flight{stored}}
+	flightMgr := flight.NewManager(flightRepo, &mockAirportRepo{}, &mockAirlineRepo{})
+	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+
+	same := []updateoffer.FlightInput{
+		{Price: "15000", Currency: "RUB", Segments: []updateoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)}}},
+	}
+	_, err := h.Handle(context.Background(), updateoffer.Command{
+		UUID:            existing.UUID,
+		Flights:         &same,
+		CurrentUserUUID: uuid.New(),
+	})
+
+	require.NoError(t, err)
+	assert.False(t, flightRepo.replaceCalled)
+	assert.False(t, flightRepo.updateDetailsCalled, "no number stays no number: nothing to write")
 }

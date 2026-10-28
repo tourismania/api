@@ -124,6 +124,7 @@ func toFlightInputs(in []FlightInput) []updateoffer.FlightInput {
 				ArrivalAt:            s.ArrivalAt,
 				CabinClass:           string(s.CabinClass),
 				AirlineID:            s.AirlineID,
+				FlightNumber:         s.FlightNumber,
 			})
 		}
 		flights = append(flights, updateoffer.FlightInput{

@@ -73,3 +73,16 @@ func TestGetPublishedOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T
 	assert.Equal(t, "business", res.Flights[0].Segments[0].CabinClass)
 	assert.Equal(t, "", res.Flights[0].Segments[1].CabinClass)
 }
+
+func TestGetPublishedOffer_SegmentFlightNumber_ReturnedIncludingEmpty(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: []flight.Flight{flightNumberFlight()}}, &mockAirlineRepo{})
+
+	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 1)
+	require.Len(t, res.Flights[0].Segments, 2)
+	assert.Equal(t, "su 1234", res.Flights[0].Segments[0].FlightNumber)
+	assert.Equal(t, "", res.Flights[0].Segments[1].FlightNumber)
+}

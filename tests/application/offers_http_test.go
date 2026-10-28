@@ -181,9 +181,10 @@ func (s *stubOfferFlightRepo) UpdateDetails(_ context.Context, _ int, updates []
 				s.stored[i].ManagerComment = u.ManagerComment
 				// Сегменты копируются: срез разделяет массив с replacedFlights.
 				segs := slices.Clone(s.stored[i].Segments)
-				for j, class := range u.SegmentCabinClasses {
-					segs[j].CabinClass = class
-					segs[j].AirlineID = u.SegmentAirlineIDs[j]
+				for j, d := range u.Segments {
+					segs[j].CabinClass = d.CabinClass
+					segs[j].AirlineID = d.AirlineID
+					segs[j].FlightNumber = d.FlightNumber
 				}
 				s.stored[i].Segments = segs
 			}

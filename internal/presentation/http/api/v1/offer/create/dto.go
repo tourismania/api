@@ -51,6 +51,8 @@ type FlightSegmentInput struct {
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 	// AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска запись, на которую оффер ещё не ссылался, — 400 «flight segment references an unknown airline».
 	AirlineID int `json:"airline_id" validate:"required" example:"1"`
+	// FlightNumber — номер рейса сегмента, строка до 10 символов; хранится как передан (формат не проверяется, регистр, пробелы и разделители не меняются). Необязателен: отсутствие поля, null и "" — номер неизвестен. Длиннее 10 символов — 400 с meta {"FlightNumber":"max"}.
+	FlightNumber string `json:"flight_number" validate:"max=10" example:"SU1234"`
 }
 
 // CreateOfferResponse is the response envelope.

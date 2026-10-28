@@ -20,8 +20,12 @@ import (
 // CabinClassUnknown — класс неизвестен. AirlineID — id авиакомпании в
 // справочнике airline, обязателен (перевозчик неизвестен — явно
 // airline.UnknownID); сегмент ссылается именно на эту запись, какие бы коды
-// ни были у неё и у других авиакомпаний. Класс и авиакомпания в маршрут не
-// входят: их изменение обновляет сегмент на месте (см. Manager.ReplaceForOffer).
+// ни были у неё и у других авиакомпаний. FlightNumber — номер рейса сегмента
+// в том виде, в каком передан (формат не проверяется, регистр, пробелы и
+// разделители не меняются); "" — номер неизвестен. Длина номера — правило
+// формы запроса, как у комментария менеджера: New её не проверяет. Класс,
+// авиакомпания и номер рейса в маршрут не входят: их изменение обновляет
+// сегмент на месте (см. Manager.ReplaceForOffer).
 type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
@@ -29,6 +33,7 @@ type Segment struct {
 	ArrivalAt            time.Time
 	CabinClass           CabinClass
 	AirlineID            int
+	FlightNumber         string
 }
 
 // Duration is the segment's own flight time.

@@ -54,6 +54,8 @@ type FlightSegmentResponse struct {
 	DurationSeconds      int64     `json:"duration_seconds"`
 	// CabinClass — класс обслуживания сегмента; поле присутствует всегда, "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass (справочник классов обслуживания).
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
+	// FlightNumber — номер рейса сегмента в том виде, как передан; поле присутствует всегда, "" — номер неизвестен.
+	FlightNumber string `json:"flight_number" example:"SU1234"`
 	// AirlineID — id авиакомпании сегмента в справочнике.
 	AirlineID int `json:"airline_id" example:"1"`
 	// Airline — текущие данные авиакомпании сегмента из справочника; всегда объект.

@@ -211,10 +211,9 @@ func TestOfferFlightManager_OnlyOneSegmentAirlineChanged_UpdatesThatFlightOnly(t
 	require.NoError(t, err)
 	assert.False(t, flights.replaceCalled, "маршрут тот же — без замены")
 	assert.Equal(t, []flight.DetailsUpdate{{
-		FlightID:            7,
-		Price:               samplePrice(),
-		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassUnknown, flight.CabinClassUnknown},
-		SegmentAirlineIDs:   []int{aeroflot.ID, azimuth.ID},
+		FlightID: 7,
+		Price:    samplePrice(),
+		Segments: []flight.SegmentDetails{{AirlineID: aeroflot.ID}, {AirlineID: azimuth.ID}},
 	}}, flights.updatedDetails)
 }
 
@@ -227,7 +226,7 @@ func TestOfferFlightManager_AirlineToUnknown_UpdatedInPlace(t *testing.T) {
 	assert.False(t, flights.replaceCalled)
 	require.Len(t, flights.updatedDetails, 1)
 	assert.Equal(t, 7, flights.updatedDetails[0].FlightID)
-	assert.Equal(t, []int{airline.UnknownID}, flights.updatedDetails[0].SegmentAirlineIDs)
+	assert.Equal(t, []flight.SegmentDetails{{AirlineID: airline.UnknownID}}, flights.updatedDetails[0].Segments)
 }
 
 func TestOfferFlightManager_AirlineAndCabinClassChanged_OneUpdate(t *testing.T) {
@@ -237,10 +236,9 @@ func TestOfferFlightManager_AirlineAndCabinClassChanged_OneUpdate(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Equal(t, []flight.DetailsUpdate{{
-		FlightID:            7,
-		Price:               samplePrice(),
-		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness},
-		SegmentAirlineIDs:   []int{azimuth.ID},
+		FlightID: 7,
+		Price:    samplePrice(),
+		Segments: []flight.SegmentDetails{{CabinClass: flight.CabinClassBusiness, AirlineID: azimuth.ID}},
 	}}, flights.updatedDetails)
 }
 
@@ -313,7 +311,7 @@ func TestUpdateOffer_OnlyAirlineChanged_UpdatesDetailsKeepsFlights(t *testing.T)
 	require.NoError(t, err)
 	assert.False(t, flightRepo.replaceCalled, "id перелётов сохраняются")
 	require.Len(t, flightRepo.updatedDetails, 1)
-	assert.Equal(t, []int{airline.UnknownID}, flightRepo.updatedDetails[0].SegmentAirlineIDs)
+	assert.Equal(t, []flight.SegmentDetails{{AirlineID: airline.UnknownID}}, flightRepo.updatedDetails[0].Segments)
 }
 
 // ---------------------------------------------------------------------------
