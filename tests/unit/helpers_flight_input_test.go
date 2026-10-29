@@ -117,3 +117,16 @@ func TestBuildFlights_CabinClassInvalid_ReturnsCabinClassFieldError(t *testing.T
 		assert.ErrorIs(t, err, flight.ErrCabinClassInvalid)
 	}
 }
+
+func TestBuildFlights_FlightNumber_PassedAsIs(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	flights, err := helpers.BuildFlights([]helpers.FlightInput{{Price: "100", Currency: "RUB", Segments: []helpers.FlightSegmentInput{
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(4 * time.Hour), FlightNumber: " su 1234 "},
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "LFPG", ArrivalAirportICAO: "KJFK", DepartureAt: base.Add(6 * time.Hour), ArrivalAt: base.Add(14 * time.Hour)},
+	}}})
+
+	require.NoError(t, err)
+	require.Len(t, flights, 1)
+	assert.Equal(t, " su 1234 ", flights[0].Segments[0].FlightNumber, "number must reach the domain unchanged")
+	assert.Equal(t, "", flights[0].Segments[1].FlightNumber, "empty number must stay empty")
+}

@@ -29,7 +29,7 @@ internal/
     airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
     airline/          # Справочник авиакомпаний: Airline, Country, Filter, SourceRecord, UnknownID («Неизвестная» = 1), Repository; ключ — id записи, коды ICAO/IATA — атрибуты (см. docs/cli/sync_airlines.md)
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
-      flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID), CabinClass, Layover, New, Repository, Manager, DetailsUpdate; классы обслуживания — см. docs/cabin-classes.md
+      flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID и FlightNumber), CabinClass, Layover, New, Repository, Manager, DetailsUpdate (детали сегментов — SegmentDetails); классы обслуживания — см. docs/cabin-classes.md
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)

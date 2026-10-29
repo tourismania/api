@@ -82,6 +82,7 @@ func toFlightResponses(flights []getpublishedoffer.FlightResult) []FlightRespons
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      s.DurationSeconds,
 				CabinClass:           flight.CabinClass(s.CabinClass),
+				FlightNumber:         s.FlightNumber,
 				AirlineID:            s.AirlineID,
 				Airline:              toAirlineResponse(s.Airline),
 			})

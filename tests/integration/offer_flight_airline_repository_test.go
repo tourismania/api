@@ -56,10 +56,9 @@ func TestOfferFlightRepository_UpdateDetails_ChangesAirline_KeepsIDsAirportsTime
 	require.NoError(t, err)
 
 	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{{
-		FlightID:            before[0].ID,
-		Price:               before[0].Price,
-		SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness},
-		SegmentAirlineIDs:   []int{airline.UnknownID},
+		FlightID: before[0].ID,
+		Price:    before[0].Price,
+		Segments: []flight.SegmentDetails{{CabinClass: flight.CabinClassBusiness, AirlineID: airline.UnknownID}},
 	}}))
 
 	after, err := repo.FindByOfferID(context.Background(), offerID)
@@ -89,15 +88,4 @@ func TestOfferFlightRepository_UnknownAirlineID_ReturnsFKError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "offer_flight_segments_airline_id_fkey")
-}
-
-func TestOfferFlightRepository_UpdateDetails_MismatchedSegmentLists_Error(t *testing.T) {
-	pool := newOfferFlightTestPool(t)
-	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
-
-	err := repo.UpdateDetails(context.Background(), 1, []flight.DetailsUpdate{{
-		FlightID: 1, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassUnknown},
-	}})
-
-	require.Error(t, err)
 }

@@ -123,6 +123,26 @@ func cabinClassFlight() flight.Flight {
 	return f
 }
 
+// flightNumberFlight — сохранённый перелёт из двух сегментов: у первого номер
+// рейса в произвольном написании, у второго номер неизвестен.
+func flightNumberFlight() flight.Flight {
+	return withFlightNumbers(twoSegmentFlight(time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)), 11, "su 1234")
+}
+
+func TestGetOffer_SegmentFlightNumber_ReturnedIncludingEmpty(t *testing.T) {
+	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: []flight.Flight{flightNumberFlight()}}, &mockAirlineRepo{}, userRecordWithAgency(7))
+
+	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
+
+	require.NoError(t, err)
+	require.Len(t, res.Flights, 1)
+	require.Len(t, res.Flights[0].Segments, 2)
+	assert.Equal(t, "su 1234", res.Flights[0].Segments[0].FlightNumber)
+	assert.Equal(t, "", res.Flights[0].Segments[1].FlightNumber)
+}
+
 func TestGetOffer_SegmentCabinClass_ReturnedIncludingEmpty(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})

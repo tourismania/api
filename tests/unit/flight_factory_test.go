@@ -223,3 +223,18 @@ func TestCabinClass_IsValid_KnownAndUnknown(t *testing.T) {
 	assert.True(t, flight.CabinClassUnknown.IsValid())
 	assert.False(t, flight.CabinClass("ECONOMY").IsValid())
 }
+
+func TestNewFlight_FlightNumber_KeptAsIs(t *testing.T) {
+	for _, number := range []string{"", "SU1234", "su 1234", " U6-773 ", "ЮТ-773", "AFL 1234A"} {
+		t.Run(number, func(t *testing.T) {
+			segs := segmentsWithClasses(flight.CabinClassUnknown, flight.CabinClassUnknown)
+			segs[0].FlightNumber = number
+
+			f, err := flight.New(samplePrice(), "", segs)
+
+			require.NoError(t, err)
+			assert.Equal(t, number, f.Segments[0].FlightNumber, "number must not be validated or normalized")
+			assert.Equal(t, "", f.Segments[1].FlightNumber)
+		})
+	}
+}

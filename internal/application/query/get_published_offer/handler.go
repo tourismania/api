@@ -92,6 +92,7 @@ func toFlightResults(flights []flight.Flight, airlines map[int]airline.Airline) 
 				ArrivalAt:            s.ArrivalAt,
 				DurationSeconds:      int64(s.Duration().Seconds()),
 				CabinClass:           string(s.CabinClass),
+				FlightNumber:         s.FlightNumber,
 				AirlineID:            s.AirlineID,
 				Airline:              toAirlineResult(airlines[s.AirlineID]),
 			})

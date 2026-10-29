@@ -17,8 +17,16 @@ import (
 // формат времени) вместо общего "invalid JSON body".
 var ErrBadJSON = errors.New("invalid JSON body")
 
-// DecodeJSON decodes the request body into v and validates it (if a
-// validator is supplied). The caller decides how to surface the error.
+// Normalizer — запрос, который приводит поля к каноническому виду (например,
+// обрезает пробелы по краям) после декодирования и до валидации: правила
+// формы проверяют уже нормализованные значения.
+type Normalizer interface {
+	Normalize()
+}
+
+// DecodeJSON decodes the request body into v, normalizes it (if v is a
+// Normalizer) and validates it (if a validator is supplied). The caller
+// decides how to surface the error.
 func DecodeJSON(r *http.Request, v any, validate *validator.Validate) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -27,6 +35,9 @@ func DecodeJSON(r *http.Request, v any, validate *validator.Validate) error {
 			return ErrBadJSON
 		}
 		return errors.Join(ErrBadJSON, err)
+	}
+	if n, ok := v.(Normalizer); ok {
+		n.Normalize()
 	}
 	if validate != nil {
 		if err := validate.Struct(v); err != nil {

@@ -42,14 +42,14 @@ func NewManager(flights Repository, airports airport.Repository, airlines airlin
 // справочнике аэропортов, а авиакомпании сегментов — в справочнике
 // авиакомпаний (скрытая запись допустима, только если на неё уже ссылается
 // сохранённый сегмент оффера), и сравнивает flights с сохранёнными для
-// offerID — сначала маршрут, потом цены, комментарии, классы и авиакомпании
-// сегментов:
+// offerID — сначала маршрут, потом цены, комментарии и детали сегментов
+// (классы, авиакомпании, номера рейсов):
 //   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
 //     моменты времени сегментов; ID, назначенные сервером, не учитываются),
-//     цены, комментарии, классы и авиакомпании совпали — no-op, БД не трогается;
+//     цены, комментарии и детали сегментов совпали — no-op, БД не трогается;
 //   - маршрут совпал, у части перелётов другая цена, валюта, комментарий,
-//     класс или авиакомпания хотя бы одного сегмента — у этих перелётов
-//     обновляются только цена, комментарий, классы и авиакомпании сегментов;
+//     класс, авиакомпания или номер рейса хотя бы одного сегмента — у этих
+//     перелётов обновляются только цена, комментарий и детали сегментов;
 //     аэропорты и время сегментов и идентификаторы сохраняются;
 //   - маршрут отличается — набор заменяется целиком.
 //
@@ -168,8 +168,9 @@ func AirlineIDs(flights []Flight) []int {
 
 // routesEqual сравнивает два набора перелётов только по маршруту: порядок
 // перелётов и порядок сегментов внутри перелёта значимы, ID не учитываются
-// — у входящих перелётов их нет. Цена, комментарий, классы и авиакомпании
-// сегментов в сравнение маршрута не входят — их сравнивает detailsUpdates.
+// — у входящих перелётов их нет. Цена, комментарий и детали сегментов
+// (классы, авиакомпании, номера рейсов) в сравнение маршрута не входят — их
+// сравнивает detailsUpdates.
 func routesEqual(a, b []Flight) bool {
 	if len(a) != len(b) {
 		return false
@@ -197,13 +198,14 @@ func segmentsEqual(a, b []Segment) bool {
 	return true
 }
 
-// detailsUpdates возвращает новые цену, комментарий, классы и авиакомпании
-// сегментов для перелётов, у которых цена, валюта, комментарий, класс или
-// авиакомпания хотя бы одного сегмента отличается от сохранённых; в
-// обновление идут классы и авиакомпании всех сегментов перелёта. Комментарии и классы сравниваются точно, без
-// нормализации ("a" и "a " различны): api хранит значения как есть. existing и incoming — наборы с уже совпавшим
-// маршрутом (routesEqual), сопоставленные по позиции; ID берётся у
-// сохранённого перелёта.
+// detailsUpdates возвращает новые цену, комментарий и детали сегментов для
+// перелётов, у которых цена, валюта, комментарий, класс, авиакомпания или
+// номер рейса хотя бы одного сегмента отличается от сохранённых; в
+// обновление идут детали всех сегментов перелёта. Комментарии, классы и
+// номера рейсов сравниваются точно, без нормализации ("a" и "a " различны,
+// "SU1234" и "su 1234" — тоже): api хранит значения как есть. existing и
+// incoming — наборы с уже совпавшим маршрутом (routesEqual), сопоставленные
+// по позиции; ID берётся у сохранённого перелёта.
 func detailsUpdates(existing, incoming []Flight) []DetailsUpdate {
 	var updates []DetailsUpdate
 	for i := range existing {
@@ -211,43 +213,40 @@ func detailsUpdates(existing, incoming []Flight) []DetailsUpdate {
 			existing[i].ManagerComment != incoming[i].ManagerComment ||
 			!segmentDetailsEqual(existing[i].Segments, incoming[i].Segments) {
 			updates = append(updates, DetailsUpdate{
-				FlightID:            existing[i].ID,
-				Price:               incoming[i].Price,
-				ManagerComment:      incoming[i].ManagerComment,
-				SegmentCabinClasses: segmentCabinClasses(incoming[i].Segments),
-				SegmentAirlineIDs:   segmentAirlineIDs(incoming[i].Segments),
+				FlightID:       existing[i].ID,
+				Price:          incoming[i].Price,
+				ManagerComment: incoming[i].ManagerComment,
+				Segments:       segmentDetails(incoming[i].Segments),
 			})
 		}
 	}
 	return updates
 }
 
-// segmentDetailsEqual сравнивает классы и авиакомпании сегментов двух
-// перелётов по позиции. Вызывается только для перелётов с совпавшим
-// маршрутом, поэтому число сегментов одинаково.
+// segmentDetailsEqual сравнивает классы, авиакомпании и номера рейсов
+// сегментов двух перелётов по позиции. Вызывается только для перелётов с
+// совпавшим маршрутом, поэтому число сегментов одинаково.
 func segmentDetailsEqual(a, b []Segment) bool {
 	for i := range a {
-		if a[i].CabinClass != b[i].CabinClass || a[i].AirlineID != b[i].AirlineID {
+		if a[i].CabinClass != b[i].CabinClass ||
+			a[i].AirlineID != b[i].AirlineID ||
+			a[i].FlightNumber != b[i].FlightNumber {
 			return false
 		}
 	}
 	return true
 }
 
-// segmentCabinClasses возвращает классы сегментов по порядку.
-func segmentCabinClasses(segs []Segment) []CabinClass {
-	classes := make([]CabinClass, 0, len(segs))
+// segmentDetails возвращает детали сегментов (класс, авиакомпанию и номер
+// рейса) по порядку.
+func segmentDetails(segs []Segment) []SegmentDetails {
+	details := make([]SegmentDetails, 0, len(segs))
 	for _, s := range segs {
-		classes = append(classes, s.CabinClass)
+		details = append(details, SegmentDetails{
+			CabinClass:   s.CabinClass,
+			AirlineID:    s.AirlineID,
+			FlightNumber: s.FlightNumber,
+		})
 	}
-	return classes
-}
-
-// segmentAirlineIDs возвращает id авиакомпаний сегментов по порядку.
-func segmentAirlineIDs(segs []Segment) []int {
-	ids := make([]int, 0, len(segs))
-	for _, s := range segs {
-		ids = append(ids, s.AirlineID)
-	}
-	return ids
+	return details
 }

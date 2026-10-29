@@ -3,6 +3,7 @@
 package createofferhttp
 
 import (
+	"strings"
 	"time"
 
 	"api/internal/domain/offer/flight"
@@ -51,6 +52,19 @@ type FlightSegmentInput struct {
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 	// AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска запись, на которую оффер ещё не ссылался, — 400 «flight segment references an unknown airline».
 	AirlineID int `json:"airline_id" validate:"required" example:"1"`
+	// FlightNumber — номер рейса сегмента, строка до 10 символов; пробелы по краям обрезаются до проверки длины, в остальном хранится как передан (формат не проверяется, регистр, пробелы внутри и разделители не меняются). Необязателен: отсутствие поля, null, "" и строка из одних пробелов — номер неизвестен. Длиннее 10 символов после обрезки — 400 с meta {"FlightNumber":"max"}.
+	FlightNumber string `json:"flight_number" validate:"max=10" example:"SU1234"`
+}
+
+// Normalize обрезает пробелы по краям номеров рейсов сегментов; вызывается
+// httpx.DecodeJSON до валидации, поэтому длина проверяется у обрезанного номера.
+func (r *CreateOfferRequest) Normalize() {
+	for i := range r.Flights {
+		segs := r.Flights[i].Segments
+		for j := range segs {
+			segs[j].FlightNumber = strings.TrimSpace(segs[j].FlightNumber)
+		}
+	}
 }
 
 // CreateOfferResponse is the response envelope.

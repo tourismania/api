@@ -408,7 +408,7 @@ func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_NotChanged(t *test
 	require.NoError(t, err)
 	// Чужой offerID: перелёт ownerID и классы его сегментов обновляться не должны.
 	require.NoError(t, repo.UpdateDetails(context.Background(), otherID, []flight.DetailsUpdate{
-		{FlightID: owned[0].ID, Price: newPrice, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassBusiness}, SegmentAirlineIDs: []int{airline.UnknownID}},
+		{FlightID: owned[0].ID, Price: newPrice, Segments: []flight.SegmentDetails{{CabinClass: flight.CabinClassBusiness, AirlineID: airline.UnknownID}}},
 	}))
 
 	after, err := repo.FindByOfferID(context.Background(), ownerID)
@@ -479,7 +479,7 @@ func TestOfferFlightRepository_UpdateDetails_ChangesCabinClasses_KeepsIDsAirport
 
 	// Классы первого перелёта: бизнес → неизвестен, эконом → комфорт плюс.
 	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{
-		{FlightID: before[0].ID, Price: before[0].Price, SegmentCabinClasses: []flight.CabinClass{flight.CabinClassUnknown, flight.CabinClassComfortPlus}, SegmentAirlineIDs: []int{airline.UnknownID, airline.UnknownID}},
+		{FlightID: before[0].ID, Price: before[0].Price, Segments: []flight.SegmentDetails{{AirlineID: airline.UnknownID}, {CabinClass: flight.CabinClassComfortPlus, AirlineID: airline.UnknownID}}},
 	}))
 
 	after, err := repo.FindByOfferID(context.Background(), offerID)
@@ -498,4 +498,108 @@ func TestOfferFlightRepository_UpdateDetails_ChangesCabinClasses_KeepsIDsAirport
 		assert.True(t, want.ArrivalAt.Equal(got.ArrivalAt))
 	}
 	assert.Equal(t, before[1].Segments, after[1].Segments, "другой перелёт не меняется")
+}
+
+func TestOfferFlightRepository_FlightNumber_StoredAndReadPerSegmentAsIs(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	a, b, c := seedTestAirport(t, pool), seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	// 10 символов кириллицы — 20 байт: VARCHAR(10) считает символы.
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: a, ArrivalAirportICAO: b, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), FlightNumber: " su 1234 "},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: b, ArrivalAirportICAO: c, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour)},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: c, ArrivalAirportICAO: a, DepartureAt: base.Add(10 * time.Hour), ArrivalAt: base.Add(13 * time.Hour), FlightNumber: "ЮТЮТЮТЮТЮТ"},
+		}},
+	}))
+
+	got, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Segments, 3)
+	assert.Equal(t, " su 1234 ", got[0].Segments[0].FlightNumber)
+	assert.Equal(t, "", got[0].Segments[1].FlightNumber)
+	assert.Equal(t, "ЮТЮТЮТЮТЮТ", got[0].Segments[2].FlightNumber)
+}
+
+func TestOfferFlightRepository_UpdateDetails_ChangesFlightNumbersClassesAndAirlines_KeepsIDsAirportsAndTimes(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	airlines := pgrepo.NewAirlineRepository(db.New(pool))
+	al := seedAirlines(t, pool, airlines)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	t.Cleanup(func() { assert.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, nil)) })
+	dep, mid, arr := seedTestAirport(t, pool), seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: mid, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), FlightNumber: "SU2130"},
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: mid, ArrivalAirportICAO: arr, DepartureAt: base.Add(5 * time.Hour), ArrivalAt: base.Add(8 * time.Hour), FlightNumber: "TK2412"},
+		}},
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: arr, ArrivalAirportICAO: dep, DepartureAt: base.Add(48 * time.Hour), ArrivalAt: base.Add(51 * time.Hour), FlightNumber: "TK2415"},
+		}},
+	}))
+	before, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, before, 2)
+
+	// Первый перелёт: номер первого сегмента удалён, у второго — новые номер,
+	// класс и авиакомпания.
+	require.NoError(t, repo.UpdateDetails(context.Background(), offerID, []flight.DetailsUpdate{
+		{FlightID: before[0].ID, Price: before[0].Price, Segments: []flight.SegmentDetails{
+			{AirlineID: airline.UnknownID},
+			{CabinClass: flight.CabinClassBusiness, AirlineID: al.Alpha, FlightNumber: "tk 2414"},
+		}},
+	}))
+
+	after, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, after, 2)
+	assert.Equal(t, before[0].ID, after[0].ID)
+	assert.Equal(t, before[1].ID, after[1].ID)
+	require.Len(t, after[0].Segments, 2)
+	assert.Equal(t, "", after[0].Segments[0].FlightNumber)
+	assert.Equal(t, "tk 2414", after[0].Segments[1].FlightNumber)
+	assert.Equal(t, flight.CabinClassBusiness, after[0].Segments[1].CabinClass)
+	assert.Equal(t, al.Alpha, after[0].Segments[1].AirlineID)
+	for i := range before[0].Segments {
+		want, got := before[0].Segments[i], after[0].Segments[i]
+		assert.Equal(t, want.DepartureAirportICAO, got.DepartureAirportICAO)
+		assert.Equal(t, want.ArrivalAirportICAO, got.ArrivalAirportICAO)
+		assert.True(t, want.DepartureAt.Equal(got.DepartureAt))
+		assert.True(t, want.ArrivalAt.Equal(got.ArrivalAt))
+	}
+	assert.Equal(t, before[1].Segments, after[1].Segments, "другой перелёт не меняется")
+}
+
+func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_FlightNumberNotChanged(t *testing.T) {
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	ownerID := seedTestOfferID(t, pool)
+	otherID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), ownerID, []flight.Flight{
+		{Price: testFlightPrice(t), Segments: []flight.Segment{
+			{AirlineID: airline.UnknownID, DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: base, ArrivalAt: base.Add(3 * time.Hour), FlightNumber: "SU1234"},
+		}},
+	}))
+	owned, err := repo.FindByOfferID(context.Background(), ownerID)
+	require.NoError(t, err)
+	require.Len(t, owned, 1)
+
+	// Чужой offerID: номер рейса сегмента перелёта ownerID меняться не должен.
+	require.NoError(t, repo.UpdateDetails(context.Background(), otherID, []flight.DetailsUpdate{
+		{FlightID: owned[0].ID, Price: owned[0].Price, Segments: []flight.SegmentDetails{{AirlineID: airline.UnknownID, FlightNumber: "XX0000"}}},
+	}))
+
+	after, err := repo.FindByOfferID(context.Background(), ownerID)
+	require.NoError(t, err)
+	assert.Equal(t, "SU1234", after[0].Segments[0].FlightNumber)
 }

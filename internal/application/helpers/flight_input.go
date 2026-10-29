@@ -53,7 +53,9 @@ type FlightInput struct {
 // CabinClass — класс обслуживания как пришёл ("" — класс неизвестен);
 // значение по умолчанию не подставляется, допустимость проверяет домен.
 // AirlineID — id авиакомпании из справочника как пришёл; 0 — не указана
-// (домен отклоняет), существование проверяет flight.Manager.
+// (домен отклоняет), существование проверяет flight.Manager. FlightNumber —
+// номер рейса как пришёл ("" — номер неизвестен); передаётся в сегмент без
+// изменений, пробелы по краям обрезает и длину проверяет presentation.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
@@ -61,6 +63,7 @@ type FlightSegmentInput struct {
 	ArrivalAt            time.Time
 	CabinClass           string
 	AirlineID            int
+	FlightNumber         string
 }
 
 // BuildFlights разбирает цену каждого перелёта по справочнику валют и проверяет
@@ -116,6 +119,7 @@ func toDomainSegments(in []FlightSegmentInput) []flight.Segment {
 			ArrivalAt:            s.ArrivalAt,
 			CabinClass:           flight.CabinClass(s.CabinClass),
 			AirlineID:            s.AirlineID,
+			FlightNumber:         s.FlightNumber,
 		})
 	}
 	return segs

@@ -78,8 +78,8 @@ func (q *Queries) DeleteOfferFlightsByOfferID(ctx context.Context, offerID int32
 }
 
 const createOfferFlightSegmentSQL = `INSERT INTO offer_flight_segments (
-    flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class, airline_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+    flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class, airline_id, flight_number
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 // CreateOfferFlightSegmentParams matches the column order of
 // createOfferFlightSegmentSQL.
@@ -92,6 +92,7 @@ type CreateOfferFlightSegmentParams struct {
 	ArrivalAt            time.Time
 	CabinClass           string
 	AirlineID            int32
+	FlightNumber         string
 }
 
 // CreateOfferFlightSegment inserts one segment row.
@@ -105,13 +106,14 @@ func (q *Queries) CreateOfferFlightSegment(ctx context.Context, arg CreateOfferF
 		arg.ArrivalAt,
 		arg.CabinClass,
 		arg.AirlineID,
+		arg.FlightNumber,
 	)
 	return err
 }
 
 // listOfferFlightSegmentsByFlightIDsSQL orders by flight then sequence
 // so callers can group consecutive rows by flight_id without a map.
-const listOfferFlightSegmentsByFlightIDsSQL = `SELECT id, flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class, airline_id
+const listOfferFlightSegmentsByFlightIDsSQL = `SELECT id, flight_id, sequence, departure_airport_icao, arrival_airport_icao, departure_at, arrival_at, cabin_class, airline_id, flight_number
 FROM offer_flight_segments
 WHERE flight_id = ANY($1::int[])
 ORDER BY flight_id ASC, sequence ASC`
@@ -134,6 +136,7 @@ func (q *Queries) ListOfferFlightSegmentsByFlightIDs(ctx context.Context, flight
 			&s.DepartureAt, &s.ArrivalAt,
 			&s.CabinClass,
 			&s.AirlineID,
+			&s.FlightNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -145,22 +148,23 @@ func (q *Queries) ListOfferFlightSegmentsByFlightIDs(ctx context.Context, flight
 	return result, nil
 }
 
-const updateOfferFlightSegmentDetailsSQL = `UPDATE offer_flight_segments AS s SET cabin_class = $4, airline_id = $5 FROM offer_flights AS f WHERE s.flight_id = f.id AND f.id = $1 AND f.offer_id = $2 AND s.sequence = $3`
+const updateOfferFlightSegmentDetailsSQL = `UPDATE offer_flight_segments AS s SET cabin_class = $4, airline_id = $5, flight_number = $6 FROM offer_flights AS f WHERE s.flight_id = f.id AND f.id = $1 AND f.offer_id = $2 AND s.sequence = $3`
 
 // UpdateOfferFlightSegmentDetailsParams matches the column order of
 // updateOfferFlightSegmentDetailsSQL.
 type UpdateOfferFlightSegmentDetailsParams struct {
-	FlightID   int32
-	OfferID    int32
-	Sequence   int16
-	CabinClass string
-	AirlineID  int32
+	FlightID     int32
+	OfferID      int32
+	Sequence     int16
+	CabinClass   string
+	AirlineID    int32
+	FlightNumber string
 }
 
-// UpdateOfferFlightSegmentDetails перезаписывает класс обслуживания и
-// авиакомпанию одного сегмента (по перелёту и sequence) перелёта данного
+// UpdateOfferFlightSegmentDetails перезаписывает класс обслуживания,
+// авиакомпанию и номер рейса одного сегмента (по перелёту и sequence) перелёта данного
 // оффера, не трогая его аэропорты, время и id.
 func (q *Queries) UpdateOfferFlightSegmentDetails(ctx context.Context, arg UpdateOfferFlightSegmentDetailsParams) error {
-	_, err := q.db.Exec(ctx, updateOfferFlightSegmentDetailsSQL, arg.FlightID, arg.OfferID, arg.Sequence, arg.CabinClass, arg.AirlineID)
+	_, err := q.db.Exec(ctx, updateOfferFlightSegmentDetailsSQL, arg.FlightID, arg.OfferID, arg.Sequence, arg.CabinClass, arg.AirlineID, arg.FlightNumber)
 	return err
 }
