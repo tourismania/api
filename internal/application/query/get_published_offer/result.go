@@ -49,7 +49,7 @@ type FlightSegmentResult struct {
 	DurationSeconds      int64
 	// CabinClass — класс обслуживания сегмента; "" — класс неизвестен.
 	CabinClass string
-	// FlightNumber — номер рейса сегмента в том виде, как передан; "" — номер неизвестен.
+	// FlightNumber — номер рейса сегмента в том виде, как передан (без пробелов по краям); "" — номер неизвестен.
 	FlightNumber string
 	// AirlineID — id авиакомпании сегмента в справочнике.
 	AirlineID int

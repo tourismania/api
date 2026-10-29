@@ -1,0 +1,1223 @@
+definitions:
+  airlinehttp.AirlineResponse:
+    properties:
+      country:
+        allOf:
+        - $ref: '#/definitions/airlinehttp.CountryResponse'
+        description: Country — страна или null, если неизвестна.
+      dissolved_on:
+        description: DissolvedOn — дата прекращения деятельности YYYY-MM-DD; null
+          — действует.
+        example: "2015-10-26"
+        type: string
+      icao:
+        description: ICAO — код ICAO; null только у служебной записи «Неизвестная»
+          (id 1).
+        example: AFL
+        type: string
+      id:
+        example: 42
+        type: integer
+      name:
+        description: Name — английское название.
+        example: Aeroflot
+        type: string
+      name_ru:
+        description: |-
+          NameRU — русское название, только у авиакомпаний России; поле
+          присутствует всегда, "" — русского названия нет.
+        example: Аэрофлот
+        type: string
+    type: object
+  airlinehttp.CountryResponse:
+    properties:
+      iso2:
+        example: RU
+        type: string
+      name:
+        example: Россия
+        type: string
+    type: object
+  createofferhttp.CreateOfferRequest:
+    properties:
+      description:
+        maxLength: 5000
+        type: string
+      flights:
+        items:
+          $ref: '#/definitions/createofferhttp.FlightInput'
+        type: array
+      status:
+        enum:
+        - draft
+        - ready
+        - published
+        type: string
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - status
+    - title
+    type: object
+  createofferhttp.CreateOfferResponse:
+    properties:
+      id:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  createofferhttp.FlightInput:
+    properties:
+      currency:
+        example: RUB
+        type: string
+      manager_comment:
+        example: Багаж оплачивается отдельно
+        maxLength: 2000
+        type: string
+      price:
+        example: "12345.50"
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/createofferhttp.FlightSegmentInput'
+        minItems: 1
+        type: array
+    required:
+    - currency
+    - price
+    - segments
+    type: object
+  createofferhttp.FlightSegmentInput:
+    properties:
+      airline_id:
+        description: AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен
+          (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик
+          неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска
+          запись, на которую оффер ещё не ссылался, — 400 «flight segment references
+          an unknown airline».
+        example: 1
+        type: integer
+      arrival_airport_icao:
+        type: string
+      arrival_at:
+        type: string
+      cabin_class:
+        allOf:
+        - $ref: '#/definitions/flight.CabinClass'
+        description: CabinClass — класс обслуживания сегмента; необязателен (отсутствие
+          поля, null и "" — класс неизвестен). Допустимые значения — enum схемы flight.CabinClass
+          (справочник классов обслуживания); недопустимое значение — 400 с meta {"CabinClass":"oneof"}.
+        example: economy
+      departure_airport_icao:
+        type: string
+      departure_at:
+        type: string
+      flight_number:
+        description: 'FlightNumber — номер рейса сегмента, строка до 10 символов;
+          пробелы по краям обрезаются до проверки длины, в остальном хранится как
+          передан (формат не проверяется, регистр, пробелы внутри и разделители не
+          меняются). Необязателен: отсутствие поля, null, "" и строка из одних пробелов
+          — номер неизвестен. Длиннее 10 символов после обрезки — 400 с meta {"FlightNumber":"max"}.'
+        example: SU1234
+        maxLength: 10
+        type: string
+    required:
+    - airline_id
+    - arrival_airport_icao
+    - arrival_at
+    - departure_airport_icao
+    - departure_at
+    type: object
+  createuserhttp.CreateUserRequest:
+    properties:
+      agency_id:
+        description: |-
+          AgencyID links the new user to an existing, active agency.
+          Required for every registration (1 user = 1 agency).
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - agency_id
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
+  createuserhttp.CreateUserResponse:
+    properties:
+      id:
+        type: integer
+    type: object
+  flight.CabinClass:
+    enum:
+    - ""
+    - economy
+    - comfort
+    - comfort_plus
+    - business
+    type: string
+    x-enum-varnames:
+    - CabinClassUnknown
+    - CabinClassEconomy
+    - CabinClassComfort
+    - CabinClassComfortPlus
+    - CabinClassBusiness
+  getairlinehttp.GetResponse:
+    properties:
+      data:
+        $ref: '#/definitions/airlinehttp.AirlineResponse'
+    type: object
+  getmehttp.Agency:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      uuid:
+        type: string
+    type: object
+  getmehttp.GetMeResponse:
+    properties:
+      agency:
+        $ref: '#/definitions/getmehttp.Agency'
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+      rights:
+        $ref: '#/definitions/getmehttp.Rights'
+      uuid:
+        type: string
+    type: object
+  getmehttp.Rights:
+    properties:
+      is_super_admin:
+        type: boolean
+    type: object
+  getofferhttp.AirlineResponse:
+    properties:
+      dissolved_on:
+        description: DissolvedOn — дата прекращения деятельности YYYY-MM-DD; null
+          — действует.
+        example: "2015-10-26"
+        type: string
+      icao:
+        description: ICAO — код ICAO; null только у служебной записи «Неизвестная»
+          (id 1).
+        example: AFL
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        description: Name — английское название.
+        example: Aeroflot
+        type: string
+      name_ru:
+        description: NameRU — русское название, только у авиакомпаний России; поле
+          присутствует всегда, "" — нет.
+        example: Аэрофлот
+        type: string
+    type: object
+  getofferhttp.FlightResponse:
+    properties:
+      arrival_airport_icao:
+        type: string
+      currency:
+        example: RUB
+        type: string
+      departure_airport_icao:
+        type: string
+      id:
+        type: integer
+      layovers:
+        items:
+          $ref: '#/definitions/getofferhttp.LayoverResponse'
+        type: array
+      manager_comment:
+        description: |-
+          ManagerComment — комментарий менеджера к перелёту как есть; поле
+          присутствует всегда, "" — комментария нет.
+        example: Багаж оплачивается отдельно
+        type: string
+      price:
+        description: |-
+          Price — цена перелёта строкой ровно с тем числом знаков после
+          точки, что у валюты.
+        example: "12345.50"
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/getofferhttp.FlightSegmentResponse'
+        type: array
+      total_duration_seconds:
+        type: integer
+    type: object
+  getofferhttp.FlightSegmentResponse:
+    properties:
+      airline:
+        allOf:
+        - $ref: '#/definitions/getofferhttp.AirlineResponse'
+        description: Airline — текущие данные авиакомпании сегмента из справочника;
+          всегда объект.
+      airline_id:
+        description: AirlineID — id авиакомпании сегмента в справочнике.
+        example: 1
+        type: integer
+      arrival_airport_icao:
+        type: string
+      arrival_at:
+        type: string
+      cabin_class:
+        allOf:
+        - $ref: '#/definitions/flight.CabinClass'
+        description: CabinClass — класс обслуживания сегмента; поле присутствует всегда,
+          "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass
+          (справочник классов обслуживания).
+        example: economy
+      departure_airport_icao:
+        type: string
+      departure_at:
+        type: string
+      duration_seconds:
+        type: integer
+      flight_number:
+        description: FlightNumber — номер рейса сегмента в том виде, как передан (без
+          пробелов по краям); поле присутствует всегда, "" — номер неизвестен.
+        example: SU1234
+        type: string
+    type: object
+  getofferhttp.LayoverResponse:
+    properties:
+      airport_icao:
+        type: string
+      duration_seconds:
+        type: integer
+    type: object
+  getofferhttp.OfferResponse:
+    properties:
+      agency_id:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      description:
+        type: string
+      flights:
+        items:
+          $ref: '#/definitions/getofferhttp.FlightResponse'
+        type: array
+      id:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  getpublicofferhttp.AirlineResponse:
+    properties:
+      dissolved_on:
+        description: DissolvedOn — дата прекращения деятельности YYYY-MM-DD; null
+          — действует.
+        example: "2015-10-26"
+        type: string
+      icao:
+        description: ICAO — код ICAO; null только у служебной записи «Неизвестная»
+          (id 1).
+        example: AFL
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        description: Name — английское название.
+        example: Aeroflot
+        type: string
+      name_ru:
+        description: NameRU — русское название, только у авиакомпаний России; поле
+          присутствует всегда, "" — нет.
+        example: Аэрофлот
+        type: string
+    type: object
+  getpublicofferhttp.FlightResponse:
+    properties:
+      arrival_airport_icao:
+        type: string
+      currency:
+        example: RUB
+        type: string
+      departure_airport_icao:
+        type: string
+      id:
+        type: integer
+      layovers:
+        items:
+          $ref: '#/definitions/getpublicofferhttp.LayoverResponse'
+        type: array
+      manager_comment:
+        description: |-
+          ManagerComment — комментарий менеджера к перелёту как есть; поле
+          присутствует всегда, "" — комментария нет.
+        example: Багаж оплачивается отдельно
+        type: string
+      price:
+        description: |-
+          Price — цена перелёта строкой ровно с тем числом знаков после
+          точки, что у валюты.
+        example: "12345.50"
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/getpublicofferhttp.FlightSegmentResponse'
+        type: array
+      total_duration_seconds:
+        type: integer
+    type: object
+  getpublicofferhttp.FlightSegmentResponse:
+    properties:
+      airline:
+        allOf:
+        - $ref: '#/definitions/getpublicofferhttp.AirlineResponse'
+        description: Airline — текущие данные авиакомпании сегмента из справочника;
+          всегда объект.
+      airline_id:
+        description: AirlineID — id авиакомпании сегмента в справочнике.
+        example: 1
+        type: integer
+      arrival_airport_icao:
+        type: string
+      arrival_at:
+        type: string
+      cabin_class:
+        allOf:
+        - $ref: '#/definitions/flight.CabinClass'
+        description: CabinClass — класс обслуживания сегмента; поле присутствует всегда,
+          "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass
+          (справочник классов обслуживания).
+        example: economy
+      departure_airport_icao:
+        type: string
+      departure_at:
+        type: string
+      duration_seconds:
+        type: integer
+      flight_number:
+        description: FlightNumber — номер рейса сегмента в том виде, как передан (без
+          пробелов по краям); поле присутствует всегда, "" — номер неизвестен.
+        example: SU1234
+        type: string
+    type: object
+  getpublicofferhttp.LayoverResponse:
+    properties:
+      airport_icao:
+        type: string
+      duration_seconds:
+        type: integer
+    type: object
+  getpublicofferhttp.OfferResponse:
+    properties:
+      agency_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      flights:
+        items:
+          $ref: '#/definitions/getpublicofferhttp.FlightResponse'
+        type: array
+      id:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  httpx.ErrorBody:
+    properties:
+      code:
+        type: integer
+      error:
+        type: string
+      meta:
+        additionalProperties: {}
+        type: object
+    type: object
+  httpx.StructuredError:
+    properties:
+      code:
+        type: string
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  httpx.StructuredErrorBody:
+    properties:
+      error:
+        $ref: '#/definitions/httpx.StructuredError'
+    type: object
+  listcurrencieshttp.CurrencyResponse:
+    properties:
+      code:
+        description: Code — код ISO 4217.
+        example: RUB
+        type: string
+      exponent:
+        description: Exponent — число знаков после точки в сумме этой валюты.
+        example: 2
+        type: integer
+    type: object
+  listcurrencieshttp.ListCurrenciesResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/listcurrencieshttp.CurrencyResponse'
+        type: array
+    type: object
+  listoffershttp.ListOffersResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/listoffershttp.OfferResponse'
+        type: array
+      meta:
+        $ref: '#/definitions/listoffershttp.MetaResponse'
+    type: object
+  listoffershttp.MetaResponse:
+    properties:
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  listoffershttp.OfferResponse:
+    properties:
+      agency_id:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  loginhttp.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  loginhttp.LoginResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  searchairlinehttp.MetaResponse:
+    properties:
+      country:
+        type: string
+      ids:
+        items:
+          type: integer
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      search:
+        type: string
+      total:
+        type: integer
+    type: object
+  searchairlinehttp.SearchResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/airlinehttp.AirlineResponse'
+        type: array
+      meta:
+        $ref: '#/definitions/searchairlinehttp.MetaResponse'
+    type: object
+  searchairporthttp.AirportResponse:
+    properties:
+      city:
+        $ref: '#/definitions/searchairporthttp.CityResponse'
+      country:
+        $ref: '#/definitions/searchairporthttp.CountryResponse'
+      iata:
+        type: string
+      icao:
+        type: string
+      location:
+        $ref: '#/definitions/searchairporthttp.LocationResponse'
+      name:
+        type: string
+    type: object
+  searchairporthttp.CityResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      state:
+        type: string
+      timezone:
+        type: string
+    type: object
+  searchairporthttp.CountryResponse:
+    properties:
+      iso2:
+        type: string
+      name:
+        type: string
+    type: object
+  searchairporthttp.LocationResponse:
+    properties:
+      elevation_ft:
+        type: integer
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+  searchairporthttp.MetaResponse:
+    properties:
+      limit:
+        type: integer
+      offset:
+        type: integer
+      search:
+        type: string
+      total:
+        type: integer
+    type: object
+  searchairporthttp.SearchResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/searchairporthttp.AirportResponse'
+        type: array
+      meta:
+        $ref: '#/definitions/searchairporthttp.MetaResponse'
+    type: object
+  updateofferhttp.FlightInput:
+    properties:
+      currency:
+        example: RUB
+        type: string
+      manager_comment:
+        example: Багаж оплачивается отдельно
+        maxLength: 2000
+        type: string
+      price:
+        example: "12345.50"
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/updateofferhttp.FlightSegmentInput'
+        minItems: 1
+        type: array
+    required:
+    - currency
+    - price
+    - segments
+    type: object
+  updateofferhttp.FlightSegmentInput:
+    properties:
+      airline_id:
+        description: AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен
+          (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик
+          неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска
+          запись, на которую оффер ещё не ссылался, — 400 «flight segment references
+          an unknown airline».
+        example: 1
+        type: integer
+      arrival_airport_icao:
+        type: string
+      arrival_at:
+        type: string
+      cabin_class:
+        allOf:
+        - $ref: '#/definitions/flight.CabinClass'
+        description: CabinClass — класс обслуживания сегмента; необязателен (отсутствие
+          поля, null и "" — класс неизвестен). Допустимые значения — enum схемы flight.CabinClass
+          (справочник классов обслуживания); недопустимое значение — 400 с meta {"CabinClass":"oneof"}.
+        example: economy
+      departure_airport_icao:
+        type: string
+      departure_at:
+        type: string
+      flight_number:
+        description: 'FlightNumber — номер рейса сегмента, строка до 10 символов;
+          пробелы по краям обрезаются до проверки длины, в остальном хранится как
+          передан (формат не проверяется, регистр, пробелы внутри и разделители не
+          меняются). Необязателен: отсутствие поля, null, "" и строка из одних пробелов
+          — номер неизвестен. Длиннее 10 символов после обрезки — 400 с meta {"FlightNumber":"max"}.'
+        example: SU1234
+        maxLength: 10
+        type: string
+    required:
+    - airline_id
+    - arrival_airport_icao
+    - arrival_at
+    - departure_airport_icao
+    - departure_at
+    type: object
+  updateofferhttp.UpdateOfferRequest:
+    properties:
+      description:
+        maxLength: 5000
+        type: string
+      flights:
+        items:
+          $ref: '#/definitions/updateofferhttp.FlightInput'
+        type: array
+      status:
+        enum:
+        - draft
+        - ready
+        - published
+        type: string
+      title:
+        maxLength: 200
+        type: string
+    type: object
+  updateofferhttp.UpdateOfferResponse:
+    properties:
+      id:
+        type: integer
+      uuid:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: REST API for user management with JWT auth and Kafka events.
+  title: Tourismania API
+  version: 1.0.2
+paths:
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges username/password for an RS256-signed JWT.
+      parameters:
+      - description: Credentials
+        in: body
+        name: message
+        required: true
+        schema:
+          $ref: '#/definitions/loginhttp.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/loginhttp.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      summary: Issue a JWT
+      tags:
+      - Auth
+  /api/v1/airlines:
+    get:
+      description: 'Поиск авиакомпаний справочника по подстроке английского или русского
+        названия либо названия страны (без учёта регистра и диакритики, символы сравниваются
+        буквально), с отбором по стране и по списку id. По кодам ICAO/IATA не ищет.
+        Возвращает только выбираемые для сегмента записи: дубли и пропавшие из источника
+        не возвращаются (их отдаёт GET /api/v1/airlines/{id}). Действующие выше прекративших
+        работу; внутри — начало названия, подстрока названия, только страна. id из
+        выдачи — значение airline_id сегмента перелёта; «Неизвестная» — id 1.'
+      parameters:
+      - description: Строка поиска, от 3 символов после нормализации; обязательна
+          без ids
+        in: query
+        name: search
+        type: string
+      - description: Код страны ISO 3166-1 alpha-2, без учёта регистра
+        in: query
+        name: country
+        type: string
+      - description: 'Id через запятую: от 1 до 100 целых ≥ 1, повторы не учитываются'
+        in: query
+        name: ids
+        type: string
+      - description: Размер страницы (1–100, по умолчанию 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Сдвиг (0–10000, по умолчанию 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/searchairlinehttp.SearchResponse'
+        "400":
+          description: INVALID_SEARCH
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+      security:
+      - Bearer: []
+      summary: Search airlines
+      tags:
+      - Airlines
+  /api/v1/airlines/{id}:
+    get:
+      description: Авиакомпания справочника по id, в том числе дубль или пропавшая
+        из источника, которых поиск не возвращает, — чтобы показать авиакомпанию,
+        на которую уже ссылается сохранённый сегмент. Нет записи или id не целое ≥
+        1 — 404.
+      parameters:
+      - description: Id авиакомпании
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getairlinehttp.GetResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+      security:
+      - Bearer: []
+      summary: Get an airline
+      tags:
+      - Airlines
+  /api/v1/airports:
+    get:
+      description: Full-text search over airports and cities with ranking and pagination.
+      parameters:
+      - description: Search string (min 2 chars)
+        in: query
+        name: search
+        required: true
+        type: string
+      - description: Max results (1–100, default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset (0–10000)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/searchairporthttp.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.StructuredErrorBody'
+      security:
+      - Bearer: []
+      summary: Search airports
+      tags:
+      - Airports
+  /api/v1/currencies:
+    get:
+      description: 'Returns the system currency list: ISO 4217 code and number of
+        decimal places, in directory order.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listcurrencieshttp.ListCurrenciesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: List currencies
+      tags:
+      - Currencies
+  /api/v1/offers:
+    get:
+      description: Paginated offer listing (any status) scoped to the caller's own
+        agency. Role has no effect on visibility, only on write access.
+      parameters:
+      - description: Filter by status (draft|ready|published)
+        in: query
+        name: status
+        type: string
+      - description: Filter by author user id
+        in: query
+        name: created_by
+        type: integer
+      - description: Max results (1–100, default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset (0–10000)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listoffershttp.ListOffersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: List offers
+      tags:
+      - Offers
+    post:
+      consumes:
+      - application/json
+      description: Publishes a new offer under the caller's own agency. Requires ROLE_AGENT
+        or ROLE_SUPER_ADMIN. Optional "flights" key attaches one or more flights (each
+        an ordered list of nonstop segments) atomically with offer creation.
+      parameters:
+      - description: Offer payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/createofferhttp.CreateOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createofferhttp.CreateOfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Create an offer
+      tags:
+      - Offers
+  /api/v1/offers/{uuid}:
+    delete:
+      description: Soft-deletes an offer. Only an agent/super admin belonging to the
+        offer's own agency may delete it — 1 user = 1 agency, no cross-agency access.
+        An offer belonging to another agency is reported as not found.
+      parameters:
+      - description: Offer UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Delete an offer
+      tags:
+      - Offers
+    get:
+      description: Returns a single offer by uuid, scoped to the caller's own agency
+        (any status), including its flights with computed total/layover durations.
+        An offer belonging to another agency is reported as not found.
+      parameters:
+      - description: Offer UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getofferhttp.OfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Get an offer
+      tags:
+      - Offers
+    patch:
+      consumes:
+      - application/json
+      description: 'Partially updates an offer. Only an agent/super admin belonging
+        to the offer''s own agency may update it — 1 user = 1 agency, no cross-agency
+        access. An offer belonging to another agency is reported as not found. "flights"
+        follows the same optional-field convention: absent leaves flights untouched,
+        present (including []) fully replaces them.'
+      parameters:
+      - description: Offer UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/updateofferhttp.UpdateOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/updateofferhttp.UpdateOfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Update an offer
+      tags:
+      - Offers
+  /api/v1/public/offers/{uuid}:
+    get:
+      description: Returns a single offer by uuid, no authentication required, including
+        its flights with computed total/layover durations. Only published offers are
+        visible — draft/ready offers of any agency are reported as not found.
+      parameters:
+      - description: Offer UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getpublicofferhttp.OfferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      summary: Get a published offer (public)
+      tags:
+      - Offers
+  /api/v1/users:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new user account.
+      parameters:
+      - description: User payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/createuserhttp.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createuserhttp.CreateUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Create a user
+      tags:
+      - Users
+  /api/v1/users/me:
+    get:
+      description: Returns the authenticated user's profile and computed rights.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getmehttp.GetMeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - Bearer: []
+      summary: Current user profile
+      tags:
+      - Profile
+securityDefinitions:
+  Bearer:
+    description: Type 'Bearer ' followed by a space and then your token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

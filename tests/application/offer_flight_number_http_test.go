@@ -58,14 +58,34 @@ func TestOffersHTTP_CreateFlight_WithFlightNumber_CardReturnsNumber(t *testing.T
 }
 
 func TestOffersHTTP_CreateFlight_FlightNumber_ReturnedExactlyAsSent(t *testing.T) {
-	for _, number := range []string{"su 1234", " U6-773 ", "ЮТ-773"} {
+	for _, number := range []string{"su 1234", "U6-773", "ЮТ-773"} {
 		t.Run(number, func(t *testing.T) {
 			e := newPriceTestEnv(t)
 
 			rr := e.do(t, http.MethodPost, "/api/v1/offers", createBody(nonstopWithNumber(jsonString(t, number))))
 
 			require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
-			assert.Equal(t, []any{number}, e.cardFlightNumbers(t), "регистр, пробелы и разделители не меняются")
+			assert.Equal(t, []any{number}, e.cardFlightNumbers(t), "регистр, пробелы внутри и разделители не меняются")
+		})
+	}
+}
+
+func TestOffersHTTP_CreateFlight_FlightNumberEdgeSpaces_Trimmed(t *testing.T) {
+	for sent, want := range map[string]string{
+		" U6-773 ":      "U6-773",
+		"\tSU1234\n":    "SU1234",
+		"  su 1234  ":   "su 1234",
+		"\u00a0ЮТ-773 ": "ЮТ-773",
+	} {
+		t.Run(want, func(t *testing.T) {
+			e := newPriceTestEnv(t)
+
+			rr := e.do(t, http.MethodPost, "/api/v1/offers", createBody(nonstopWithNumber(jsonString(t, sent))))
+
+			require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+			require.Len(t, e.flights.replacedFlights, 1)
+			assert.Equal(t, want, e.flights.replacedFlights[0].Segments[0].FlightNumber)
+			assert.Equal(t, []any{want}, e.cardFlightNumbers(t), "пробелы по краям обрезаются, внутри — нет")
 		})
 	}
 }
@@ -75,6 +95,7 @@ func TestOffersHTTP_CreateFlight_NoFlightNumber_CardReturnsEmptyString(t *testin
 		"поле отсутствует": "",
 		"null":             `null`,
 		"пустая строка":    `""`,
+		"только пробелы":   `"   "`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newPriceTestEnv(t)
@@ -107,8 +128,18 @@ func TestOffersHTTP_CreateFlight_FlightNumberTenCyrillicChars_Returns201(t *test
 	assert.Equal(t, []any{number}, e.cardFlightNumbers(t))
 }
 
+func TestOffersHTTP_CreateFlight_FlightNumberTenCharsWithEdgeSpaces_Returns201Trimmed(t *testing.T) {
+	e := newPriceTestEnv(t)
+	number := "SU12345678" // 10 символов; с пробелами по краям — 14
+
+	rr := e.do(t, http.MethodPost, "/api/v1/offers", createBody(nonstopWithNumber(jsonString(t, "  "+number+"  "))))
+
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	assert.Equal(t, []any{number}, e.cardFlightNumbers(t), "длина проверяется после обрезки")
+}
+
 func TestOffersHTTP_CreateFlight_FlightNumberTooLong_Returns400Max(t *testing.T) {
-	for _, number := range []string{"SU12345678X", strings.Repeat("Ю", 11)} {
+	for _, number := range []string{"SU12345678X", strings.Repeat("Ю", 11), " SU12345678X "} {
 		t.Run(number, func(t *testing.T) {
 			e := newPriceTestEnv(t)
 
@@ -190,7 +221,7 @@ func TestOffersHTTP_PatchFlights_SameSetAbsentVsEmptyFlightNumber_IsNoOp(t *test
 	before := e.cardFlights(t)
 	e.flights.replaceCalled = false
 
-	for _, numberJSON := range []string{"", `null`, `""`} {
+	for _, numberJSON := range []string{"", `null`, `""`, `"  "`} {
 		rr := e.do(t, http.MethodPatch, "/api/v1/offers/"+e.offerID.String(), patchBody(nonstopWithNumber(numberJSON)))
 
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -204,7 +235,7 @@ func TestOffersHTTP_PatchFlights_OnlyFlightNumberChanged_KeepsFlightIDs(t *testi
 	for name, tc := range map[string]struct{ from, to string }{
 		"исправлена опечатка": {from: `"TK2412"`, to: `"TK2414"`},
 		"другое написание":    {from: `"SU1234"`, to: `"su 1234"`},
-		"добавлен пробел":     {from: `"SU1234"`, to: `"SU1234 "`},
+		"пробел внутри":       {from: `"SU1234"`, to: `"SU 1234"`},
 		"номер стал известен": {from: "", to: `"SU1234"`},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -234,11 +265,28 @@ func TestOffersHTTP_PatchFlights_OnlyFlightNumberChanged_KeepsFlightIDs(t *testi
 	}
 }
 
+func TestOffersHTTP_PatchFlights_FlightNumberDiffersOnlyByEdgeSpaces_IsNoOp(t *testing.T) {
+	e := newPriceTestEnv(t)
+	require.Equal(t, http.StatusCreated, e.do(t, http.MethodPost, "/api/v1/offers",
+		createBody(nonstopWithNumber(`"SU1234"`))).Code)
+	before := e.cardFlights(t)
+	e.flights.replaceCalled = false
+
+	rr := e.do(t, http.MethodPatch, "/api/v1/offers/"+e.offerID.String(), patchBody(nonstopWithNumber(`" SU1234 "`)))
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.False(t, e.flights.replaceCalled)
+	assert.False(t, e.flights.updateDetailsCalled, "после обрезки номер совпадает с сохранённым")
+	assert.Equal(t, before[0]["id"], e.cardFlights(t)[0]["id"])
+	assert.Equal(t, []any{"SU1234"}, e.cardFlightNumbers(t))
+}
+
 func TestOffersHTTP_PatchFlights_FlightNumberRemoved_KeepsFlightIDs(t *testing.T) {
 	for name, numberJSON := range map[string]string{
 		"поле отсутствует": "",
 		"null":             `null`,
 		"пустая строка":    `""`,
+		"только пробелы":   `" "`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newPriceTestEnv(t)

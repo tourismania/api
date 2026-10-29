@@ -55,7 +55,7 @@ type FlightInput struct {
 // AirlineID — id авиакомпании из справочника как пришёл; 0 — не указана
 // (домен отклоняет), существование проверяет flight.Manager. FlightNumber —
 // номер рейса как пришёл ("" — номер неизвестен); передаётся в сегмент без
-// изменений, длину проверяет presentation.
+// изменений, пробелы по краям обрезает и длину проверяет presentation.
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
