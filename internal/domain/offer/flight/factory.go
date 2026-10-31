@@ -3,6 +3,7 @@ package flight
 import (
 	"errors"
 
+	"api/internal/domain/airport"
 	"api/internal/domain/money"
 )
 
@@ -11,8 +12,8 @@ import (
 // flight.
 var ErrSegmentsEmpty = errors.New("flight must have at least one segment")
 
-// ErrSegmentChronologyInvalid is returned when a segment's
-// arrival is not strictly after its own departure.
+// ErrSegmentChronologyInvalid возвращается CheckChronology, если реальный
+// момент прилёта сегмента не строго позже реального момента его вылета.
 var ErrSegmentChronologyInvalid = errors.New("flight segment arrival must be strictly after departure")
 
 // ErrSegmentDiscontinuous is returned when the arrival airport of
@@ -21,9 +22,9 @@ var ErrSegmentChronologyInvalid = errors.New("flight segment arrival must be str
 // a continuous chain, not independent fields.
 var ErrSegmentDiscontinuous = errors.New("flight segments must form a continuous route")
 
-// ErrLayoverNonPositive is returned when the next segment departs
-// at or before the previous segment arrives — a layover of zero or
-// negative duration is not physically possible.
+// ErrLayoverNonPositive возвращается CheckChronology, если следующий сегмент
+// реально вылетает в момент прилёта предыдущего или раньше: пересадка нулевой
+// или отрицательной длительности физически невозможна.
 var ErrLayoverNonPositive = errors.New("flight layover between segments must be strictly positive")
 
 // ErrManagerCommentInvalid возвращается New, если комментарий менеджера
@@ -57,11 +58,11 @@ const (
 // AirlineID = 0 — ErrAirlineRequired (отрицательный id проходит дальше и
 // отклоняется Manager как несуществующий). Номер рейса сегмента New не
 // проверяет — доменных правил у него нет. Затем проверяются
-// все структурные инварианты, не требующие I/O: список сегментов не пуст,
-// хронология внутри каждого сегмента, непрерывность маршрута между
-// соседними сегментами и строго положительная пересадка на каждой
-// остановке. Существование аэропортов и авиакомпаний New не проверяет — для
-// этого нужен запрос к БД, это делает Manager.
+// структурные инварианты, не требующие I/O: список сегментов не пуст и маршрут
+// между соседними сегментами непрерывен. Хронологию и пересадки New не
+// проверяет — для них нужны таймзоны аэропортов (см. CheckChronology).
+// Существование аэропортов и авиакомпаний New тоже не проверяет — для этого
+// нужен запрос к БД, это делает Manager.
 func New(price money.Money, managerComment string, segments []Segment) (Flight, error) {
 	if _, err := money.LookupCurrency(price.Currency.Code); err != nil {
 		return Flight{}, err
@@ -83,22 +84,29 @@ func New(price money.Money, managerComment string, segments []Segment) (Flight, 
 		if seg.AirlineID == 0 {
 			return Flight{}, ErrAirlineRequired
 		}
-		if !seg.ArrivalAt.After(seg.DepartureAt) {
-			return Flight{}, ErrSegmentChronologyInvalid
-		}
-		if i == 0 {
-			continue
-		}
-		prev := segments[i-1]
-		if prev.ArrivalAirportICAO != seg.DepartureAirportICAO {
+		if i > 0 && segments[i-1].ArrivalAirportICAO != seg.DepartureAirportICAO {
 			return Flight{}, ErrSegmentDiscontinuous
-		}
-		if !seg.DepartureAt.After(prev.ArrivalAt) {
-			return Flight{}, ErrLayoverNonPositive
 		}
 	}
 
 	return Flight{Price: price, ManagerComment: managerComment, Segments: segments}, nil
+}
+
+// CheckChronology проверяет хронологию перелёта по реальным моментам: прилёт
+// каждого сегмента строго позже его вылета (ErrSegmentChronologyInvalid), а
+// вылет следующего сегмента строго позже прилёта предыдущего
+// (ErrLayoverNonPositive). Настенные часы могут идти и в обратном порядке:
+// вылет из Екатеринбурга в 10:00 и прилёт в Москву в 09:00 — это час в полёте.
+func CheckChronology(f Flight, zones airport.Zones) error {
+	for i, seg := range f.Segments {
+		if !seg.arrivalMoment(zones).After(seg.departureMoment(zones)) {
+			return ErrSegmentChronologyInvalid
+		}
+		if i > 0 && !seg.departureMoment(zones).After(f.Segments[i-1].arrivalMoment(zones)) {
+			return ErrLayoverNonPositive
+		}
+	}
+	return nil
 }
 
 // managerCommentValid сообщает, что в комментарии нет запрещённых

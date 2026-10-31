@@ -282,3 +282,24 @@ func TestCreateOffer_WithFlightNumbers_StoresNumbersEmptyStaysEmpty(t *testing.T
 	assert.Equal(t, "ЮТ-773", flightRepo.replacedFlights[0].Segments[0].FlightNumber)
 	assert.Equal(t, "", flightRepo.replacedFlights[0].Segments[1].FlightNumber, "no default number")
 }
+
+func TestCreateOffer_ChronologyInvalidByRealMoments_ReturnsValidationError(t *testing.T) {
+	flightRepo := &mockOfferFlightRepo{}
+	mgr := offer.NewManager(&mockOfferRepo{storeID: 1}, &mockAgencyRepo{findByIDAgency: activeAgency(5)})
+	flightMgr := flight.NewManager(flightRepo, tzAirports(), &mockAirlineRepo{})
+	h := createoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+	dep := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
+
+	_, err := h.Handle(context.Background(), createoffer.Command{
+		Title:  "Title",
+		Status: offer.StatusDraft,
+		Flights: []createoffer.FlightInput{
+			{Price: "15000", Currency: "RUB", Segments: []createoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "USSS", DepartureAt: dep, ArrivalAt: dep.Add(time.Hour)}}},
+		},
+		CurrentUserUUID: uuid.New(),
+	})
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
+	assert.ErrorContains(t, err, flight.ErrSegmentChronologyInvalid.Error())
+	assert.False(t, flightRepo.replaceCalled)
+}

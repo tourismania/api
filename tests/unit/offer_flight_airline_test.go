@@ -331,7 +331,7 @@ func TestGetOffer_SegmentAirlines_OneQueryAndFullData(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
 	airlines := testDirectory()
-	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: airlineCardFlights()}, airlines, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: airlineCardFlights()}, airlines, &mockAirportRepo{}, userRecordWithAgency(7))
 
 	res, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 
@@ -354,7 +354,7 @@ func TestGetOffer_NoFlights_NoAirlineQuery(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
 	airlines := testDirectory()
-	h := getoffer.NewHandler(mgr, stubFlightFinder{}, airlines, userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{}, airlines, &mockAirportRepo{}, userRecordWithAgency(7))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 
@@ -366,7 +366,7 @@ func TestGetOffer_SegmentAirlineMissingInDirectory_NonValidationError(t *testing
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusDraft}
 	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: o}, &mockAgencyRepo{})
 	stored := []flight.Flight{withAirlines(sampleFlight("UUEE", "LFPG", airlineBase), 11, 777)}
-	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: stored}, testDirectory(), userRecordWithAgency(7))
+	h := getoffer.NewHandler(mgr, stubFlightFinder{flights: stored}, testDirectory(), &mockAirportRepo{}, userRecordWithAgency(7))
 
 	_, err := h.Handle(context.Background(), getoffer.Query{UUID: o.UUID})
 
@@ -378,7 +378,7 @@ func TestGetOffer_SegmentAirlineMissingInDirectory_NonValidationError(t *testing
 func TestGetPublishedOffer_SegmentAirlines_Returned(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
 	airlines := testDirectory()
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: airlineCardFlights()}, airlines)
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{flights: airlineCardFlights()}, airlines, &mockAirportRepo{})
 
 	res, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 
@@ -392,7 +392,7 @@ func TestGetPublishedOffer_SegmentAirlines_Returned(t *testing.T) {
 func TestGetPublishedOffer_NoFlights_NoAirlineQuery(t *testing.T) {
 	o := &offer.Offer{UUID: uuid.New(), AgencyID: 7, Status: offer.StatusPublished}
 	airlines := testDirectory()
-	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{}, airlines)
+	h := getpublishedoffer.NewHandler(stubOfferFinder{offer: o}, stubFlightFinder{}, airlines, &mockAirportRepo{})
 
 	_, err := h.Handle(context.Background(), getpublishedoffer.Query{UUID: o.UUID})
 

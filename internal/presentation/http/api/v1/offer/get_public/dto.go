@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"api/internal/domain/offer/flight"
+	offerhttp "api/internal/presentation/http/api/v1/offer"
 
 	"github.com/google/uuid"
 )
@@ -50,11 +51,18 @@ type FlightResponse struct {
 // oneof, ни в enums — единственный источник — домен, проверку допустимости
 // делает домен. См. docs/cabin-classes.md.
 type FlightSegmentResponse struct {
-	DepartureAirportICAO string    `json:"departure_airport_icao"`
-	ArrivalAirportICAO   string    `json:"arrival_airport_icao"`
-	DepartureAt          time.Time `json:"departure_at"`
-	ArrivalAt            time.Time `json:"arrival_at"`
-	DurationSeconds      int64     `json:"duration_seconds"`
+	DepartureAirportICAO string `json:"departure_airport_icao"`
+	ArrivalAirportICAO   string `json:"arrival_airport_icao"`
+	// DepartureAirport — текущие данные аэропорта вылета из справочника; всегда объект.
+	DepartureAirport offerhttp.AirportResponse `json:"departure_airport"`
+	// ArrivalAirport — текущие данные аэропорта прилёта из справочника; всегда объект.
+	ArrivalAirport offerhttp.AirportResponse `json:"arrival_airport"`
+	// DepartureAt — местные дата и время аэропорта вылета в том виде, в каком сохранены, без смещения.
+	DepartureAt offerhttp.LocalDateTime `json:"departure_at" swaggertype:"string" example:"2026-05-14T10:00:00"`
+	// ArrivalAt — местные дата и время аэропорта прилёта в том виде, в каком сохранены, без смещения.
+	ArrivalAt offerhttp.LocalDateTime `json:"arrival_at" swaggertype:"string" example:"2026-05-14T11:00:00"`
+	// DurationSeconds — реальное время полёта сегмента по таймзонам аэропортов, без пересадок.
+	DurationSeconds int64 `json:"duration_seconds"`
 	// CabinClass — класс обслуживания сегмента; поле присутствует всегда, "" — класс неизвестен. Возможные значения — enum схемы flight.CabinClass (справочник классов обслуживания).
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 	// FlightNumber — номер рейса сегмента в том виде, как передан (без пробелов по краям); поле присутствует всегда, "" — номер неизвестен.

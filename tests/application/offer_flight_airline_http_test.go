@@ -105,8 +105,8 @@ func segmentWithAirline(fields, airlineJSON string) string {
 
 // Сегменты без airline_id (firstSegmentFields в файле класса уже с ним).
 const (
-	firstLegFields  = `"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"`
-	secondLegFields = `"departure_airport_icao":"LFPG","arrival_airport_icao":"KJFK","departure_at":"2026-08-01T16:00:00Z","arrival_at":"2026-08-02T00:00:00Z"`
+	firstLegFields  = `"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00","arrival_at":"2026-08-01T14:00:00"`
+	secondLegFields = `"departure_airport_icao":"LFPG","arrival_airport_icao":"KJFK","departure_at":"2026-08-01T16:00:00","arrival_at":"2026-08-02T00:00:00"`
 )
 
 // nonstopWithAirline — прямой перелёт UUEE→LFPG с airline_id = airlineJSON
@@ -302,7 +302,7 @@ func TestOffersHTTP_PublicCard_ContainsAirline(t *testing.T) {
 	e.create(t, nonstopWithAirline(fmt.Sprint(aeroflotID)))
 	published := *e.offers.found
 	published.Status = offer.StatusPublished
-	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, e.airlines)
+	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, e.airlines, stubAirportRepo{})
 	r := newOffersTestRouterWithAirlines(newTestJWTService(t), e.offers, stubUserFinder{}, publicUC, e.flights, e.airlines)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+e.offerID.String(), nil)

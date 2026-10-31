@@ -340,3 +340,21 @@ func TestUpdateOffer_FlightNumberOmitted_KeepsEmptyNumber_IsNoOp(t *testing.T) {
 	assert.False(t, flightRepo.replaceCalled)
 	assert.False(t, flightRepo.updateDetailsCalled, "no number stays no number: nothing to write")
 }
+
+func TestUpdateOffer_ChronologyInvalidByRealMoments_ReturnsValidationError(t *testing.T) {
+	existing := &offer.Offer{ID: 7, UUID: uuid.New(), AgencyID: 5, Status: offer.StatusDraft}
+	mgr := offer.NewManager(&mockOfferRepo{findByUUIDOffer: existing}, &mockAgencyRepo{})
+	flightRepo := &mockOfferFlightRepo{}
+	flightMgr := flight.NewManager(flightRepo, tzAirports(), &mockAirlineRepo{})
+	h := updateoffer.NewHandler(mgr, flightMgr, agentUserFinder(5), noopTxManager{})
+	dep := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
+
+	flights := []updateoffer.FlightInput{
+		{Price: "15000", Currency: "RUB", Segments: []updateoffer.FlightSegmentInput{{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "USSS", DepartureAt: dep, ArrivalAt: dep.Add(time.Hour)}}},
+	}
+	_, err := h.Handle(context.Background(), updateoffer.Command{UUID: existing.UUID, Flights: &flights, CurrentUserUUID: uuid.New()})
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
+	assert.ErrorContains(t, err, flight.ErrSegmentChronologyInvalid.Error())
+	assert.False(t, flightRepo.replaceCalled)
+}

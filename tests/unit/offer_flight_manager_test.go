@@ -495,3 +495,47 @@ func TestOfferFlightManager_ReplaceForOffer_AirportsAndFlightNumberChanged_Repla
 	assert.False(t, flights.updateDetailsCalled)
 	assert.Equal(t, []flight.Flight{incoming}, flights.replacedFlights)
 }
+
+// tzAirports — справочник с таймзонами для сценариев хронологии.
+func tzAirports() *mockAirportRepo {
+	return &mockAirportRepo{findByICAOsAirports: []airport.Airport{
+		{ICAO: "USSS", City: airport.City{Timezone: "Asia/Yekaterinburg"}},
+		{ICAO: "UUEE", City: airport.City{Timezone: "Europe/Moscow"}},
+	}}
+}
+
+func TestOfferFlightManager_ReplaceForOffer_ArrivalEarlierByClocksOnly_Accepted(t *testing.T) {
+	flights := &mockOfferFlightRepo{}
+	mgr := flight.NewManager(flights, tzAirports(), &mockAirlineRepo{})
+
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{{Price: samplePrice(), Segments: []flight.Segment{
+		localSegment(t, "USSS", "2026-05-14T10:00:00", "UUEE", "2026-05-14T09:00:00"),
+	}}})
+
+	require.NoError(t, err)
+	assert.True(t, flights.replaceCalled)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_ArrivalLaterByClocksOnly_ReturnsErr(t *testing.T) {
+	flights := &mockOfferFlightRepo{}
+	mgr := flight.NewManager(flights, tzAirports(), &mockAirlineRepo{})
+
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{{Price: samplePrice(), Segments: []flight.Segment{
+		localSegment(t, "UUEE", "2026-05-14T10:00:00", "USSS", "2026-05-14T11:00:00"),
+	}}})
+
+	require.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
+	assert.False(t, flights.replaceCalled)
+}
+
+func TestOfferFlightManager_ReplaceForOffer_UnknownAirportBeforeChronology_ReturnsAirportErr(t *testing.T) {
+	flights := &mockOfferFlightRepo{}
+	mgr := flight.NewManager(flights, tzAirports(), &mockAirlineRepo{})
+
+	// И аэропорта нет, и по UTC хронология неверна: важнее неизвестный аэропорт.
+	err := mgr.ReplaceForOffer(context.Background(), 1, []flight.Flight{{Price: samplePrice(), Segments: []flight.Segment{
+		localSegment(t, "UUEE", "2026-05-14T10:00:00", "XXXX", "2026-05-14T09:00:00"),
+	}}})
+
+	assert.ErrorIs(t, err, flight.ErrAirportNotFound)
+}
