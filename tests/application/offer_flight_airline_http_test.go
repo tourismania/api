@@ -164,7 +164,7 @@ func TestOffersHTTP_CreateFlight_Airline_CardReturnsAirlineObject(t *testing.T) 
 
 	assert.Equal(t, []any{float64(aeroflotID)}, ids)
 	assert.Equal(t, map[string]any{
-		"id": float64(aeroflotID), "icao": "AFL", "name": "Aeroflot", "name_ru": "Аэрофлот", "dissolved_on": nil,
+		"id": float64(aeroflotID), "icao": "AFL", "name": "Аэрофлот", "dissolved_on": nil,
 	}, objects[0])
 }
 
@@ -176,7 +176,7 @@ func TestOffersHTTP_CreateFlight_UnknownAirline_CardReturnsServiceRecord(t *test
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(),
-		`"airline_id":1,"airline":{"id":1,"icao":null,"name":"Unknown","name_ru":"Неизвестная","dissolved_on":null}`)
+		`"airline_id":1,"airline":{"id":1,"icao":null,"name":"Неизвестная","dissolved_on":null}`)
 }
 
 func TestOffersHTTP_CreateFlight_DissolvedAirline_DissolvedOnReturned(t *testing.T) {
@@ -188,13 +188,14 @@ func TestOffersHTTP_CreateFlight_DissolvedAirline_DissolvedOnReturned(t *testing
 	assert.Equal(t, "2015-10-26", objects[0]["dissolved_on"])
 }
 
-func TestOffersHTTP_CreateFlight_ForeignAirline_NameRUEmptyString(t *testing.T) {
+func TestOffersHTTP_CreateFlight_ForeignAirline_EnglishName_NoNameRU(t *testing.T) {
 	e := newAirlineTestEnv(t)
 	e.create(t, nonstopWithAirline(fmt.Sprint(turkishID)))
 
 	_, objects := e.cardAirlines(t)
 
-	assert.Equal(t, "", objects[0]["name_ru"])
+	assert.Equal(t, e.airlines.airlines[turkishID].Name, objects[0]["name"])
+	assert.NotContains(t, objects[0], "name_ru")
 }
 
 func TestOffersHTTP_CreateFlight_DifferentAirlinesPerSegment_KeptInOrder(t *testing.T) {
@@ -207,7 +208,7 @@ func TestOffersHTTP_CreateFlight_DifferentAirlinesPerSegment_KeptInOrder(t *test
 	ids, objects := e.cardAirlines(t)
 
 	assert.Equal(t, []any{float64(aeroflotID), float64(azimuthID)}, ids)
-	assert.Equal(t, "Azimuth", objects[1]["name"])
+	assert.Equal(t, "Азимут", objects[1]["name"])
 }
 
 func TestOffersHTTP_CreateFlight_NoAirline_Returns400Required(t *testing.T) {
@@ -290,11 +291,11 @@ func TestOffersHTTP_DirectoryRenamed_CardShowsCurrentData(t *testing.T) {
 	e.create(t, nonstopWithAirline(fmt.Sprint(aeroflotID)))
 
 	renamed := e.airlines.airlines[aeroflotID]
-	renamed.Name = "Aeroflot Russian Airlines"
+	renamed.NameRU = "Аэрофлот — Российские авиалинии"
 	e.airlines.airlines[aeroflotID] = renamed
 
 	_, objects := e.cardAirlines(t)
-	assert.Equal(t, "Aeroflot Russian Airlines", objects[0]["name"])
+	assert.Equal(t, "Аэрофлот — Российские авиалинии", objects[0]["name"])
 }
 
 func TestOffersHTTP_PublicCard_ContainsAirline(t *testing.T) {
@@ -318,7 +319,7 @@ func TestOffersHTTP_PublicCard_ContainsAirline(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &card))
 	seg := card.Flights[0].Segments[0]
 	assert.Equal(t, float64(aeroflotID), seg["airline_id"])
-	assert.Equal(t, "Аэрофлот", seg["airline"].(map[string]any)["name_ru"])
+	assert.Equal(t, "Аэрофлот", seg["airline"].(map[string]any)["name"])
 }
 
 // ---------------------------------------------------------------------------

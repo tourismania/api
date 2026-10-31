@@ -14,7 +14,6 @@ type Result struct {
 	ID          int
 	ICAO        *string
 	Name        string
-	NameRU      string
 	Country     *CountryResult
 	DissolvedOn *time.Time
 }

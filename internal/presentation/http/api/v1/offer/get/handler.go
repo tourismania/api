@@ -137,7 +137,7 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 // toAirlineResponse — авиакомпания сегмента в формате ответа; дата —
 // YYYY-MM-DD.
 func toAirlineResponse(a getoffer.AirlineResult) AirlineResponse {
-	resp := AirlineResponse{ID: a.ID, ICAO: a.ICAO, Name: a.Name, NameRU: a.NameRU}
+	resp := AirlineResponse{ID: a.ID, ICAO: a.ICAO, Name: a.Name}
 	if a.DissolvedOn != nil {
 		d := a.DissolvedOn.Format(airlineDateLayout)
 		resp.DissolvedOn = &d

@@ -31,6 +31,10 @@ Api считал длительности и хронологию по «час�
 - **Presentation.** `offerhttp.LocalDateTime` и `offerhttp.AirportResponse` — в родительском пакете ресурса:
   они общие для нескольких хендлеров (`STYLE.md` §3).
 
+- **Название авиакомпании выбирает api** (ревью web PR №31): в `GET /api/v1/airlines`, `GET /api/v1/airlines/{id}`
+  и в `airline` сегмента только `name` — русское название, а если его нет, английское
+  (`airline.Airline.DisplayName`); поля `name_ru` нет. Хранение и поиск по обоим названиям не меняются.
+
 ## Non-goals
 
 - Хранение смещения или UTC-момента, выдача UTC-момента в ответе.

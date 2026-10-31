@@ -63,13 +63,12 @@ type FlightSegmentResult struct {
 }
 
 // AirlineResult — авиакомпания сегмента: ICAO nil — у служебной записи
-// «Неизвестная»; NameRU "" — русского названия нет; DissolvedOn nil —
-// действует. Коды IATA не отдаются.
+// «Неизвестная»; Name — название для показа (airline.Airline.DisplayName);
+// DissolvedOn nil — действует. Коды IATA не отдаются.
 type AirlineResult struct {
 	ID          int
 	ICAO        *string
 	Name        string
-	NameRU      string
 	DissolvedOn *time.Time
 }
 

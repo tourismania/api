@@ -42,8 +42,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	r := Result{
 		ID:          a.ID,
 		ICAO:        a.ICAO,
-		Name:        a.Name,
-		NameRU:      a.NameRU,
+		Name:        a.DisplayName(),
 		DissolvedOn: a.DissolvedOn,
 	}
 	if a.Country != nil {

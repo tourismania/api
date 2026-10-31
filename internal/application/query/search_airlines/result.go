@@ -9,13 +9,12 @@ type CountryResult struct {
 }
 
 // AirlineResult — одна авиакомпания выдачи. ICAO nil — у служебной записи;
-// NameRU "" — русского названия нет; Country nil — страна неизвестна;
+// Name — название для показа (airline.Airline.DisplayName); Country nil — страна неизвестна;
 // DissolvedOn nil — авиакомпания действует. Коды IATA не отдаются.
 type AirlineResult struct {
 	ID          int
 	ICAO        *string
 	Name        string
-	NameRU      string
 	Country     *CountryResult
 	DissolvedOn *time.Time
 }

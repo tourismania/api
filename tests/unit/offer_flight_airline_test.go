@@ -341,12 +341,12 @@ func TestGetOffer_SegmentAirlines_OneQueryAndFullData(t *testing.T) {
 
 	seg := res.Flights[0].Segments
 	assert.Equal(t, aeroflot.ID, seg[0].AirlineID)
-	assert.Equal(t, getoffer.AirlineResult{ID: 42, ICAO: icaoPtr("AFL"), Name: "Aeroflot", NameRU: "Аэрофлот"}, seg[0].Airline)
-	assert.Equal(t, "Азимут", seg[1].Airline.NameRU, "у сегментов одного перелёта свои авиакомпании")
+	assert.Equal(t, getoffer.AirlineResult{ID: 42, ICAO: icaoPtr("AFL"), Name: "Аэрофлот"}, seg[0].Airline)
+	assert.Equal(t, "Азимут", seg[1].Airline.Name, "у сегментов одного перелёта свои авиакомпании")
 	assert.Equal(t, transaero.DissolvedOn, res.Flights[2].Segments[0].Airline.DissolvedOn)
-	assert.Equal(t, "", res.Flights[2].Segments[0].Airline.NameRU, "русского названия нет — пустая строка")
+	assert.Equal(t, transaero.Name, res.Flights[2].Segments[0].Airline.Name, "русского названия нет — английское")
 	unknown := res.Flights[3].Segments[0].Airline
-	assert.Equal(t, getoffer.AirlineResult{ID: 1, Name: "Unknown", NameRU: "Неизвестная"}, unknown)
+	assert.Equal(t, getoffer.AirlineResult{ID: 1, Name: "Неизвестная"}, unknown)
 	assert.Nil(t, unknown.ICAO)
 }
 
@@ -384,8 +384,8 @@ func TestGetPublishedOffer_SegmentAirlines_Returned(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, airlines.findCalls, 1)
-	assert.Equal(t, getpublishedoffer.AirlineResult{ID: 42, ICAO: icaoPtr("AFL"), Name: "Aeroflot", NameRU: "Аэрофлот"}, res.Flights[0].Segments[0].Airline)
-	assert.Equal(t, "Unknown", res.Flights[3].Segments[0].Airline.Name)
+	assert.Equal(t, getpublishedoffer.AirlineResult{ID: 42, ICAO: icaoPtr("AFL"), Name: "Аэрофлот"}, res.Flights[0].Segments[0].Airline)
+	assert.Equal(t, "Неизвестная", res.Flights[3].Segments[0].Airline.Name)
 	assert.Equal(t, transaero.DissolvedOn, res.Flights[2].Segments[0].Airline.DissolvedOn)
 }
 
@@ -398,4 +398,9 @@ func TestGetPublishedOffer_NoFlights_NoAirlineQuery(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, airlines.findCalls)
+}
+
+func TestAirlineDisplayName_RussianIfPresentElseEnglish(t *testing.T) {
+	assert.Equal(t, "Аэрофлот", airline.Airline{Name: "Aeroflot", NameRU: "Аэрофлот"}.DisplayName())
+	assert.Equal(t, "Turkish Airlines", airline.Airline{Name: "Turkish Airlines"}.DisplayName())
 }

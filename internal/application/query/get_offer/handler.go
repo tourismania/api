@@ -150,8 +150,7 @@ func toAirlineResult(a airline.Airline) AirlineResult {
 	return AirlineResult{
 		ID:          a.ID,
 		ICAO:        a.ICAO,
-		Name:        a.Name,
-		NameRU:      a.NameRU,
+		Name:        a.DisplayName(),
 		DissolvedOn: a.DissolvedOn,
 	}
 }
