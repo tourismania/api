@@ -5,6 +5,7 @@
 > (`openspec/changes/connect-web-flights-to-api/`: proposal, дельты спек `offers/flights` и
 > `offers/offer-composition`, design, tasks), принято в
 > [sdd PR №36](https://github.com/tourismania/sdd/pull/36).
+> **Реализация:** [api PR №38](https://github.com/tourismania/api/pull/38).
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
 ## Контекст
