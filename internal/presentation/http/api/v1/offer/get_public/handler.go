@@ -7,6 +7,7 @@ import (
 	getpublishedoffer "api/internal/application/query/get_published_offer"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
+	offerhttp "api/internal/presentation/http/api/v1/offer"
 	"api/internal/presentation/http/httpx"
 
 	"github.com/go-chi/chi/v5"
@@ -28,7 +29,7 @@ func NewHandler(uc getpublishedoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Get a published offer (public)
-//	@Description  Returns a single offer by uuid, no authentication required, including its flights with computed total/layover durations. Only published offers are visible — draft/ready offers of any agency are reported as not found.
+//	@Description  Returns a single offer by uuid, no authentication required, including its flights with computed total/layover durations. departure_at/arrival_at of a segment are the local time of its airport without an offset; durations are computed from the airports' time zones. Only published offers are visible — draft/ready offers of any agency are reported as not found.
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        uuid  path      string  true  "Offer UUID"
@@ -78,8 +79,10 @@ func toFlightResponses(flights []getpublishedoffer.FlightResult) []FlightRespons
 			segments = append(segments, FlightSegmentResponse{
 				DepartureAirportICAO: s.DepartureAirportICAO,
 				ArrivalAirportICAO:   s.ArrivalAirportICAO,
-				DepartureAt:          s.DepartureAt,
-				ArrivalAt:            s.ArrivalAt,
+				DepartureAirport:     offerhttp.NewAirportResponse(s.DepartureAirport),
+				ArrivalAirport:       offerhttp.NewAirportResponse(s.ArrivalAirport),
+				DepartureAt:          offerhttp.NewLocalDateTime(s.DepartureAt),
+				ArrivalAt:            offerhttp.NewLocalDateTime(s.ArrivalAt),
 				DurationSeconds:      s.DurationSeconds,
 				CabinClass:           flight.CabinClass(s.CabinClass),
 				FlightNumber:         s.FlightNumber,

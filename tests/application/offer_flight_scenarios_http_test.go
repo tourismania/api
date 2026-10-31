@@ -21,18 +21,18 @@ import (
 )
 
 // offers/flights, «Неверный формат времени».
-func TestOffersHTTP_CreateFlight_NonRFC3339Time_Returns400(t *testing.T) {
+func TestOffersHTTP_CreateFlight_NotLocalTime_Returns400(t *testing.T) {
 	e := newPriceTestEnv(t)
 
 	body := createBody(`{"price":"100","currency":"RUB","segments":[
-		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01 10:00","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01 10:00","arrival_at":"2026-08-01T14:00:00"}
 	]}`)
 	rr := e.do(t, http.MethodPost, "/api/v1/offers", body)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 	msg := decodeError(t, rr).Error
 	assert.Contains(t, msg, "invalid date/time value")
-	assert.Contains(t, msg, "expected RFC3339")
+	assert.Contains(t, msg, "expected local YYYY-MM-DDTHH:MM:SS without timezone")
 	assert.False(t, e.flights.replaceCalled, "оффер и перелёты не создаются")
 }
 

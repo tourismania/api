@@ -7,6 +7,7 @@ import (
 	"api/internal/application/apperror"
 	getoffer "api/internal/application/query/get_offer"
 	"api/internal/domain/offer/flight"
+	offerhttp "api/internal/presentation/http/api/v1/offer"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -29,7 +30,7 @@ func NewHandler(uc getoffer.UseCase) *Handler {
 // Handle is the http.HandlerFunc.
 //
 //	@Summary      Get an offer
-//	@Description  Returns a single offer by uuid, scoped to the caller's own agency (any status), including its flights with computed total/layover durations. An offer belonging to another agency is reported as not found.
+//	@Description  Returns a single offer by uuid, scoped to the caller's own agency (any status), including its flights with computed total/layover durations. departure_at/arrival_at of a segment are the local time of its airport without an offset; durations are computed from the airports' time zones. An offer belonging to another agency is reported as not found.
 //	@Tags         Offers
 //	@Produce      json
 //	@Param        uuid  path      string  true  "Offer UUID"
@@ -98,8 +99,10 @@ func toFlightResponses(flights []getoffer.FlightResult) []FlightResponse {
 			segments = append(segments, FlightSegmentResponse{
 				DepartureAirportICAO: s.DepartureAirportICAO,
 				ArrivalAirportICAO:   s.ArrivalAirportICAO,
-				DepartureAt:          s.DepartureAt,
-				ArrivalAt:            s.ArrivalAt,
+				DepartureAirport:     offerhttp.NewAirportResponse(s.DepartureAirport),
+				ArrivalAirport:       offerhttp.NewAirportResponse(s.ArrivalAirport),
+				DepartureAt:          offerhttp.NewLocalDateTime(s.DepartureAt),
+				ArrivalAt:            offerhttp.NewLocalDateTime(s.ArrivalAt),
 				DurationSeconds:      s.DurationSeconds,
 				CabinClass:           flight.CabinClass(s.CabinClass),
 				FlightNumber:         s.FlightNumber,

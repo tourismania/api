@@ -39,13 +39,15 @@ func NewManager(flights Repository, airports airport.Repository, airlines airlin
 }
 
 // ReplaceForOffer проверяет, что все коды icao из flights есть в
-// справочнике аэропортов, а авиакомпании сегментов — в справочнике
+// справочнике аэропортов, что хронология перелётов верна по таймзонам этих
+// аэропортов (см. CheckChronology), а авиакомпании сегментов есть в справочнике
 // авиакомпаний (скрытая запись допустима, только если на неё уже ссылается
 // сохранённый сегмент оффера), и сравнивает flights с сохранёнными для
 // offerID — сначала маршрут, потом цены, комментарии и детали сегментов
 // (классы, авиакомпании, номера рейсов):
-//   - маршрут совпал (тот же порядок перелётов, те же аэропорты и
-//     моменты времени сегментов; ID, назначенные сервером, не учитываются),
+//   - маршрут совпал (тот же порядок перелётов, те же аэропорты и настенные
+//     часы сегментов — в одном аэропорту одинаковые часы и есть один момент;
+//     ID, назначенные сервером, не учитываются),
 //     цены, комментарии и детали сегментов совпали — no-op, БД не трогается;
 //   - маршрут совпал, у части перелётов другая цена, валюта, комментарий,
 //     класс, авиакомпания или номер рейса хотя бы одного сегмента — у этих
@@ -55,8 +57,15 @@ func NewManager(flights Repository, airports airport.Repository, airlines airlin
 //
 // Перелёты сопоставляются по позиции: у входящих перелётов нет ID.
 func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error {
-	if err := m.checkAirportsExist(ctx, flights); err != nil {
+	airports, err := m.checkAirportsExist(ctx, flights)
+	if err != nil {
 		return err
+	}
+	zones := NewAirportZones(airports)
+	for _, f := range flights {
+		if err := CheckChronology(f, zones); err != nil {
+			return err
+		}
 	}
 
 	// Сохранённые перелёты нужны и для сравнения, и для проверки скрытых
@@ -85,7 +94,33 @@ func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Fl
 	return nil
 }
 
-func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) error {
+// checkAirportsExist одним запросом загружает аэропорты сегментов flights и
+// возвращает их; код, которого нет в справочнике, — ErrAirportNotFound.
+func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) ([]airport.Airport, error) {
+	icaos := AirportICAOs(flights)
+	if len(icaos) == 0 {
+		return nil, nil
+	}
+
+	found, err := m.airports.FindByICAOs(ctx, icaos)
+	if err != nil {
+		return nil, fmt.Errorf("find airports by icao: %w", err)
+	}
+	foundSet := make(map[string]struct{}, len(found))
+	for _, a := range found {
+		foundSet[a.ICAO] = struct{}{}
+	}
+	for _, icao := range icaos {
+		if _, ok := foundSet[icao]; !ok {
+			return nil, ErrAirportNotFound
+		}
+	}
+	return found, nil
+}
+
+// AirportICAOs возвращает коды ICAO аэропортов всех сегментов flights без
+// повторов, в порядке появления.
+func AirportICAOs(flights []Flight) []string {
 	seen := make(map[string]struct{})
 	var icaos []string
 	for _, f := range flights {
@@ -99,24 +134,7 @@ func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) erro
 			}
 		}
 	}
-	if len(icaos) == 0 {
-		return nil
-	}
-
-	found, err := m.airports.FindByICAOs(ctx, icaos)
-	if err != nil {
-		return fmt.Errorf("find airports by icao: %w", err)
-	}
-	foundSet := make(map[string]struct{}, len(found))
-	for _, a := range found {
-		foundSet[a.ICAO] = struct{}{}
-	}
-	for _, icao := range icaos {
-		if _, ok := foundSet[icao]; !ok {
-			return ErrAirportNotFound
-		}
-	}
-	return nil
+	return icaos
 }
 
 // checkAirlinesExist одним запросом проверяет авиакомпании сегментов flights:

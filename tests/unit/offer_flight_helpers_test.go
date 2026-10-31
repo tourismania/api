@@ -76,6 +76,8 @@ func (m *mockOfferFlightRepo) UpdateDetails(_ context.Context, offerID int, upda
 // is set, so tests that don't care about airport existence don't need
 // to configure it.
 type mockAirportRepo struct {
+	findCalls           int
+	lastICAOs           []string
 	findByICAOsAirports []airport.Airport
 	findByICAOsErr      error
 }
@@ -89,6 +91,8 @@ func (m *mockAirportRepo) Upsert(_ context.Context, _ string, _ *string, _ strin
 }
 
 func (m *mockAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airport.Airport, error) {
+	m.findCalls++
+	m.lastICAOs = icaos
 	if m.findByICAOsErr != nil {
 		return nil, m.findByICAOsErr
 	}

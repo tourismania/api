@@ -56,6 +56,8 @@ type FlightInput struct {
 // (домен отклоняет), существование проверяет flight.Manager. FlightNumber —
 // номер рейса как пришёл ("" — номер неизвестен); передаётся в сегмент без
 // изменений, пробелы по краям обрезает и длину проверяет presentation.
+// DepartureAt и ArrivalAt — настенные часы аэропорта в time.UTC (см.
+// flight.Segment).
 type FlightSegmentInput struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
@@ -68,7 +70,8 @@ type FlightSegmentInput struct {
 
 // BuildFlights разбирает цену каждого перелёта по справочнику валют и проверяет
 // структурные инварианты через flight.New до любой записи в БД, поэтому
-// некорректный перелёт даже не открывает транзакцию. Ошибка цены, валюты,
+// некорректный перелёт даже не открывает транзакцию; хронологию проверяет
+// flight.Manager — для неё нужны таймзоны аэропортов. Ошибка цены, валюты,
 // комментария, класса или отсутствующей авиакомпании сегмента возвращается
 // как *apperror.FieldError (поле Price / Currency / ManagerComment /
 // CabinClass / AirlineID), остальные доменные ошибки — как есть.

@@ -199,9 +199,9 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	createOfferApp := createoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	updateOfferApp := updateoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userFinder)
-	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, airlineRepo, userFinder)
+	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, airlineRepo, airportRepo, userFinder)
 	getOffersApp := getoffersq.NewHandler(offerRepo, userFinder)
-	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo, airlineRepo)
+	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo, airlineRepo, airportRepo)
 
 	// Validation.
 	validate := validator.New(validator.WithRequiredStructEnabled())
