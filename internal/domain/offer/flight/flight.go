@@ -12,6 +12,7 @@ package flight
 import (
 	"time"
 
+	"api/internal/domain/airport"
 	"api/internal/domain/money"
 )
 
@@ -31,7 +32,7 @@ import (
 // DepartureAt и ArrivalAt — настенные часы: местное время аэропорта вылета и
 // аэропорта прилёта соответственно, записанное в time.UTC (так они приходят и
 // из запроса, и из БД). Смещения в них нет, это не реальные моменты: вычитать
-// или сравнивать их напрямую нельзя, момент определяется через AirportZones.
+// или сравнивать их напрямую нельзя, момент определяется через airport.Zones.
 type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
@@ -43,18 +44,18 @@ type Segment struct {
 }
 
 // Duration — реальное время полёта сегмента по таймзонам его аэропортов.
-func (s Segment) Duration(zones AirportZones) time.Duration {
+func (s Segment) Duration(zones airport.Zones) time.Duration {
 	return s.arrivalMoment(zones).Sub(s.departureMoment(zones))
 }
 
 // departureMoment — реальный момент вылета.
-func (s Segment) departureMoment(zones AirportZones) time.Time {
-	return zones.moment(s.DepartureAirportICAO, s.DepartureAt)
+func (s Segment) departureMoment(zones airport.Zones) time.Time {
+	return zones.Moment(s.DepartureAirportICAO, s.DepartureAt)
 }
 
 // arrivalMoment — реальный момент прилёта.
-func (s Segment) arrivalMoment(zones AirportZones) time.Time {
-	return zones.moment(s.ArrivalAirportICAO, s.ArrivalAt)
+func (s Segment) arrivalMoment(zones airport.Zones) time.Time {
+	return zones.Moment(s.ArrivalAirportICAO, s.ArrivalAt)
 }
 
 // Layover is the wait between the arrival of one segment and the
@@ -93,7 +94,7 @@ func (f Flight) ArrivalAirportICAO() string {
 
 // TotalDuration — реальное время от вылета первого сегмента до прилёта
 // последнего, включая все пересадки.
-func (f Flight) TotalDuration(zones AirportZones) time.Duration {
+func (f Flight) TotalDuration(zones airport.Zones) time.Duration {
 	first := f.Segments[0]
 	last := f.Segments[len(f.Segments)-1]
 	return last.arrivalMoment(zones).Sub(first.departureMoment(zones))
@@ -101,7 +102,7 @@ func (f Flight) TotalDuration(zones AirportZones) time.Duration {
 
 // Layovers returns one entry per stop between consecutive segments, in
 // order. A nonstop flight (single segment) returns nil.
-func (f Flight) Layovers(zones AirportZones) []Layover {
+func (f Flight) Layovers(zones airport.Zones) []Layover {
 	if len(f.Segments) < 2 {
 		return nil
 	}

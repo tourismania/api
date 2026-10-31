@@ -101,7 +101,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 // аэропортов и их таймзоны для длительностей — из airports (уже загружены по
 // всем ICAO).
 func toFlightResults(flights []flight.Flight, airlines map[int]airline.Airline, airports map[string]airport.Airport) []FlightResult {
-	zones := flight.NewAirportZones(slices.Collect(maps.Values(airports)))
+	zones := airport.NewZones(slices.Collect(maps.Values(airports)))
 	out := make([]FlightResult, 0, len(flights))
 	for _, f := range flights {
 		segments := make([]FlightSegmentResult, 0, len(f.Segments))

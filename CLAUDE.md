@@ -26,7 +26,7 @@ internal/
   domain/             # ЯДРО — не зависит ни от чего внешнего; resource-first: 1 агрегат = 1 пакет
     user/             # Агрегат пользователя: User, Record, Role, Actor, RightsDescribe, Repository, Creator, Finder, PasswordHasher, событие Registered
     agency/           # Агрегат агентства: Agency, Status, Repository, Manager
-    airport/          # Справочник аэропортов: Airport, City, Country, Location, Repository, CityRepository, CountryRepository
+    airport/          # Справочник аэропортов: Airport, City, Country, Location, Zones (часовые пояса аэропортов: местное время → реальный момент), Repository, CityRepository, CountryRepository
     airline/          # Справочник авиакомпаний: Airline, Country, Filter, SourceRecord, UnknownID («Неизвестная» = 1), Repository; ключ — id записи, коды ICAO/IATA — атрибуты (см. docs/cli/sync_airlines.md)
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
       flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID и FlightNumber), CabinClass, Layover, New, Repository, Manager, DetailsUpdate (детали сегментов — SegmentDetails); классы обслуживания — см. docs/cabin-classes.md

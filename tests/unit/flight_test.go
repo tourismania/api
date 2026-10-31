@@ -71,8 +71,8 @@ func TestFlightSegment_CabinClassZeroValue_IsUnknown(t *testing.T) {
 
 // testZones — таймзоны аэропортов из сценариев спеки; у NOTZ таймзона не указана,
 // у BADZ — неизвестная.
-func testZones() flight.AirportZones {
-	return flight.NewAirportZones([]airport.Airport{
+func testZones() airport.Zones {
+	return airport.NewZones([]airport.Airport{
 		{ICAO: "USSS", City: airport.City{Timezone: "Asia/Yekaterinburg"}},
 		{ICAO: "UUEE", City: airport.City{Timezone: "Europe/Moscow"}},
 		{ICAO: "EDDB", City: airport.City{Timezone: "Europe/Berlin"}},
@@ -100,7 +100,7 @@ func localSegment(t *testing.T, dep, depAt, arr, arrAt string) flight.Segment {
 	}
 }
 
-func TestSegmentDuration_LocalTimeAcrossZones_ComputedFromAirportZones(t *testing.T) {
+func TestSegmentDuration_LocalTimeAcrossZones_ComputedFromZones(t *testing.T) {
 	cases := map[string]struct {
 		seg  flight.Segment
 		want time.Duration

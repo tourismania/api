@@ -57,11 +57,11 @@ func NewManager(flights Repository, airports airport.Repository, airlines airlin
 //
 // Перелёты сопоставляются по позиции: у входящих перелётов нет ID.
 func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Flight) error {
-	airports, err := m.checkAirportsExist(ctx, flights)
+	airports, err := m.loadSegmentAirports(ctx, flights)
 	if err != nil {
 		return err
 	}
-	zones := NewAirportZones(airports)
+	zones := airport.NewZones(airports)
 	for _, f := range flights {
 		if err := CheckChronology(f, zones); err != nil {
 			return err
@@ -94,9 +94,9 @@ func (m *Manager) ReplaceForOffer(ctx context.Context, offerID int, flights []Fl
 	return nil
 }
 
-// checkAirportsExist одним запросом загружает аэропорты сегментов flights и
+// loadSegmentAirports одним запросом загружает аэропорты сегментов flights и
 // возвращает их; код, которого нет в справочнике, — ErrAirportNotFound.
-func (m *Manager) checkAirportsExist(ctx context.Context, flights []Flight) ([]airport.Airport, error) {
+func (m *Manager) loadSegmentAirports(ctx context.Context, flights []Flight) ([]airport.Airport, error) {
 	icaos := AirportICAOs(flights)
 	if len(icaos) == 0 {
 		return nil, nil

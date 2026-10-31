@@ -3,6 +3,7 @@ package flight
 import (
 	"errors"
 
+	"api/internal/domain/airport"
 	"api/internal/domain/money"
 )
 
@@ -96,7 +97,7 @@ func New(price money.Money, managerComment string, segments []Segment) (Flight, 
 // вылет следующего сегмента строго позже прилёта предыдущего
 // (ErrLayoverNonPositive). Настенные часы могут идти и в обратном порядке:
 // вылет из Екатеринбурга в 10:00 и прилёт в Москву в 09:00 — это час в полёте.
-func CheckChronology(f Flight, zones AirportZones) error {
+func CheckChronology(f Flight, zones airport.Zones) error {
 	for i, seg := range f.Segments {
 		if !seg.arrivalMoment(zones).After(seg.departureMoment(zones)) {
 			return ErrSegmentChronologyInvalid
