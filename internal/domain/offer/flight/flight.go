@@ -12,6 +12,7 @@ package flight
 import (
 	"time"
 
+	"api/internal/domain/airport"
 	"api/internal/domain/money"
 )
 
@@ -27,6 +28,11 @@ import (
 // менеджера): New их не применяет. Класс,
 // авиакомпания и номер рейса в маршрут не входят: их изменение обновляет
 // сегмент на месте (см. Manager.ReplaceForOffer).
+//
+// DepartureAt и ArrivalAt — настенные часы: местное время аэропорта вылета и
+// аэропорта прилёта соответственно, записанное в time.UTC (так они приходят и
+// из запроса, и из БД). Смещения в них нет, это не реальные моменты: вычитать
+// или сравнивать их напрямую нельзя, момент определяется через airport.Zones.
 type Segment struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
@@ -37,9 +43,19 @@ type Segment struct {
 	FlightNumber         string
 }
 
-// Duration is the segment's own flight time.
-func (s Segment) Duration() time.Duration {
-	return s.ArrivalAt.Sub(s.DepartureAt)
+// Duration — реальное время полёта сегмента по таймзонам его аэропортов.
+func (s Segment) Duration(zones airport.Zones) time.Duration {
+	return s.arrivalMoment(zones).Sub(s.departureMoment(zones))
+}
+
+// departureMoment — реальный момент вылета.
+func (s Segment) departureMoment(zones airport.Zones) time.Time {
+	return zones.Moment(s.DepartureAirportICAO, s.DepartureAt)
+}
+
+// arrivalMoment — реальный момент прилёта.
+func (s Segment) arrivalMoment(zones airport.Zones) time.Time {
+	return zones.Moment(s.ArrivalAirportICAO, s.ArrivalAt)
 }
 
 // Layover is the wait between the arrival of one segment and the
@@ -54,11 +70,10 @@ type Layover struct {
 // сегмента — это одна или несколько пересадок. Price — цена перелёта
 // целиком (не сегмента) в валюте из справочника money. ManagerComment —
 // комментарий менеджера к перелёту целиком, текст для клиента; "" —
-// комментария нет. Структурные
-// инварианты (есть сегменты, хронология, непрерывность маршрута,
-// положительные пересадки) проверяет New, а не этот тип: он всегда несёт
-// уже проверенные данные. TotalDuration и Layovers всегда вычисляются из
-// Segments на лету и не хранятся.
+// комментария нет. Структурные инварианты (есть сегменты, непрерывность
+// маршрута) проверяет New, а хронологию и положительные пересадки —
+// CheckChronology, потому что для них нужны таймзоны аэропортов. TotalDuration
+// и Layovers всегда вычисляются из Segments на лету и не хранятся.
 type Flight struct {
 	ID             int
 	OfferID        int
@@ -77,17 +92,17 @@ func (f Flight) ArrivalAirportICAO() string {
 	return f.Segments[len(f.Segments)-1].ArrivalAirportICAO
 }
 
-// TotalDuration is the elapsed time from the first segment's departure
-// to the last segment's arrival, including every layover in between.
-func (f Flight) TotalDuration() time.Duration {
+// TotalDuration — реальное время от вылета первого сегмента до прилёта
+// последнего, включая все пересадки.
+func (f Flight) TotalDuration(zones airport.Zones) time.Duration {
 	first := f.Segments[0]
 	last := f.Segments[len(f.Segments)-1]
-	return last.ArrivalAt.Sub(first.DepartureAt)
+	return last.arrivalMoment(zones).Sub(first.departureMoment(zones))
 }
 
 // Layovers returns one entry per stop between consecutive segments, in
 // order. A nonstop flight (single segment) returns nil.
-func (f Flight) Layovers() []Layover {
+func (f Flight) Layovers(zones airport.Zones) []Layover {
 	if len(f.Segments) < 2 {
 		return nil
 	}
@@ -96,7 +111,7 @@ func (f Flight) Layovers() []Layover {
 		prev, next := f.Segments[i-1], f.Segments[i]
 		layovers = append(layovers, Layover{
 			AirportICAO: prev.ArrivalAirportICAO,
-			Duration:    next.DepartureAt.Sub(prev.ArrivalAt),
+			Duration:    next.departureMoment(zones).Sub(prev.arrivalMoment(zones)),
 		})
 	}
 	return layovers

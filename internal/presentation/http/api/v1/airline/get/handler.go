@@ -72,7 +72,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		ID:          res.ID,
 		ICAO:        res.ICAO,
 		Name:        res.Name,
-		NameRU:      res.NameRU,
 		DissolvedOn: airlinehttp.FormatDate(res.DissolvedOn),
 	}
 	if res.Country != nil {

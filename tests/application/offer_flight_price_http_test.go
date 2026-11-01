@@ -31,6 +31,12 @@ const priceTestAgencyID = 3
 
 func newPriceTestEnv(t *testing.T) priceTestEnv {
 	t.Helper()
+	return newPriceTestEnvWithAirports(t, stubAirportRepo{})
+}
+
+// newPriceTestEnvWithAirports — newPriceTestEnv со справочником аэропортов airports.
+func newPriceTestEnvWithAirports(t *testing.T, airports stubAirportRepo) priceTestEnv {
+	t.Helper()
 	jwtSvc := newTestJWTService(t)
 	userUUID := uuid.New()
 	token, err := jwtSvc.Issue(userUUID)
@@ -45,7 +51,7 @@ func newPriceTestEnv(t *testing.T) priceTestEnv {
 	}}
 	flights := &stubOfferFlightRepo{}
 	return priceTestEnv{
-		router:  newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights),
+		router:  newOffersTestRouterWithDirectories(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights, &stubAirlineRepo{}, airports),
 		token:   token,
 		offerID: offerUUID,
 		offers:  offers,
@@ -71,7 +77,7 @@ func flightJSON(priceJSON string) string {
 		sep = ","
 	}
 	return `{` + priceJSON + sep + `"segments":[
-		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00","arrival_at":"2026-08-01T14:00:00"}
 	]}`
 }
 
@@ -201,7 +207,7 @@ func TestOffersHTTP_CreateFlight_PriceInsideSegment_Returns400UnknownField(t *te
 	e := newPriceTestEnv(t)
 
 	body := createBody(`{"price":"100","currency":"RUB","segments":[
-		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z","price":"100"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00","arrival_at":"2026-08-01T14:00:00","price":"100"}
 	]}`)
 	rr := e.do(t, http.MethodPost, "/api/v1/offers", body)
 

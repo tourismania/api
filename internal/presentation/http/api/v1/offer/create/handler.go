@@ -98,8 +98,8 @@ func toFlightInputs(in []FlightInput) []createoffer.FlightInput {
 			segs = append(segs, createoffer.FlightSegmentInput{
 				DepartureAirportICAO: s.DepartureAirportICAO,
 				ArrivalAirportICAO:   s.ArrivalAirportICAO,
-				DepartureAt:          s.DepartureAt,
-				ArrivalAt:            s.ArrivalAt,
+				DepartureAt:          s.DepartureAt.Time(),
+				ArrivalAt:            s.ArrivalAt.Time(),
 				CabinClass:           string(s.CabinClass),
 				AirlineID:            s.AirlineID,
 				FlightNumber:         s.FlightNumber,

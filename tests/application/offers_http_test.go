@@ -193,8 +193,12 @@ func (s *stubOfferFlightRepo) UpdateDetails(_ context.Context, _ int, updates []
 	return nil
 }
 
-// stubAirportRepo is a minimal airport.Repository test double.
-type stubAirportRepo struct{}
+// stubAirportRepo is a minimal airport.Repository test double. Без настройки
+// (airports == nil) существует каждый код, без данных справочника; с airports —
+// только записи из неё.
+type stubAirportRepo struct {
+	airports map[string]airport.Airport
+}
 
 func (stubAirportRepo) Search(_ context.Context, _ airport.Filter) (airport.SearchResult, error) {
 	return airport.SearchResult{}, nil
@@ -207,10 +211,16 @@ func (stubAirportRepo) Upsert(_ context.Context, _ string, _ *string, _ string, 
 // FindByICAOs reports every requested icao as existing — these HTTP
 // tests care about the request/response contract, not airport
 // reference-data validation (covered at the domain/integration level).
-func (stubAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airport.Airport, error) {
+func (s stubAirportRepo) FindByICAOs(_ context.Context, icaos []string) ([]airport.Airport, error) {
 	airports := make([]airport.Airport, 0, len(icaos))
 	for _, icao := range icaos {
-		airports = append(airports, airport.Airport{ICAO: icao})
+		if s.airports == nil {
+			airports = append(airports, airport.Airport{ICAO: icao})
+			continue
+		}
+		if a, ok := s.airports[icao]; ok {
+			airports = append(airports, a)
+		}
 	}
 	return airports, nil
 }
@@ -296,10 +306,16 @@ func newOffersTestRouter(jwtSvc *auth.Service, offers *stubOfferRepo, users stub
 // newOffersTestRouterWithAirlines — newOffersTestRouter со справочником
 // авиакомпаний airlines.
 func newOffersTestRouterWithAirlines(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo, airlines *stubAirlineRepo) http.Handler {
+	return newOffersTestRouterWithDirectories(jwtSvc, offers, users, publicUC, flights, airlines, stubAirportRepo{})
+}
+
+// newOffersTestRouterWithDirectories — newOffersTestRouter со справочниками
+// авиакомпаний airlines и аэропортов airports.
+func newOffersTestRouterWithDirectories(jwtSvc *auth.Service, offers *stubOfferRepo, users stubUserFinder, publicUC getpublishedoffer.UseCase, flights *stubOfferFlightRepo, airlines *stubAirlineRepo, airports stubAirportRepo) http.Handler {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	offerManager := offer.NewManager(offers, stubAgencyRepo{})
-	offerFlightManager := flight.NewManager(flights, stubAirportRepo{}, airlines)
+	offerFlightManager := flight.NewManager(flights, airports, airlines)
 	userFinder := user.NewFinder(users)
 
 	createApp := createoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
@@ -311,7 +327,7 @@ func newOffersTestRouterWithAirlines(jwtSvc *auth.Service, offers *stubOfferRepo
 	updateApp := updateoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
 	updateH := updateofferhttp.NewHandler(updateApp, validate)
 
-	getApp := getoffer.NewHandler(offerManager, flights, airlines, userFinder)
+	getApp := getoffer.NewHandler(offerManager, flights, airlines, airports, userFinder)
 	getH := getofferhttp.NewHandler(getApp)
 
 	publicH := getpublicofferhttp.NewHandler(publicUC)
@@ -403,7 +419,7 @@ func TestOffersHTTP_CreateOffer_WithFlights_Returns201_AndReplacesFlights(t *tes
 	r := newOffersTestRouter(jwtSvc, offers, users, &stubGetPublishedOfferUseCase{}, flights)
 
 	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
-		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00Z","arrival_at":"2026-08-01T14:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T10:00:00","arrival_at":"2026-08-01T14:00:00"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -435,7 +451,7 @@ func TestOffersHTTP_CreateOffer_InvalidFlightSegments_Returns400_NeverStores(t *
 	// arrival_at before departure_at violates the domain chronology
 	// invariant, surfaced as a 400 by apperror.ErrValidation.
 	body := `{"title":"Test","description":"d","status":"draft","flights":[{"price":"15000","currency":"RUB","segments":[
-		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T14:00:00Z","arrival_at":"2026-08-01T10:00:00Z"}
+		{"airline_id":1,"departure_airport_icao":"UUEE","arrival_airport_icao":"LFPG","departure_at":"2026-08-01T14:00:00","arrival_at":"2026-08-01T10:00:00"}
 	]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/offers", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)

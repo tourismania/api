@@ -135,7 +135,6 @@ func toAirlineResponses(airlines []searchairlines.AirlineResult) []airlinehttp.A
 			ID:          a.ID,
 			ICAO:        a.ICAO,
 			Name:        a.Name,
-			NameRU:      a.NameRU,
 			DissolvedOn: airlinehttp.FormatDate(a.DissolvedOn),
 		}
 		if a.Country != nil {

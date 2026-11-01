@@ -15,19 +15,19 @@ func TestNewFlight_EmptySegments_ReturnsErr(t *testing.T) {
 	assert.ErrorIs(t, err, flight.ErrSegmentsEmpty)
 }
 
-func TestNewFlight_ArrivalNotAfterDeparture_ReturnsErr(t *testing.T) {
+func TestCheckChronology_ArrivalNotAfterDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := flight.New(samplePrice(), "", []flight.Segment{
+	err := flight.CheckChronology(flight.Flight{Segments: []flight.Segment{
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base},
-	})
+	}}, nil)
 	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
 
-func TestNewFlight_ArrivalBeforeDeparture_ReturnsErr(t *testing.T) {
+func TestCheckChronology_ArrivalBeforeDeparture_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := flight.New(samplePrice(), "", []flight.Segment{
+	err := flight.CheckChronology(flight.Flight{Segments: []flight.Segment{
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "LFPG", DepartureAt: base, ArrivalAt: base.Add(-time.Hour)},
-	})
+	}}, nil)
 	assert.ErrorIs(t, err, flight.ErrSegmentChronologyInvalid)
 }
 
@@ -41,23 +41,23 @@ func TestNewFlight_DiscontinuousRoute_ReturnsErr(t *testing.T) {
 	assert.ErrorIs(t, err, flight.ErrSegmentDiscontinuous)
 }
 
-func TestNewFlight_ZeroLayover_ReturnsErr(t *testing.T) {
+func TestCheckChronology_ZeroLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := flight.New(samplePrice(), "", []flight.Segment{
+	err := flight.CheckChronology(flight.Flight{Segments: []flight.Segment{
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs exactly when the previous segment arrives: zero layover.
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(2 * time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
-	})
+	}}, nil)
 	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
 
-func TestNewFlight_NegativeLayover_ReturnsErr(t *testing.T) {
+func TestCheckChronology_NegativeLayover_ReturnsErr(t *testing.T) {
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	_, err := flight.New(samplePrice(), "", []flight.Segment{
+	err := flight.CheckChronology(flight.Flight{Segments: []flight.Segment{
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUEE", ArrivalAirportICAO: "UUDD", DepartureAt: base, ArrivalAt: base.Add(2 * time.Hour)},
 		// Departs before the previous segment even arrives.
 		{AirlineID: sampleAirlineID, DepartureAirportICAO: "UUDD", ArrivalAirportICAO: "LFPG", DepartureAt: base.Add(time.Hour), ArrivalAt: base.Add(4 * time.Hour)},
-	})
+	}}, nil)
 	assert.ErrorIs(t, err, flight.ErrLayoverNonPositive)
 }
 
@@ -235,6 +235,55 @@ func TestNewFlight_FlightNumber_KeptAsIs(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, number, f.Segments[0].FlightNumber, "number must not be validated or normalized")
 			assert.Equal(t, "", f.Segments[1].FlightNumber)
+		})
+	}
+}
+
+// Хронология — не дело New: для неё нужны таймзоны аэропортов.
+func TestNewFlight_ClockOrderNotChecked(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	_, err := flight.New(samplePrice(), "", []flight.Segment{
+		{AirlineID: sampleAirlineID, DepartureAirportICAO: "USSS", ArrivalAirportICAO: "UUEE", DepartureAt: base, ArrivalAt: base.Add(-time.Hour)},
+	})
+	assert.NoError(t, err)
+}
+
+func TestCheckChronology_ByRealMoments(t *testing.T) {
+	cases := map[string]struct {
+		segments []flight.Segment
+		want     error
+	}{
+		"Екатеринбург 10:00 → Москва 09:00 принят": {
+			[]flight.Segment{localSegment(t, "USSS", "2026-05-14T10:00:00", "UUEE", "2026-05-14T09:00:00")}, nil,
+		},
+		"Москва 10:00 → Екатеринбург 11:00 отклонён": {
+			[]flight.Segment{localSegment(t, "UUEE", "2026-05-14T10:00:00", "USSS", "2026-05-14T11:00:00")}, flight.ErrSegmentChronologyInvalid,
+		},
+		"Москва 10:00 → Екатеринбург 12:00 — ноль в полёте": {
+			[]flight.Segment{localSegment(t, "UUEE", "2026-05-14T10:00:00", "USSS", "2026-05-14T12:00:00")}, flight.ErrSegmentChronologyInvalid,
+		},
+		"пересадка в одном аэропорту положительная": {
+			[]flight.Segment{
+				localSegment(t, "USSS", "2026-05-14T10:00:00", "UUEE", "2026-05-14T11:00:00"),
+				localSegment(t, "UUEE", "2026-05-14T12:00:00", "LTFM", "2026-05-14T15:00:00"),
+			}, nil,
+		},
+		"пересадка нулевая": {
+			[]flight.Segment{
+				localSegment(t, "USSS", "2026-05-14T10:00:00", "UUEE", "2026-05-14T11:00:00"),
+				localSegment(t, "UUEE", "2026-05-14T11:00:00", "LTFM", "2026-05-14T15:00:00"),
+			}, flight.ErrLayoverNonPositive,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := flight.CheckChronology(flight.Flight{Segments: tc.segments}, testZones())
+
+			if tc.want == nil {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, tc.want)
 		})
 	}
 }

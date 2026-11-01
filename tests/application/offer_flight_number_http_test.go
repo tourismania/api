@@ -333,7 +333,7 @@ func TestOffersHTTP_GetPublicOffer_WithFlights_IncludesFlightNumber(t *testing.T
 	// Публичная карточка через настоящий use case поверх тех же хранилищ.
 	published := *e.offers.found
 	published.Status = offer.StatusPublished
-	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, &stubAirlineRepo{})
+	publicUC := getpublishedoffer.NewHandler(&stubOfferRepo{found: &published}, e.flights, &stubAirlineRepo{}, stubAirportRepo{})
 	r := newOffersTestRouter(newTestJWTService(t), e.offers, stubUserFinder{}, publicUC, e.flights)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/offers/"+e.offerID.String(), nil)

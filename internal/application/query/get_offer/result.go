@@ -1,6 +1,7 @@
 package getoffer
 
 import (
+	"api/internal/application/helpers"
 	"api/internal/domain/offer"
 	"time"
 
@@ -47,9 +48,13 @@ type FlightResult struct {
 type FlightSegmentResult struct {
 	DepartureAirportICAO string
 	ArrivalAirportICAO   string
-	DepartureAt          time.Time
-	ArrivalAt            time.Time
-	DurationSeconds      int64
+	// DepartureAirport и ArrivalAirport — текущие данные аэропортов сегмента из справочника.
+	DepartureAirport helpers.AirportResult
+	ArrivalAirport   helpers.AirportResult
+	// DepartureAt и ArrivalAt — настенные часы аэропорта вылета и аэропорта прилёта (см. flight.Segment).
+	DepartureAt     time.Time
+	ArrivalAt       time.Time
+	DurationSeconds int64
 	// CabinClass — класс обслуживания сегмента; "" — класс неизвестен.
 	CabinClass string
 	// FlightNumber — номер рейса сегмента в том виде, как передан (без пробелов по краям); "" — номер неизвестен.
@@ -61,13 +66,12 @@ type FlightSegmentResult struct {
 }
 
 // AirlineResult — авиакомпания сегмента: ICAO nil — у служебной записи
-// «Неизвестная»; NameRU "" — русского названия нет; DissolvedOn nil —
-// действует. Коды IATA не отдаются.
+// «Неизвестная»; Name — название для показа (airline.Airline.DisplayName);
+// DissolvedOn nil — действует. Коды IATA не отдаются.
 type AirlineResult struct {
 	ID          int
 	ICAO        *string
 	Name        string
-	NameRU      string
 	DissolvedOn *time.Time
 }
 

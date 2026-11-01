@@ -603,3 +603,34 @@ func TestOfferFlightRepository_UpdateDetails_OtherOfferFlight_FlightNumberNotCha
 	require.NoError(t, err)
 	assert.Equal(t, "SU1234", after[0].Segments[0].FlightNumber)
 }
+
+// Часы сегмента хранятся и читаются как есть, какая бы таймзона ни была у процесса.
+func TestOfferFlightRepository_WallClock_IndependentOfProcessTimezone(t *testing.T) {
+	local := time.Local
+	t.Cleanup(func() { time.Local = local })
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	require.NoError(t, err)
+	time.Local = tokyo
+
+	pool := newOfferFlightTestPool(t)
+	repo := pgrepo.NewOfferFlightRepository(db.New(pool))
+	offerID := seedTestOfferID(t, pool)
+	dep, arr := seedTestAirport(t, pool), seedTestAirport(t, pool)
+	depAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
+	arrAt := time.Date(2026, 5, 14, 9, 0, 0, 0, time.UTC)
+
+	require.NoError(t, repo.ReplaceForOffer(context.Background(), offerID, []flight.Flight{{
+		Price: testFlightPrice(t),
+		Segments: []flight.Segment{{
+			DepartureAirportICAO: dep, ArrivalAirportICAO: arr, DepartureAt: depAt, ArrivalAt: arrAt, AirlineID: airline.UnknownID,
+		}},
+	}}))
+
+	found, err := repo.FindByOfferID(context.Background(), offerID)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	seg := found[0].Segments[0]
+	assert.Equal(t, "2026-05-14T10:00:00", seg.DepartureAt.Format("2006-01-02T15:04:05"))
+	assert.Equal(t, "2026-05-14T09:00:00", seg.ArrivalAt.Format("2006-01-02T15:04:05"))
+	assert.Equal(t, time.UTC, seg.DepartureAt.Location())
+}

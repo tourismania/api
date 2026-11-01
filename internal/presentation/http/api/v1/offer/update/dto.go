@@ -4,9 +4,9 @@ package updateofferhttp
 
 import (
 	"strings"
-	"time"
 
 	"api/internal/domain/offer/flight"
+	offerhttp "api/internal/presentation/http/api/v1/offer"
 
 	"github.com/google/uuid"
 )
@@ -45,10 +45,12 @@ type FlightInput struct {
 // oneof, ни в enums — единственный источник — домен, проверку допустимости
 // делает домен. См. docs/cabin-classes.md.
 type FlightSegmentInput struct {
-	DepartureAirportICAO string    `json:"departure_airport_icao" validate:"required,len=4"`
-	ArrivalAirportICAO   string    `json:"arrival_airport_icao"   validate:"required,len=4"`
-	DepartureAt          time.Time `json:"departure_at"           validate:"required"`
-	ArrivalAt            time.Time `json:"arrival_at"             validate:"required"`
+	DepartureAirportICAO string `json:"departure_airport_icao" validate:"required,len=4"`
+	ArrivalAirportICAO   string `json:"arrival_airport_icao"   validate:"required,len=4"`
+	// DepartureAt — местные дата и время аэропорта вылета, YYYY-MM-DDTHH:MM:SS без смещения и суффикса Z; реальный момент api определяет по таймзоне аэропорта.
+	DepartureAt offerhttp.LocalDateTime `json:"departure_at" validate:"required" swaggertype:"string" example:"2026-05-14T10:00:00"`
+	// ArrivalAt — местные дата и время аэропорта прилёта, YYYY-MM-DDTHH:MM:SS без смещения и суффикса Z; реальный момент api определяет по таймзоне аэропорта.
+	ArrivalAt offerhttp.LocalDateTime `json:"arrival_at" validate:"required" swaggertype:"string" example:"2026-05-14T11:00:00"`
 	// CabinClass — класс обслуживания сегмента; необязателен (отсутствие поля, null и "" — класс неизвестен). Допустимые значения — enum схемы flight.CabinClass (справочник классов обслуживания); недопустимое значение — 400 с meta {"CabinClass":"oneof"}.
 	CabinClass flight.CabinClass `json:"cabin_class" example:"economy"`
 	// AirlineID — id авиакомпании из поиска GET /api/v1/airlines; обязателен (нет поля, null или 0 — 400 с meta {"AirlineID":"required"}). Перевозчик неизвестен — 1 («Неизвестная»). Нет в справочнике или скрытая из поиска запись, на которую оффер ещё не ссылался, — 400 «flight segment references an unknown airline».

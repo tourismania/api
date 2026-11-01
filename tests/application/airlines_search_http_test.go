@@ -171,7 +171,7 @@ func TestAirlinesHTTP_UnknownRecord_FoundByBothNames(t *testing.T) {
 		}
 		require.NotNil(t, found, s)
 		assert.Equal(t, map[string]any{
-			"id": float64(1), "icao": nil, "name": "Unknown", "name_ru": "Неизвестная", "country": nil, "dissolved_on": nil,
+			"id": float64(1), "icao": nil, "name": "Неизвестная", "country": nil, "dissolved_on": nil,
 		}, found)
 	}
 }
@@ -224,9 +224,9 @@ func TestAirlinesHTTP_ResponseFormat(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	require.Len(t, body.Data, 1)
 	assert.Equal(t, map[string]any{
-		"id": float64(e.f.foreign), "icao": "ZXF", "name": "Foreign " + e.f.token + " Air", "name_ru": "",
+		"id": float64(e.f.foreign), "icao": "ZXF", "name": "Foreign " + e.f.token + " Air",
 		"country": map[string]any{"iso2": "ZX", "name": e.f.countryName}, "dissolved_on": nil,
-	}, body.Data[0], "у иностранной name_ru пустой, кодов IATA нет")
+	}, body.Data[0], "у иностранной английское название, поля name_ru и кодов IATA нет")
 	assert.NotContains(t, rr.Body.String(), "X1")
 	assert.Equal(t, map[string]any{
 		"total": float64(1), "limit": float64(20), "offset": float64(0),
@@ -374,7 +374,8 @@ func TestAirlinesHTTP_GetByID_IncludingMergedAndMissing(t *testing.T) {
 
 	code, data := e.getOne(t, fmt.Sprint(e.f.ru))
 	require.Equal(t, http.StatusOK, code)
-	assert.Equal(t, "Россия "+e.f.token, data["name_ru"])
+	assert.Equal(t, "Россия "+e.f.token, data["name"], "русское название, если оно есть")
+	assert.NotContains(t, data, "name_ru")
 
 	code, data = e.getOne(t, fmt.Sprint(e.f.dup))
 	require.Equal(t, http.StatusOK, code, "дубль, которого нет в поиске, по id отдаётся")
@@ -388,7 +389,7 @@ func TestAirlinesHTTP_GetByID_IncludingMergedAndMissing(t *testing.T) {
 	code, data = e.getOne(t, "1")
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, map[string]any{
-		"id": float64(1), "icao": nil, "name": "Unknown", "name_ru": "Неизвестная", "country": nil, "dissolved_on": nil,
+		"id": float64(1), "icao": nil, "name": "Неизвестная", "country": nil, "dissolved_on": nil,
 	}, data, "поля — как у элемента поиска")
 }
 
