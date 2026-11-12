@@ -3,6 +3,7 @@
 > **Источник требований:** изменение SDD `add-hotel-directory` в `tourismania/sdd`
 > (`openspec/changes/add-hotel-directory/`: proposal, спека `travel-services/hotels`, design, tasks),
 > принято в [sdd PR №42](https://github.com/tourismania/sdd/pull/42).
+> **Реализация:** [api PR №39](https://github.com/tourismania/api/pull/39).
 > **Следующее изменение:** sdd `add-offer-hotels` — отели оффера ссылаются на справочник и пополняют его.
 > Этот файл — краткая выжимка для api; при расхождении прав SDD.
 
