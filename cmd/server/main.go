@@ -58,6 +58,8 @@ func run() error {
 		Airports:           container.Http.Airports,
 		SearchAirlines:     container.Http.SearchAirlines,
 		GetAirline:         container.Http.GetAirline,
+		SearchHotels:       container.Http.SearchHotels,
+		RoomCategories:     container.Http.RoomCategories,
 		Currencies:         container.Http.Currencies,
 		CreateOffer:        container.Http.CreateOffer,
 		GetOffer:           container.Http.GetOffer,
