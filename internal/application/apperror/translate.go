@@ -2,6 +2,7 @@ package apperror
 
 import (
 	"api/internal/domain/agency"
+	"api/internal/domain/hotel"
 	"api/internal/domain/money"
 	"api/internal/domain/offer"
 	"api/internal/domain/offer/flight"
@@ -27,7 +28,8 @@ func FromDomainError(err error) error {
 		return fmt.Errorf("%w: %s", ErrUnauthenticated, err.Error())
 	case errors.Is(err, offer.ErrInsufficientRole):
 		return fmt.Errorf("%w: %s", ErrForbidden, err.Error())
-	case errors.Is(err, offer.ErrNotFound):
+	case errors.Is(err, offer.ErrNotFound),
+		errors.Is(err, hotel.ErrNotFound):
 		return fmt.Errorf("%w: %s", ErrNotFound, err.Error())
 	case errors.Is(err, offer.ErrTitleInvalid),
 		errors.Is(err, offer.ErrStatusInvalid),

@@ -32,8 +32,10 @@ import (
 	getoffersq "api/internal/application/query/get_offers"
 	getpublishedofferq "api/internal/application/query/get_published_offer"
 	listcurrencies "api/internal/application/query/list_currencies"
+	listhotelroomcategories "api/internal/application/query/list_hotel_room_categories"
 	searchairlines "api/internal/application/query/search_airlines"
 	searchairports "api/internal/application/query/search_airports"
+	searchhotels "api/internal/application/query/search_hotels"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
 	"api/internal/infrastructure/geo/mwgg"
@@ -49,6 +51,8 @@ import (
 	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
+	roomcategorieshttp "api/internal/presentation/http/api/v1/hotel/room_categories"
+	searchhotelhttp "api/internal/presentation/http/api/v1/hotel/search"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
@@ -84,6 +88,8 @@ type Container struct {
 		SearchAirlines    *searchairlines.Handler
 		GetAirline        *getairlineq.Handler
 		SyncAirlines      *syncairlinescmd.Handler
+		SearchHotels      *searchhotels.Handler
+		RoomCategories    *listhotelroomcategories.Handler
 		CreateOffer       *createoffercmd.Handler
 		UpdateOffer       *updateoffercmd.Handler
 		DeleteOffer       *deleteoffercmd.Handler
@@ -100,6 +106,8 @@ type Container struct {
 		Airports          *searchairporthttp.Handler
 		SearchAirlines    *searchairlinehttp.Handler
 		GetAirline        *getairlinehttp.Handler
+		SearchHotels      *searchhotelhttp.Handler
+		RoomCategories    *roomcategorieshttp.Handler
 		Currencies        *listcurrencieshttp.Handler
 		CreateOffer       *createofferhttp.Handler
 		GetOffer          *getofferhttp.Handler
@@ -157,6 +165,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 	listCurrenciesApp := listcurrencies.NewHandler()
 
+	// Hotel directory wiring.
+	hotelRepo := pgrepo.NewHotelRepository(queries)
+	searchHotelsApp := searchhotels.NewHandler(hotelRepo, userFinder)
+	roomCategoriesApp := listhotelroomcategories.NewHandler(hotelRepo, userFinder)
+
 	// Airline reference wiring.
 	airlineRepo := pgrepo.NewAirlineRepository(queries)
 	searchAirlinesApp := searchairlines.NewHandler(airlineRepo)
@@ -213,6 +226,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
 	searchAirlineH := searchairlinehttp.NewHandler(searchAirlinesApp, validate)
 	getAirlineH := getairlinehttp.NewHandler(getAirlineApp)
+	searchHotelsH := searchhotelhttp.NewHandler(searchHotelsApp, validate)
+	roomCategoriesH := roomcategorieshttp.NewHandler(roomCategoriesApp)
 	currenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
@@ -241,6 +256,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.SearchAirlines = searchAirlinesApp
 	c.App.GetAirline = getAirlineApp
 	c.App.SyncAirlines = syncAirlinesApp
+	c.App.SearchHotels = searchHotelsApp
+	c.App.RoomCategories = roomCategoriesApp
 	c.App.CreateOffer = createOfferApp
 	c.App.UpdateOffer = updateOfferApp
 	c.App.DeleteOffer = deleteOfferApp
@@ -254,6 +271,8 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.Http.Airports = airportsH
 	c.Http.SearchAirlines = searchAirlineH
 	c.Http.GetAirline = getAirlineH
+	c.Http.SearchHotels = searchHotelsH
+	c.Http.RoomCategories = roomCategoriesH
 	c.Http.Currencies = currenciesH
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH
