@@ -1,4 +1,4 @@
-package searchhotelhttp
+package searchhotelshttp
 
 import (
 	"errors"

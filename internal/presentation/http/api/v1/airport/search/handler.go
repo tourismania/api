@@ -1,4 +1,4 @@
-package searchairporthttp
+package searchairportshttp
 
 import (
 	"errors"

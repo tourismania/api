@@ -1,7 +1,7 @@
-// Package getpublicofferhttp is the HTTP boundary for the
+// Package getpublishedofferhttp is the HTTP boundary for the
 // GetPublishedOffer query (GET /api/v1/public/offers/{uuid} — the fully
 // anonymous "share link" endpoint).
-package getpublicofferhttp
+package getpublishedofferhttp
 
 import (
 	"time"

@@ -1,6 +1,6 @@
-// Package searchhotelhttp — HTTP-граница поиска отелей справочника агентства
+// Package searchhotelshttp — HTTP-граница поиска отелей справочника агентства
 // GET /api/v1/hotels: разбор параметров, формат ответа и ошибок.
-package searchhotelhttp
+package searchhotelshttp
 
 // SearchParams — параметры страницы, разобранные по форме: числа в границах
 // (go-playground/validator; ошибка — с границей: {"Limit": "max=100"}).

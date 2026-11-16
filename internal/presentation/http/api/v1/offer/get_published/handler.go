@@ -1,4 +1,4 @@
-package getpublicofferhttp
+package getpublishedofferhttp
 
 import (
 	"errors"

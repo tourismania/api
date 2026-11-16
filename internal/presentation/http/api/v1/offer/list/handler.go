@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"api/internal/application/apperror"
-	getoffers "api/internal/application/query/get_offers"
+	listoffers "api/internal/application/query/list_offers"
 	"api/internal/domain/offer"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -25,12 +25,12 @@ const (
 // endpoint: the caller must be authenticated; the list is always scoped
 // to their own agency.
 type Handler struct {
-	useCase  getoffers.UseCase
+	useCase  listoffers.UseCase
 	validate *validator.Validate
 }
 
 // NewHandler constructs the handler.
-func NewHandler(uc getoffers.UseCase, v *validator.Validate) *Handler {
+func NewHandler(uc listoffers.UseCase, v *validator.Validate) *Handler {
 	return &Handler{useCase: uc, validate: v}
 }
 
@@ -89,7 +89,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
-	res, err := h.useCase.Handle(r.Context(), getoffers.Query{
+	res, err := h.useCase.Handle(r.Context(), listoffers.Query{
 		CurrentUserUUID: currentUserUUID,
 		Status:          status,
 		CreatedBy:       createdBy,
@@ -108,7 +108,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, buildResponse(res, limit, offset))
 }
 
-func buildResponse(res getoffers.Result, limit, offset int) ListOffersResponse {
+func buildResponse(res listoffers.Result, limit, offset int) ListOffersResponse {
 	data := make([]OfferResponse, 0, len(res.Offers))
 	for _, o := range res.Offers {
 		data = append(data, OfferResponse{

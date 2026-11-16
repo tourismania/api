@@ -78,7 +78,7 @@
 
 **query:**
 
-- `get_[name]s` — список. `Query{ CurrentUserUUID uuid.UUID, ... }`.
+- `list_[name]s` — список с пагинацией или фильтрами. `Query{ CurrentUserUUID uuid.UUID, ... }`. Глаголы `get`/`list`/`search` — `STYLE.md` §1 «Use case'ы и HTTP-хендлеры».
 - `get_[name]` — приватное получение одного. `Query{ ID, CurrentUserUUID uuid.UUID }` — *обязателен, если ручка только для авторизованных.*
 - `get_public_[name]` — *(если нужна анонимная версия)* публичное получение одного, без identity в `Query` вообще — даже uuid не нужен.
 

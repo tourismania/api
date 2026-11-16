@@ -10,16 +10,16 @@ import (
 	"api/internal/infrastructure/auth"
 	loginhttp "api/internal/presentation/http/api/login"
 	getairlinehttp "api/internal/presentation/http/api/v1/airline/get"
-	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
-	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	searchairlineshttp "api/internal/presentation/http/api/v1/airline/search"
+	searchairportshttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
 	getroomcategorieshttp "api/internal/presentation/http/api/v1/hotel/get_room_categories"
-	searchhotelhttp "api/internal/presentation/http/api/v1/hotel/search"
+	searchhotelshttp "api/internal/presentation/http/api/v1/hotel/search"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
-	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
-	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	getpublishedofferhttp "api/internal/presentation/http/api/v1/offer/get_published"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/list"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -37,16 +37,16 @@ type Server struct {
 	Login             *loginhttp.Handler
 	CreateUser        *createuserhttp.Handler
 	GetMe             *getmehttp.Handler
-	Airports          *searchairporthttp.Handler
-	SearchAirlines    *searchairlinehttp.Handler
+	SearchAirports    *searchairportshttp.Handler
+	SearchAirlines    *searchairlineshttp.Handler
 	GetAirline        *getairlinehttp.Handler
-	SearchHotels      *searchhotelhttp.Handler
+	SearchHotels      *searchhotelshttp.Handler
 	GetRoomCategories *getroomcategorieshttp.Handler
-	Currencies        *listcurrencieshttp.Handler
+	ListCurrencies    *listcurrencieshttp.Handler
 	CreateOffer       *createofferhttp.Handler
 	GetOffer          *getofferhttp.Handler
-	GetOffers         *listoffershttp.Handler
-	GetPublishedOffer *getpublicofferhttp.Handler
+	ListOffers        *listoffershttp.Handler
+	GetPublishedOffer *getpublishedofferhttp.Handler
 	UpdateOffer       *updateofferhttp.Handler
 	DeleteOffer       *deleteofferhttp.Handler
 	JWT               *auth.Service
@@ -125,7 +125,7 @@ func (s Server) Build() http.Handler {
 			priv.Get("/users/me", s.GetMe.Handle)
 
 			// Airports
-			priv.Get("/airports", s.Airports.Handle)
+			priv.Get("/airports", s.SearchAirports.Handle)
 
 			// Airlines: справочник авиакомпаний, любой аутентифицированный.
 			// Поиск отдаёт только выбираемые записи; по id — в т. ч. скрытые.
@@ -138,11 +138,11 @@ func (s Server) Build() http.Handler {
 			priv.Get("/hotels/{id}/room-categories", s.GetRoomCategories.Handle)
 
 			// Currencies: системный справочник валют, любой аутентифицированный.
-			priv.Get("/currencies", s.Currencies.Handle)
+			priv.Get("/currencies", s.ListCurrencies.Handle)
 
 			// Offer reads: any authenticated principal, scoped to their
 			// own agency, any status. Role has no effect on visibility.
-			priv.Get("/offers", s.GetOffers.Handle)
+			priv.Get("/offers", s.ListOffers.Handle)
 			priv.Get("/offers/{uuid}", s.GetOffer.Handle)
 
 			// Offer writes: agent/super admin, own agency only. Both the

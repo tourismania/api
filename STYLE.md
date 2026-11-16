@@ -41,14 +41,20 @@
 
 | Элемент | Конвенция | Пример |
 |---|---|---|
-| Пакет use case | `application/{command,query}/<глагол>_<ресурс>`; глагол — `get` (один объект или фиксированный набор), `list` (список), `search` (поиск), `create`, `update`, `delete`, `sync`, … | `query/search_hotels`, `query/get_room_categories` |
+| Пакет use case | `application/{command,query}/<глагол>_<ресурс>`; глагол чтения — по правилу ниже, записи — `create`, `update`, `delete`, `sync`, `activate`, … | `query/search_hotels`, `query/get_room_categories`, `query/list_offers` |
 | Go-имя пакета use case | То же без подчёркиваний | `searchhotels`, `getroomcategories` |
-| Пакет HTTP-хендлера | `presentation/http/api/v1/<ресурс>/<глагол>` (или `<глагол>_<что>`, если у ресурса несколько чтений) | `hotel/search`, `hotel/get_room_categories` |
-| Go-имя пакета хендлера | Имя пакета use case + `http` | `searchhotelhttp`, `getroomcategorieshttp` |
+| Пакет HTTP-хендлера | `presentation/http/api/v1/<ресурс>/<глагол>` (или `<глагол>_<что>`, если у ресурса несколько чтений) | `hotel/search`, `hotel/get_room_categories`, `offer/list`, `offer/get_published` |
+| Go-имя пакета хендлера | Имя пакета use case + `http` | `searchhotelshttp`, `getroomcategorieshttp`, `listoffershttp` |
 | Поля `Container.App`, `Container.Http`, `http.Server` | Имя пакета use case в PascalCase — одинаковое в трёх местах | `SearchHotels`, `GetRoomCategories` |
 | Переменные в `config/container.go` | camelCase того же имени + `App` / `H` | `getRoomCategoriesApp`, `getRoomCategoriesH` |
 
-Имя поля не сокращается до ресурса (`RoomCategories`, `Airports`) и не расходится с пакетом use case. Старые поля `Airports` и `Currencies` — исключения до переименования, не образец.
+Глагол запроса (read-side):
+
+- `get` — один объект или фиксированный набор, принадлежащий объекту, без пагинации и фильтров. Пример: категории конкретного отеля, поэтому `get_room_categories`; оффер по uuid — `get_offer`.
+- `list` — список ресурса с пагинацией или фильтрами (`list_currencies`, `list_offers`).
+- `search` — выдача по строке поиска (`search_airlines`, `search_hotels`).
+
+Имя поля не сокращается до ресурса (`RoomCategories`, `Airports`) и не расходится с пакетом use case.
 
 ### Форматирование и линтер
 
@@ -139,7 +145,7 @@ Presentation → Application → Domain ← Infrastructure
 
 | Кто использует | Где лежит | Пример |
 |---|---|---|
-| Один хендлер | `dto.go` пакета хендлера | `searchairlinehttp.MetaResponse` |
+| Один хендлер | `dto.go` пакета хендлера | `searchairlineshttp.MetaResponse` |
 | Несколько хендлеров одного ресурса | родительский пакет ресурса `presentation/http/api/v1/<ресурс>` (имя пакета `<ресурс>http`) | `airlinehttp.AirlineResponse`, `airlinehttp.CountryResponse` — общие для `airline/search` и `airline/get` |
 | Любые хендлеры, не про конкретный ресурс (разбор query-строки, запись ошибок) | `presentation/http/httpx` | `httpx.ParseIDList`, `httpx.QueryInt`, `httpx.WriteValidationErrorWithParams` |
 

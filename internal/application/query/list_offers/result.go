@@ -1,4 +1,4 @@
-package getoffers
+package listoffers
 
 import (
 	"api/internal/domain/offer"

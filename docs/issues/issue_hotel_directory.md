@@ -64,6 +64,13 @@
 - Именование: use case `query/get_room_categories`, хендлер `hotel/get_room_categories`, поля
   `GetRoomCategories`; правило — `STYLE.md` §1 «Use case'ы и HTTP-хендлеры».
 - Нормализация строки поиска — `application/helpers.NormalizeSearch` (общая с авиакомпаниями).
+- Глаголы чтения зафиксированы в `STYLE.md` §1: `get` — один объект или фиксированный набор,
+  принадлежащий объекту, без пагинации и фильтров; `list` — список с пагинацией или фильтрами;
+  `search` — по строке поиска. Существующий код приведён к правилу: `query/get_offers` →
+  `query/list_offers`, `offer/get_list` → `offer/list`, `offer/get_public` → `offer/get_published`;
+  поля `GetOffers` → `ListOffers`, `Airports` → `SearchAirports`, `Currencies` → `ListCurrencies`;
+  пакеты хендлеров — имя use case + `http` (`searchairlineshttp`, `searchairportshttp`,
+  `searchhotelshttp`, `getpublishedofferhttp`). Маршруты и контракт не менялись.
 
 ## Non-goals
 

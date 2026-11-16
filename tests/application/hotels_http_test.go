@@ -19,7 +19,7 @@ import (
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
 	getroomcategorieshttp "api/internal/presentation/http/api/v1/hotel/get_room_categories"
-	searchhotelhttp "api/internal/presentation/http/api/v1/hotel/search"
+	searchhotelshttp "api/internal/presentation/http/api/v1/hotel/search"
 	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-chi/chi/v5"
@@ -107,7 +107,7 @@ func newHotelHTTPEnv(t *testing.T) hotelHTTPEnv {
 	e.tokenB = issue(e.agencyB, user.RoleUser, user.RoleAgent)
 
 	finder := user.NewFinder(users)
-	searchH := searchhotelhttp.NewHandler(searchhotels.NewHandler(e.repo, finder), validator.New(validator.WithRequiredStructEnabled()))
+	searchH := searchhotelshttp.NewHandler(searchhotels.NewHandler(e.repo, finder), validator.New(validator.WithRequiredStructEnabled()))
 	catsH := getroomcategorieshttp.NewHandler(getroomcategories.NewHandler(e.repo, finder))
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(api chi.Router) {

@@ -1,6 +1,6 @@
-// Package searchairlinehttp — HTTP-граница поиска авиакомпаний
+// Package searchairlineshttp — HTTP-граница поиска авиакомпаний
 // GET /api/v1/airlines: разбор параметров, формат ответа и ошибок.
-package searchairlinehttp
+package searchairlineshttp
 
 import airlinehttp "api/internal/presentation/http/api/v1/airline"
 
