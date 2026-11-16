@@ -39,6 +39,7 @@ type Repository interface {
 	// Insert добавляет отель и возвращает его id; h.ID не учитывается.
 	Insert(ctx context.Context, h Hotel) (int, error)
 	// InsertRoomCategory добавляет категорию и возвращает её id; c.ID не
-	// учитывается.
+	// учитывается. Название уже занято действующей категорией отеля (без
+	// учёта регистра) — ErrRoomCategoryNameTaken.
 	InsertRoomCategory(ctx context.Context, c RoomCategory) (int, error)
 }

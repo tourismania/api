@@ -234,3 +234,25 @@ func TestHotelRepository_DeletedCategory_Hidden(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, byID)
 }
+
+func TestHotelRepository_RoomCategoryNameUniquePerHotel(t *testing.T) {
+	e := newHotelRepoEnv(t)
+	ctx := context.Background()
+	id := e.insertHotel(t, e.agency, "Rixos")
+	other := e.insertHotel(t, e.agency, "Hilton")
+	std := e.insertCategory(t, id, "Standard")
+
+	dup, err := hotel.NewRoomCategory(id, "STANDARD", "", nil)
+	require.NoError(t, err)
+	_, err = e.repo.InsertRoomCategory(ctx, dup)
+	assert.ErrorIs(t, err, hotel.ErrRoomCategoryNameTaken, "без учёта регистра")
+
+	e.insertCategory(t, other, "Standard")
+
+	e.markDeleted(t, "hotel_room_categories", std)
+	e.insertCategory(t, id, "standard")
+
+	cats, err := e.repo.ListRoomCategories(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"standard"}, categoryNames(cats), "удалённая категория название не занимает")
+}

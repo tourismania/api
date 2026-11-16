@@ -13,7 +13,7 @@ import (
 	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
 	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
-	roomcategorieshttp "api/internal/presentation/http/api/v1/hotel/room_categories"
+	getroomcategorieshttp "api/internal/presentation/http/api/v1/hotel/get_room_categories"
 	searchhotelhttp "api/internal/presentation/http/api/v1/hotel/search"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
@@ -41,7 +41,7 @@ type Server struct {
 	SearchAirlines    *searchairlinehttp.Handler
 	GetAirline        *getairlinehttp.Handler
 	SearchHotels      *searchhotelhttp.Handler
-	RoomCategories    *roomcategorieshttp.Handler
+	GetRoomCategories *getroomcategorieshttp.Handler
 	Currencies        *listcurrencieshttp.Handler
 	CreateOffer       *createofferhttp.Handler
 	GetOffer          *getofferhttp.Handler
@@ -135,7 +135,7 @@ func (s Server) Build() http.Handler {
 			// Hotels: справочник отелей своего агентства, любой пользователь
 			// агентства. Агентство берётся из записи пользователя в use case.
 			priv.Get("/hotels", s.SearchHotels.Handle)
-			priv.Get("/hotels/{id}/room-categories", s.RoomCategories.Handle)
+			priv.Get("/hotels/{id}/room-categories", s.GetRoomCategories.Handle)
 
 			// Currencies: системный справочник валют, любой аутентифицированный.
 			priv.Get("/currencies", s.Currencies.Handle)

@@ -1,10 +1,6 @@
 package db
 
-import (
-	"context"
-
-	"github.com/jackc/pgx/v5"
-)
+import "context"
 
 // Версии запросов queries/hotels.sql с позиционными параметрами (именованные
 // @x → $x); порядок параметров указан у каждого запроса.
@@ -117,9 +113,30 @@ func (q *Queries) SearchHotels(ctx context.Context, arg SearchHotelsParams) ([]S
 	if err != nil {
 		return nil, err
 	}
-	return collect(rows, func(row *SearchHotelsRow) []any {
-		return append(hotelDest(&row.Hotel), &row.Rank, &row.TotalCount)
-	})
+	defer rows.Close()
+
+	result := []SearchHotelsRow{}
+	for rows.Next() {
+		var row SearchHotelsRow
+		if err := rows.Scan(
+			&row.ID,
+			&row.AgencyID,
+			&row.Name,
+			&row.Stars,
+			&row.Address,
+			&row.Description,
+			&row.PhotoUrls,
+			&row.Rank,
+			&row.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // findHotelsByIDsAndAgencySQL: $1=ids, $2=agency_id.
@@ -137,7 +154,28 @@ func (q *Queries) FindHotelsByIDsAndAgency(ctx context.Context, ids []int32, age
 	if err != nil {
 		return nil, err
 	}
-	return collect(rows, hotelDest)
+	defer rows.Close()
+
+	result := []Hotel{}
+	for rows.Next() {
+		var row Hotel
+		if err := rows.Scan(
+			&row.ID,
+			&row.AgencyID,
+			&row.Name,
+			&row.Stars,
+			&row.Address,
+			&row.Description,
+			&row.PhotoUrls,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // HotelRoomCategory — строка таблицы hotel_room_categories без служебных
@@ -166,7 +204,26 @@ func (q *Queries) ListHotelRoomCategories(ctx context.Context, hotelID int32) ([
 	if err != nil {
 		return nil, err
 	}
-	return collect(rows, roomCategoryDest)
+	defer rows.Close()
+
+	result := []HotelRoomCategory{}
+	for rows.Next() {
+		var row HotelRoomCategory
+		if err := rows.Scan(
+			&row.ID,
+			&row.HotelID,
+			&row.Name,
+			&row.Description,
+			&row.PhotoUrls,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // findRoomCategoriesByIDsSQL: $1=ids.
@@ -185,27 +242,18 @@ func (q *Queries) FindRoomCategoriesByIDs(ctx context.Context, ids []int32) ([]H
 	if err != nil {
 		return nil, err
 	}
-	return collect(rows, roomCategoryDest)
-}
-
-// hotelDest — адреса полей Hotel в порядке столбцов SELECT.
-func hotelDest(h *Hotel) []any {
-	return []any{&h.ID, &h.AgencyID, &h.Name, &h.Stars, &h.Address, &h.Description, &h.PhotoUrls}
-}
-
-// roomCategoryDest — адреса полей HotelRoomCategory в порядке столбцов SELECT.
-func roomCategoryDest(c *HotelRoomCategory) []any {
-	return []any{&c.ID, &c.HotelID, &c.Name, &c.Description, &c.PhotoUrls}
-}
-
-// collect читает все строки rows в срез T; dest отдаёт адреса полей строки
-// в порядке столбцов. Пустой результат — пустой срез, не nil.
-func collect[T any](rows pgx.Rows, dest func(*T) []any) ([]T, error) {
 	defer rows.Close()
-	result := []T{}
+
+	result := []HotelRoomCategory{}
 	for rows.Next() {
-		var row T
-		if err := rows.Scan(dest(&row)...); err != nil {
+		var row HotelRoomCategory
+		if err := rows.Scan(
+			&row.ID,
+			&row.HotelID,
+			&row.Name,
+			&row.Description,
+			&row.PhotoUrls,
+		); err != nil {
 			return nil, err
 		}
 		result = append(result, row)

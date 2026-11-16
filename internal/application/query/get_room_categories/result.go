@@ -1,4 +1,4 @@
-package listhotelroomcategories
+package getroomcategories
 
 // RoomCategoryResult — категория номера. Description — "" — не указано;
 // PhotoURLs — всегда не nil.

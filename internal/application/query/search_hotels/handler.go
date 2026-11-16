@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"api/internal/application/apperror"
+	"api/internal/application/helpers"
 	"api/internal/domain/hotel"
 	"api/internal/domain/user"
 )
@@ -15,14 +14,9 @@ import (
 // MinSearchLen — минимальная длина строки поиска после нормализации.
 const MinSearchLen = 2
 
-var (
-	// ErrSearchTooShort — строка поиска после нормализации короче
-	// MinSearchLen или не передана.
-	ErrSearchTooShort = errors.New("search must be at least 2 characters")
-
-	// multiSpace — подряд идущие пробельные символы.
-	multiSpace = regexp.MustCompile(`\s+`)
-)
+// ErrSearchTooShort — строка поиска после нормализации короче MinSearchLen
+// или не передана.
+var ErrSearchTooShort = errors.New("search must be at least 2 characters")
 
 // UseCase — порт, от которого зависит presentation-слой.
 type UseCase interface {
@@ -83,15 +77,14 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	return Result{Hotels: out, TotalCount: res.TotalCount, Search: search}, nil
 }
 
-// normalizeSearch обрезает пробелы по краям и схлопывает подряд идущие
-// пробельные символы; результат короче MinSearchLen символов или
-// отсутствие строки — ErrSearchTooShort.
+// normalizeSearch нормализует строку поиска (helpers.NormalizeSearch);
+// короче MinSearchLen или не передана — ErrSearchTooShort.
 func normalizeSearch(raw *string) (string, error) {
 	if raw == nil {
 		return "", ErrSearchTooShort
 	}
-	s := multiSpace.ReplaceAllString(strings.TrimSpace(*raw), " ")
-	if len([]rune(s)) < MinSearchLen {
+	s, ok := helpers.NormalizeSearch(*raw, MinSearchLen)
+	if !ok {
 		return "", ErrSearchTooShort
 	}
 	return s, nil

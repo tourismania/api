@@ -14,6 +14,12 @@ import (
 	"api/internal/domain/content"
 )
 
+// Границы звёзд отеля: 0 — без звёзд.
+const (
+	MinStars = 0
+	MaxStars = 5
+)
+
 // Границы полей записей справочника, в символах.
 const (
 	// NameMaxLength — название отеля и категории номера.
@@ -37,6 +43,8 @@ var (
 	// ErrNameInvalid — название пустое после обрезки пробелов, длиннее
 	// NameMaxLength или содержит запрещённый управляющий символ.
 	ErrNameInvalid = errors.New("hotel name is required, at most 200 characters, without control characters")
+	// ErrStarsInvalid — звёзды вне диапазона MinStars–MaxStars.
+	ErrStarsInvalid = errors.New("hotel stars must be between 0 and 5")
 	// ErrAddressInvalid — адрес длиннее AddressMaxLength или содержит
 	// запрещённый управляющий символ.
 	ErrAddressInvalid = errors.New("hotel address must be at most 500 characters, without control characters")
@@ -49,6 +57,10 @@ var (
 	// ErrRoomCategoryNameInvalid — название категории пустое после обрезки,
 	// длиннее NameMaxLength или содержит запрещённый управляющий символ.
 	ErrRoomCategoryNameInvalid = errors.New("room category name is required, at most 200 characters, without control characters")
+	// ErrRoomCategoryNameTaken — у отеля уже есть действующая категория с
+	// таким названием (без учёта регистра). Возвращает
+	// Repository.InsertRoomCategory; удалённые категории название не занимают.
+	ErrRoomCategoryNameTaken = errors.New("hotel already has a room category with this name")
 	// ErrRoomCategoryDescriptionInvalid — описание категории длиннее
 	// RoomCategoryDescriptionMaxLength или содержит запрещённый управляющий
 	// символ.
@@ -80,7 +92,7 @@ type RoomCategory struct {
 
 // New собирает отель агентства agencyID по правилам полей: название
 // обрезается по краям и обязательно (ErrNameInvalid), звёзды — 0–5
-// (content.ErrStarsInvalid), адрес и описание хранятся как есть
+// (ErrStarsInvalid), адрес и описание хранятся как есть
 // (ErrAddressInvalid, ErrDescriptionInvalid), фото — по правилам
 // ErrPhotoURLsInvalid. Во всех текстах запрещены управляющие символы, кроме
 // \t, \n, \r. Длина считается в символах. ID не назначается — его даёт
@@ -90,8 +102,8 @@ func New(agencyID int, name string, stars int, address, description string, phot
 	if !ok {
 		return Hotel{}, ErrNameInvalid
 	}
-	if err := content.CheckStars(stars); err != nil {
-		return Hotel{}, err
+	if stars < MinStars || stars > MaxStars {
+		return Hotel{}, ErrStarsInvalid
 	}
 	if !textValid(address, AddressMaxLength) {
 		return Hotel{}, ErrAddressInvalid

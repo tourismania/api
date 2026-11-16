@@ -2,12 +2,21 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"api/internal/domain/hotel"
 	"api/internal/infrastructure/persistence/helpers"
 	"api/internal/infrastructure/persistence/postgres/db"
 	"api/internal/infrastructure/persistence/postgres/mapper"
+
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+// Нарушение уникальности названия категории номера в пределах отеля.
+const (
+	uniqueViolationCode         = "23505"
+	roomCategoryNameUniqueIndex = "hotel_room_categories_hotel_name_uniq"
 )
 
 // Compile-time interface check.
@@ -113,6 +122,9 @@ func (r *HotelRepository) InsertRoomCategory(ctx context.Context, c hotel.RoomCa
 		PhotoUrls:   c.PhotoURLs,
 	})
 	if err != nil {
+		if isUniqueViolation(err, roomCategoryNameUniqueIndex) {
+			return 0, fmt.Errorf("insert room category of hotel %d: %w", c.HotelID, hotel.ErrRoomCategoryNameTaken)
+		}
 		return 0, fmt.Errorf("insert room category of hotel %d: %w", c.HotelID, err)
 	}
 	return int(id), nil
@@ -124,4 +136,10 @@ func toRoomCategories(rows []db.HotelRoomCategory) []hotel.RoomCategory {
 		out = append(out, mapper.ToRoomCategoryDomain(row))
 	}
 	return out
+}
+
+// isUniqueViolation — ошибка Postgres о нарушении уникального индекса index.
+func isUniqueViolation(err error, index string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode && pgErr.ConstraintName == index
 }

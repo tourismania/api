@@ -1,6 +1,6 @@
-// Package listhotelroomcategories — категории номеров отеля справочника
+// Package getroomcategories — категории номеров отеля справочника
 // своего агентства (GET /api/v1/hotels/{id}/room-categories).
-package listhotelroomcategories
+package getroomcategories
 
 import "github.com/google/uuid"
 

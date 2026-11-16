@@ -1,4 +1,4 @@
-package listhotelroomcategories
+package getroomcategories
 
 import (
 	"context"

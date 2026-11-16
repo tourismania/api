@@ -1,6 +1,6 @@
-// Package roomcategorieshttp — HTTP-граница категорий номеров отеля
+// Package getroomcategorieshttp — HTTP-граница категорий номеров отеля
 // справочника GET /api/v1/hotels/{id}/room-categories.
-package roomcategorieshttp
+package getroomcategorieshttp
 
 // RoomCategoryResponse — категория номера отеля.
 type RoomCategoryResponse struct {

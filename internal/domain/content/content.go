@@ -1,18 +1,13 @@
 // Package content — общие правила содержательных полей записей: текст без
-// управляющих символов, ссылки на фото и звёзды отеля. Ими пользуются
-// справочник отелей (domain/hotel) и позиции оффера, чтобы одинаковые поля
-// проверялись одинаково. Пакет ни от кого не зависит.
+// управляющих символов и ссылки на фото. Ими пользуются справочник отелей
+// (domain/hotel) и позиции оффера, чтобы одинаковые поля проверялись
+// одинаково. Правила конкретной сущности (например, звёзды отеля) живут в её
+// доменном пакете. Пакет ни от кого не зависит.
 package content
 
 import (
 	"errors"
 	"net/url"
-)
-
-// Границы звёзд отеля: 0 — без звёзд.
-const (
-	MinStars = 0
-	MaxStars = 5
 )
 
 // Границы запрещённых в тексте управляющих символов.
@@ -36,8 +31,6 @@ var (
 	// ErrPhotoURLInvalid — ссылка на фото не абсолютный URL со схемой http
 	// или https и непустым хостом.
 	ErrPhotoURLInvalid = errors.New("photo url must be an absolute http(s) url with a host")
-	// ErrStarsInvalid — звёзды вне диапазона MinStars–MaxStars.
-	ErrStarsInvalid = errors.New("stars must be between 0 and 5")
 )
 
 // CheckText проверяет, что в s нет запрещённых управляющих символов
@@ -64,15 +57,6 @@ func CheckPhotoURL(s string) error {
 	// url.Parse приводит схему к нижнему регистру.
 	if u.Scheme != schemeHTTP && u.Scheme != schemeHTTPS {
 		return ErrPhotoURLInvalid
-	}
-	return nil
-}
-
-// CheckStars проверяет, что звёзды в диапазоне MinStars–MaxStars
-// (ErrStarsInvalid).
-func CheckStars(stars int) error {
-	if stars < MinStars || stars > MaxStars {
-		return ErrStarsInvalid
 	}
 	return nil
 }

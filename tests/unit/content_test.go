@@ -61,12 +61,3 @@ func TestCheckPhotoURL_AbsoluteHTTPWithHost(t *testing.T) {
 		})
 	}
 }
-
-func TestCheckStars_Range(t *testing.T) {
-	for _, stars := range []int{0, 3, 5} {
-		assert.NoError(t, content.CheckStars(stars), stars)
-	}
-	for _, stars := range []int{-1, 6} {
-		assert.ErrorIs(t, content.CheckStars(stars), content.ErrStarsInvalid, stars)
-	}
-}

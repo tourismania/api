@@ -44,6 +44,7 @@ func FromDomainError(err error) error {
 		errors.Is(err, flight.ErrCabinClassInvalid),
 		errors.Is(err, flight.ErrAirlineRequired),
 		errors.Is(err, flight.ErrAirlineNotFound),
+		errors.Is(err, hotel.ErrRoomCategoryNameTaken),
 		errors.Is(err, money.ErrCurrencyUnsupported),
 		errors.Is(err, money.ErrAmountInvalid):
 		return fmt.Errorf("%w: %s", ErrValidation, err.Error())

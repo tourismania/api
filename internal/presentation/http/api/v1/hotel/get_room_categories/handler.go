@@ -1,4 +1,4 @@
-package roomcategorieshttp
+package getroomcategorieshttp
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"api/internal/application/apperror"
-	listhotelroomcategories "api/internal/application/query/list_hotel_room_categories"
+	getroomcategories "api/internal/application/query/get_room_categories"
 	hotelhttp "api/internal/presentation/http/api/v1/hotel"
 	"api/internal/presentation/http/httpx"
 	custommw "api/internal/presentation/http/middleware"
@@ -23,11 +23,11 @@ const (
 
 // Handler отдаёт категории номеров отеля агентства пользователя.
 type Handler struct {
-	useCase listhotelroomcategories.UseCase
+	useCase getroomcategories.UseCase
 }
 
 // NewHandler собирает хендлер.
-func NewHandler(uc listhotelroomcategories.UseCase) *Handler {
+func NewHandler(uc getroomcategories.UseCase) *Handler {
 	return &Handler{useCase: uc}
 }
 
@@ -59,7 +59,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.useCase.Handle(r.Context(), listhotelroomcategories.Query{
+	res, err := h.useCase.Handle(r.Context(), getroomcategories.Query{
 		CurrentUserUUID: currentUserUUID,
 		HotelID:         id,
 	})

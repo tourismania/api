@@ -59,7 +59,7 @@ func run() error {
 		SearchAirlines:     container.Http.SearchAirlines,
 		GetAirline:         container.Http.GetAirline,
 		SearchHotels:       container.Http.SearchHotels,
-		RoomCategories:     container.Http.RoomCategories,
+		GetRoomCategories:  container.Http.GetRoomCategories,
 		Currencies:         container.Http.Currencies,
 		CreateOffer:        container.Http.CreateOffer,
 		GetOffer:           container.Http.GetOffer,

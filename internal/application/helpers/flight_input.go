@@ -4,7 +4,8 @@
 // flight.Flight, общие для команд create_offer и update_offer: обе
 // принимают перелёты в одном виде, поэтому разбор цены и сборка живут в
 // одном экземпляре, а пакеты команд объявляют на эти типы псевдонимы
-// (createoffer.FlightInput и т. д.).
+// (createoffer.FlightInput и т. д.). Здесь же нормализация строки поиска
+// справочников (NormalizeSearch) — общая для search_airlines и search_hotels.
 package helpers
 
 import (

@@ -30,8 +30,8 @@ internal/
     airline/          # Справочник авиакомпаний: Airline, Country, Filter, SourceRecord, UnknownID («Неизвестная» = 1), Repository; ключ — id записи, коды ICAO/IATA — атрибуты (см. docs/cli/sync_airlines.md)
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
       flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID и FlightNumber), CabinClass, Layover, New, Repository, Manager, DetailsUpdate (детали сегментов — SegmentDetails); классы обслуживания — см. docs/cabin-classes.md
-    hotel/            # Справочник отелей агентства: Hotel, RoomCategory, New/NewRoomCategory (правила полей), Filter, Repository, ErrNotFound; создаётся только при сохранении оффера, мягкое удаление (deleted_at)
-    content/          # Общие правила содержательных полей: CheckText (управляющие символы), CheckPhotoURL (http(s) с хостом), CheckStars (0–5)
+    hotel/            # Справочник отелей агентства: Hotel, RoomCategory, New/NewRoomCategory (правила полей, звёзды 0–5), Filter, Repository, ErrNotFound, ErrRoomCategoryNameTaken; создаётся только при сохранении оффера, мягкое удаление (deleted_at)
+    content/          # Общие правила содержательных полей: CheckText (управляющие символы), CheckPhotoURL (http(s) с хостом)
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
@@ -86,7 +86,7 @@ tests/
 - Если создаётся новый route — добавь его в `README.md` в раздел **Endpoints**.
 - Файлы в `internal/infrastructure/persistence/postgres/db/` генерируются автоматически. Не редактируй их вручную.
 - При создании новой переменной окружения, которая появляется в проекте, добавляй ее в `.env.example`
-- Правила миграций (имена, `down`, безопасная выкладка, `COMMENT ON` для каждой новой таблицы и столбца) — `STYLE.md` §12. Принцип миграций: 1 действие = 1 миграция. Каждая миграция содержит одно логическое изменение схемы: создание одной таблицы, добавление одного индекса, включение одного расширения. Не объединять несвязанные изменения в одном файле.
+- Правила миграций (имена, `down`, безопасная выкладка, `COMMENT ON` для каждой новой таблицы и столбца, **логика — не в БД**: без `CHECK`/`ENUM`/триггеров, правила значений — в домене; уникальность — уникальным индексом) — `STYLE.md` §12. Принцип миграций: 1 действие = 1 миграция. Каждая миграция содержит одно логическое изменение схемы: создание одной таблицы, добавление одного индекса, включение одного расширения. Не объединять несвязанные изменения в одном файле.
 - Репозитории описываются в рамках 1 сущности. 1 сущность = 1 репозиторий.
 - При команде "добавить в тех.долг", необходимо задачу (или проблему) добавить в `docs/tech_debt/tasks.md`
 
@@ -111,9 +111,10 @@ tests/
 - Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, airline, money}`, `hotel → content`; `agency`, `airport`, `airline`, `money` и `content` ни от кого не зависят. Циклы запрещены.
 - Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
 - Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
-- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights`).
+- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights` и нормализация строки поиска `helpers.NormalizeSearch`).
 - Доменные события публикуются через интерфейс `domain/event.Bus` (Kafka — одна из реализаций).
 - Все бизнес-эндпоинты — под `/api/v1/`.
+- **Именование use case'ов и хендлеров** — одно имя на цепочку: пакет `query/get_room_categories` → хендлер `hotel/get_room_categories` → поля `GetRoomCategories` в `Container.App`, `Container.Http` и `http.Server`. Глаголы и таблица — `STYLE.md` §1 «Use case'ы и HTTP-хендлеры». Перед добавлением поля сверяйся с таблицей, а не с соседними полями (`Airports`, `Currencies` — исключения).
 - DTO presentation: одного хендлера — в его `dto.go`; общие для хендлеров одного ресурса — в родительском пакете ресурса `presentation/http/api/v1/<ресурс>`; не про ресурс (разбор query, ошибки) — в `httpx`. Подробно — `STYLE.md` §3 «Общие формы запроса и ответа».
 - **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не работает с доменными сущностями и не вызывает их методы напрямую (из доменных пакетов ему доступны только enum-типы вроде `offer.Status` и sentinel-ошибки для маппинга в HTTP-статусы). Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
 

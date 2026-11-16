@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"api/internal/application/apperror"
+	"api/internal/application/helpers"
 	"api/internal/domain/airline"
 )
 
@@ -28,8 +29,6 @@ var (
 	// ErrCountryInvalid — country не две латинские буквы.
 	ErrCountryInvalid = errors.New("country must be an ISO 3166-1 alpha-2 code")
 
-	// multiSpace — подряд идущие пробельные символы.
-	multiSpace = regexp.MustCompile(`\s+`)
 	// countryPattern — код страны ISO 3166-1 alpha-2 в любом регистре.
 	countryPattern = regexp.MustCompile(`^[A-Za-z]{2}$`)
 )
@@ -95,8 +94,7 @@ func (h *Handler) Handle(ctx context.Context, q Query) (Result, error) {
 	return Result{Airlines: out, TotalCount: res.TotalCount, Search: search, Country: country}, nil
 }
 
-// normalizeSearch обрезает пробелы по краям и схлопывает подряд идущие
-// пробельные символы. Переданная строка проверяется всегда, в т. ч. вместе с
+// normalizeSearch нормализует строку поиска (helpers.NormalizeSearch). Переданная строка проверяется всегда, в т. ч. вместе с
 // IDs; не переданная допустима только с IDs (nil — без отбора по названию).
 func normalizeSearch(raw *string, withIDs bool) (*string, error) {
 	if raw == nil {
@@ -105,8 +103,8 @@ func normalizeSearch(raw *string, withIDs bool) (*string, error) {
 		}
 		return nil, ErrSearchTooShort
 	}
-	s := multiSpace.ReplaceAllString(strings.TrimSpace(*raw), " ")
-	if len([]rune(s)) < MinSearchLen {
+	s, ok := helpers.NormalizeSearch(*raw, MinSearchLen)
+	if !ok {
 		return nil, ErrSearchTooShort
 	}
 	return &s, nil

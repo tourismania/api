@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	listhotelroomcategories "api/internal/application/query/list_hotel_room_categories"
+	getroomcategories "api/internal/application/query/get_room_categories"
 	searchhotels "api/internal/application/query/search_hotels"
 	"api/internal/domain/agency"
 	"api/internal/domain/hotel"
@@ -18,7 +18,7 @@ import (
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
-	roomcategorieshttp "api/internal/presentation/http/api/v1/hotel/room_categories"
+	getroomcategorieshttp "api/internal/presentation/http/api/v1/hotel/get_room_categories"
 	searchhotelhttp "api/internal/presentation/http/api/v1/hotel/search"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -108,7 +108,7 @@ func newHotelHTTPEnv(t *testing.T) hotelHTTPEnv {
 
 	finder := user.NewFinder(users)
 	searchH := searchhotelhttp.NewHandler(searchhotels.NewHandler(e.repo, finder), validator.New(validator.WithRequiredStructEnabled()))
-	catsH := roomcategorieshttp.NewHandler(listhotelroomcategories.NewHandler(e.repo, finder))
+	catsH := getroomcategorieshttp.NewHandler(getroomcategories.NewHandler(e.repo, finder))
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Group(func(priv chi.Router) {

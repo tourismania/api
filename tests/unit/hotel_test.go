@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"api/internal/application/apperror"
-	"api/internal/domain/content"
 	"api/internal/domain/hotel"
 
 	"github.com/stretchr/testify/assert"
@@ -69,8 +68,8 @@ func TestHotelNew_InvalidFields(t *testing.T) {
 		"название из пробелов":       {name: "  \t ", want: hotel.ErrNameInvalid},
 		"название 201 символ":        {name: long(201), want: hotel.ErrNameInvalid},
 		"управляющий в названии":     {name: "Hil\u001bton", want: hotel.ErrNameInvalid},
-		"звёзд -1":                   {name: "H", stars: -1, want: content.ErrStarsInvalid},
-		"звёзд 6":                    {name: "H", stars: 6, want: content.ErrStarsInvalid},
+		"звёзд -1":                   {name: "H", stars: -1, want: hotel.ErrStarsInvalid},
+		"звёзд 6":                    {name: "H", stars: 6, want: hotel.ErrStarsInvalid},
 		"адрес 501 символ":           {name: "H", address: long(501), want: hotel.ErrAddressInvalid},
 		"управляющий в адресе":       {name: "H", address: "a\u0000", want: hotel.ErrAddressInvalid},
 		"описание 5001 символ":       {name: "H", description: long(5001), want: hotel.ErrDescriptionInvalid},
@@ -96,6 +95,13 @@ func TestHotelNew_BoundaryLengthsAccepted(t *testing.T) {
 		append(photoURLs(19), url2000))
 
 	assert.NoError(t, err, "длина считается в символах, границы включительно")
+}
+
+func TestHotelNew_StarsRange(t *testing.T) {
+	for _, stars := range []int{hotel.MinStars, 3, hotel.MaxStars} {
+		_, err := hotel.New(1, "H", stars, "", "", nil)
+		assert.NoError(t, err, stars)
+	}
 }
 
 func TestHotelNewRoomCategory_Valid(t *testing.T) {
@@ -135,4 +141,10 @@ func TestFromDomainError_HotelNotFound_IsNotFound(t *testing.T) {
 
 	assert.True(t, errors.Is(err, apperror.ErrNotFound))
 	assert.Contains(t, err.Error(), "hotel not found")
+}
+
+func TestFromDomainError_RoomCategoryNameTaken_IsValidation(t *testing.T) {
+	err := apperror.FromDomainError(hotel.ErrRoomCategoryNameTaken)
+
+	assert.ErrorIs(t, err, apperror.ErrValidation)
 }

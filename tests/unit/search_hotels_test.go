@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"api/internal/application/apperror"
-	listhotelroomcategories "api/internal/application/query/list_hotel_room_categories"
+	getroomcategories "api/internal/application/query/get_room_categories"
 	searchhotels "api/internal/application/query/search_hotels"
 	"api/internal/domain/hotel"
 
@@ -121,7 +121,7 @@ func TestSearchHotels_RepositoryError_Wrapped(t *testing.T) {
 	assert.ErrorIs(t, err, boom)
 }
 
-func TestListHotelRoomCategories_OwnHotel_ReturnsCategories(t *testing.T) {
+func TestGetRoomCategories_OwnHotel_ReturnsCategories(t *testing.T) {
 	repo := &stubHotelRepo{
 		hotels: []hotel.Hotel{{ID: 3, AgencyID: 7}},
 		categories: []hotel.RoomCategory{
@@ -130,35 +130,35 @@ func TestListHotelRoomCategories_OwnHotel_ReturnsCategories(t *testing.T) {
 		},
 	}
 
-	res, err := listhotelroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
-		listhotelroomcategories.Query{HotelID: 3})
+	res, err := getroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
+		getroomcategories.Query{HotelID: 3})
 
 	require.NoError(t, err)
 	assert.Equal(t, 7, repo.gotAgency)
-	assert.Equal(t, []listhotelroomcategories.RoomCategoryResult{
+	assert.Equal(t, []getroomcategories.RoomCategoryResult{
 		{ID: 10, Name: "Standard", PhotoURLs: []string{}},
 		{ID: 11, Name: "Deluxe", Description: "Вид на море", PhotoURLs: []string{"https://cdn.example.com/d.jpg"}},
 	}, res.RoomCategories)
 }
 
-func TestListHotelRoomCategories_NoCategories_EmptyList(t *testing.T) {
+func TestGetRoomCategories_NoCategories_EmptyList(t *testing.T) {
 	repo := &stubHotelRepo{hotels: []hotel.Hotel{{ID: 3, AgencyID: 7}}}
 
-	res, err := listhotelroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
-		listhotelroomcategories.Query{HotelID: 3})
+	res, err := getroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
+		getroomcategories.Query{HotelID: 3})
 
 	require.NoError(t, err)
 	assert.NotNil(t, res.RoomCategories)
 	assert.Empty(t, res.RoomCategories)
 }
 
-func TestListHotelRoomCategories_ForeignOrMissingHotel_NotFound(t *testing.T) {
+func TestGetRoomCategories_ForeignOrMissingHotel_NotFound(t *testing.T) {
 	for name, id := range map[string]int{"чужой": 3, "несуществующий": 99} {
 		t.Run(name, func(t *testing.T) {
 			repo := &stubHotelRepo{hotels: []hotel.Hotel{{ID: 3, AgencyID: 8}}}
 
-			_, err := listhotelroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
-				listhotelroomcategories.Query{HotelID: id})
+			_, err := getroomcategories.NewHandler(repo, userRecordWithAgency(7)).Handle(context.Background(),
+				getroomcategories.Query{HotelID: id})
 
 			assert.ErrorIs(t, err, apperror.ErrNotFound)
 			assert.Contains(t, err.Error(), "hotel not found")
@@ -167,9 +167,9 @@ func TestListHotelRoomCategories_ForeignOrMissingHotel_NotFound(t *testing.T) {
 	}
 }
 
-func TestListHotelRoomCategories_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
-	_, err := listhotelroomcategories.NewHandler(&stubHotelRepo{}, noUserFound()).Handle(context.Background(),
-		listhotelroomcategories.Query{HotelID: 3})
+func TestGetRoomCategories_ActorNotFound_ReturnsUnauthenticated(t *testing.T) {
+	_, err := getroomcategories.NewHandler(&stubHotelRepo{}, noUserFound()).Handle(context.Background(),
+		getroomcategories.Query{HotelID: 3})
 
 	assert.ErrorIs(t, err, apperror.ErrUnauthenticated)
 }
