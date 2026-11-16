@@ -53,7 +53,7 @@ func (r *HotelRepository) Search(ctx context.Context, f hotel.Filter) (hotel.Sea
 	var total int64
 	for _, row := range rows {
 		total = row.TotalCount
-		hotels = append(hotels, mapper.ToHotelDomain(row.Hotel))
+		hotels = append(hotels, mapper.ToHotelDomainFromSearchRow(row))
 	}
 	return hotel.SearchResult{Hotels: hotels, TotalCount: total}, nil
 }
@@ -70,7 +70,7 @@ func (r *HotelRepository) FindByIDsAndAgency(ctx context.Context, ids []int, age
 	}
 	out := make([]hotel.Hotel, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, mapper.ToHotelDomain(row))
+		out = append(out, mapper.ToHotelDomainFromIDsRow(row))
 	}
 	return out, nil
 }
@@ -81,7 +81,11 @@ func (r *HotelRepository) ListRoomCategories(ctx context.Context, hotelID int) (
 	if err != nil {
 		return nil, fmt.Errorf("list room categories of hotel %d: %w", hotelID, err)
 	}
-	return toRoomCategories(rows), nil
+	out := make([]hotel.RoomCategory, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mapper.ToRoomCategoryDomainFromListRow(row))
+	}
+	return out, nil
 }
 
 // FindRoomCategoriesByIDs возвращает действующие категории с перечисленными
@@ -94,7 +98,11 @@ func (r *HotelRepository) FindRoomCategoriesByIDs(ctx context.Context, ids []int
 	if err != nil {
 		return nil, fmt.Errorf("find room categories by id: %w", err)
 	}
-	return toRoomCategories(rows), nil
+	out := make([]hotel.RoomCategory, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mapper.ToRoomCategoryDomainFromIDsRow(row))
+	}
+	return out, nil
 }
 
 // Insert добавляет отель и возвращает его id.
@@ -105,7 +113,7 @@ func (r *HotelRepository) Insert(ctx context.Context, h hotel.Hotel) (int, error
 		Stars:       int16(h.Stars),
 		Address:     h.Address,
 		Description: h.Description,
-		PhotoUrls:   h.PhotoURLs,
+		PhotoUrls:   mapper.NonNilPhotoURLs(h.PhotoURLs),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("insert hotel: %w", err)
@@ -119,7 +127,7 @@ func (r *HotelRepository) InsertRoomCategory(ctx context.Context, c hotel.RoomCa
 		HotelID:     int32(c.HotelID),
 		Name:        c.Name,
 		Description: c.Description,
-		PhotoUrls:   c.PhotoURLs,
+		PhotoUrls:   mapper.NonNilPhotoURLs(c.PhotoURLs),
 	})
 	if err != nil {
 		if isUniqueViolation(err, roomCategoryNameUniqueIndex) {
@@ -128,14 +136,6 @@ func (r *HotelRepository) InsertRoomCategory(ctx context.Context, c hotel.RoomCa
 		return 0, fmt.Errorf("insert room category of hotel %d: %w", c.HotelID, err)
 	}
 	return int(id), nil
-}
-
-func toRoomCategories(rows []db.HotelRoomCategory) []hotel.RoomCategory {
-	out := make([]hotel.RoomCategory, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, mapper.ToRoomCategoryDomain(row))
-	}
-	return out
 }
 
 // isUniqueViolation — ошибка Postgres о нарушении уникального индекса index.

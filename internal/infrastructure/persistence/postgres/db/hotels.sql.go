@@ -30,7 +30,7 @@ func (q *Queries) InsertHotel(ctx context.Context, arg InsertHotelParams) (int32
 		arg.Stars,
 		arg.Address,
 		arg.Description,
-		nonNilStrings(arg.PhotoUrls),
+		arg.PhotoUrls,
 	).Scan(&id)
 	return id, err
 }
@@ -56,7 +56,7 @@ func (q *Queries) InsertHotelRoomCategory(ctx context.Context, arg InsertHotelRo
 		arg.HotelID,
 		arg.Name,
 		arg.Description,
-		nonNilStrings(arg.PhotoUrls),
+		arg.PhotoUrls,
 	).Scan(&id)
 	return id, err
 }
@@ -85,13 +85,6 @@ type SearchHotelsParams struct {
 
 // SearchHotelsRow — одна строка SearchHotels.
 type SearchHotelsRow struct {
-	Hotel
-	Rank       int32
-	TotalCount int64
-}
-
-// Hotel — строка таблицы hotels без служебных столбцов.
-type Hotel struct {
 	ID          int32
 	AgencyID    int32
 	Name        string
@@ -99,6 +92,8 @@ type Hotel struct {
 	Address     string
 	Description string
 	PhotoUrls   []string
+	Rank        int32
+	TotalCount  int64
 }
 
 // SearchHotels ищет отели агентства по названию с ранжированием и пагинацией.
@@ -147,18 +142,29 @@ WHERE id = ANY($1::int[])
   AND deleted_at IS NULL
 ORDER BY id`
 
+// FindHotelsByIDsAndAgencyRow — одна строка FindHotelsByIDsAndAgency.
+type FindHotelsByIDsAndAgencyRow struct {
+	ID          int32
+	AgencyID    int32
+	Name        string
+	Stars       int16
+	Address     string
+	Description string
+	PhotoUrls   []string
+}
+
 // FindHotelsByIDsAndAgency возвращает действующие отели агентства с
 // перечисленными id; чужих и отсутствующих в результате нет.
-func (q *Queries) FindHotelsByIDsAndAgency(ctx context.Context, ids []int32, agencyID int32) ([]Hotel, error) {
+func (q *Queries) FindHotelsByIDsAndAgency(ctx context.Context, ids []int32, agencyID int32) ([]FindHotelsByIDsAndAgencyRow, error) {
 	rows, err := q.db.Query(ctx, findHotelsByIDsAndAgencySQL, ids, agencyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := []Hotel{}
+	result := []FindHotelsByIDsAndAgencyRow{}
 	for rows.Next() {
-		var row Hotel
+		var row FindHotelsByIDsAndAgencyRow
 		if err := rows.Scan(
 			&row.ID,
 			&row.AgencyID,
@@ -178,16 +184,6 @@ func (q *Queries) FindHotelsByIDsAndAgency(ctx context.Context, ids []int32, age
 	return result, nil
 }
 
-// HotelRoomCategory — строка таблицы hotel_room_categories без служебных
-// столбцов.
-type HotelRoomCategory struct {
-	ID          int32
-	HotelID     int32
-	Name        string
-	Description string
-	PhotoUrls   []string
-}
-
 // listHotelRoomCategoriesSQL: $1=hotel_id.
 const listHotelRoomCategoriesSQL = `SELECT c.id, c.hotel_id, c.name, c.description, c.photo_urls
 FROM hotel_room_categories c
@@ -197,18 +193,27 @@ WHERE c.hotel_id = $1
   AND h.deleted_at IS NULL
 ORDER BY c.id`
 
+// ListHotelRoomCategoriesRow — одна строка ListHotelRoomCategories.
+type ListHotelRoomCategoriesRow struct {
+	ID          int32
+	HotelID     int32
+	Name        string
+	Description string
+	PhotoUrls   []string
+}
+
 // ListHotelRoomCategories возвращает действующие категории действующего
 // отеля в порядке создания.
-func (q *Queries) ListHotelRoomCategories(ctx context.Context, hotelID int32) ([]HotelRoomCategory, error) {
+func (q *Queries) ListHotelRoomCategories(ctx context.Context, hotelID int32) ([]ListHotelRoomCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, listHotelRoomCategoriesSQL, hotelID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := []HotelRoomCategory{}
+	result := []ListHotelRoomCategoriesRow{}
 	for rows.Next() {
-		var row HotelRoomCategory
+		var row ListHotelRoomCategoriesRow
 		if err := rows.Scan(
 			&row.ID,
 			&row.HotelID,
@@ -235,18 +240,27 @@ WHERE c.id = ANY($1::int[])
   AND h.deleted_at IS NULL
 ORDER BY c.id`
 
+// FindRoomCategoriesByIDsRow — одна строка FindRoomCategoriesByIDs.
+type FindRoomCategoriesByIDsRow struct {
+	ID          int32
+	HotelID     int32
+	Name        string
+	Description string
+	PhotoUrls   []string
+}
+
 // FindRoomCategoriesByIDs возвращает действующие категории действующих
 // отелей с перечисленными id.
-func (q *Queries) FindRoomCategoriesByIDs(ctx context.Context, ids []int32) ([]HotelRoomCategory, error) {
+func (q *Queries) FindRoomCategoriesByIDs(ctx context.Context, ids []int32) ([]FindRoomCategoriesByIDsRow, error) {
 	rows, err := q.db.Query(ctx, findRoomCategoriesByIDsSQL, ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := []HotelRoomCategory{}
+	result := []FindRoomCategoriesByIDsRow{}
 	for rows.Next() {
-		var row HotelRoomCategory
+		var row FindRoomCategoriesByIDsRow
 		if err := rows.Scan(
 			&row.ID,
 			&row.HotelID,
@@ -262,12 +276,4 @@ func (q *Queries) FindRoomCategoriesByIDs(ctx context.Context, ids []int32) ([]H
 		return nil, err
 	}
 	return result, nil
-}
-
-// nonNilStrings — пустой массив вместо NULL для столбцов text[] NOT NULL.
-func nonNilStrings(s []string) []string {
-	if s == nil {
-		return []string{}
-	}
-	return s
 }
