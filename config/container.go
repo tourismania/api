@@ -29,11 +29,13 @@ import (
 	getairlineq "api/internal/application/query/get_airline"
 	getmeq "api/internal/application/query/get_me"
 	getofferq "api/internal/application/query/get_offer"
-	getoffersq "api/internal/application/query/get_offers"
 	getpublishedofferq "api/internal/application/query/get_published_offer"
+	getroomcategories "api/internal/application/query/get_room_categories"
 	listcurrencies "api/internal/application/query/list_currencies"
+	listoffersq "api/internal/application/query/list_offers"
 	searchairlines "api/internal/application/query/search_airlines"
 	searchairports "api/internal/application/query/search_airports"
+	searchhotels "api/internal/application/query/search_hotels"
 	"api/internal/infrastructure/auth"
 	"api/internal/infrastructure/broker/kafka"
 	"api/internal/infrastructure/geo/mwgg"
@@ -46,14 +48,16 @@ import (
 	"api/internal/infrastructure/security"
 	loginhttp "api/internal/presentation/http/api/login"
 	getairlinehttp "api/internal/presentation/http/api/v1/airline/get"
-	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
-	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	searchairlineshttp "api/internal/presentation/http/api/v1/airline/search"
+	searchairportshttp "api/internal/presentation/http/api/v1/airport/search"
 	listcurrencieshttp "api/internal/presentation/http/api/v1/currency/list"
+	getroomcategorieshttp "api/internal/presentation/http/api/v1/hotel/get_room_categories"
+	searchhotelshttp "api/internal/presentation/http/api/v1/hotel/search"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	deleteofferhttp "api/internal/presentation/http/api/v1/offer/delete"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
-	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
-	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	getpublishedofferhttp "api/internal/presentation/http/api/v1/offer/get_published"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/list"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 
 	"github.com/go-playground/validator/v10"
@@ -84,11 +88,13 @@ type Container struct {
 		SearchAirlines    *searchairlines.Handler
 		GetAirline        *getairlineq.Handler
 		SyncAirlines      *syncairlinescmd.Handler
+		SearchHotels      *searchhotels.Handler
+		GetRoomCategories *getroomcategories.Handler
 		CreateOffer       *createoffercmd.Handler
 		UpdateOffer       *updateoffercmd.Handler
 		DeleteOffer       *deleteoffercmd.Handler
 		GetOffer          *getofferq.Handler
-		GetOffers         *getoffersq.Handler
+		ListOffers        *listoffersq.Handler
 		GetPublishedOffer *getpublishedofferq.Handler
 	}
 
@@ -97,14 +103,16 @@ type Container struct {
 		Login             *loginhttp.Handler
 		CreateUser        *createuserhttp.Handler
 		GetMe             *getmehttp.Handler
-		Airports          *searchairporthttp.Handler
-		SearchAirlines    *searchairlinehttp.Handler
+		SearchAirports    *searchairportshttp.Handler
+		SearchAirlines    *searchairlineshttp.Handler
 		GetAirline        *getairlinehttp.Handler
-		Currencies        *listcurrencieshttp.Handler
+		SearchHotels      *searchhotelshttp.Handler
+		GetRoomCategories *getroomcategorieshttp.Handler
+		ListCurrencies    *listcurrencieshttp.Handler
 		CreateOffer       *createofferhttp.Handler
 		GetOffer          *getofferhttp.Handler
-		GetOffers         *listoffershttp.Handler
-		GetPublishedOffer *getpublicofferhttp.Handler
+		ListOffers        *listoffershttp.Handler
+		GetPublishedOffer *getpublishedofferhttp.Handler
 		UpdateOffer       *updateofferhttp.Handler
 		DeleteOffer       *deleteofferhttp.Handler
 	}
@@ -157,6 +165,11 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	searchAirportsApp := searchairports.NewHandler(airportRepo)
 	listCurrenciesApp := listcurrencies.NewHandler()
 
+	// Hotel directory wiring.
+	hotelRepo := pgrepo.NewHotelRepository(queries)
+	searchHotelsApp := searchhotels.NewHandler(hotelRepo, userFinder)
+	getRoomCategoriesApp := getroomcategories.NewHandler(hotelRepo, userFinder)
+
 	// Airline reference wiring.
 	airlineRepo := pgrepo.NewAirlineRepository(queries)
 	searchAirlinesApp := searchairlines.NewHandler(airlineRepo)
@@ -200,7 +213,7 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	updateOfferApp := updateoffercmd.NewHandler(offerManager, offerFlightManager, userFinder, txManager)
 	deleteOfferApp := deleteoffercmd.NewHandler(offerManager, userFinder)
 	getOfferApp := getofferq.NewHandler(offerManager, offerFlightRepo, airlineRepo, airportRepo, userFinder)
-	getOffersApp := getoffersq.NewHandler(offerRepo, userFinder)
+	listOffersApp := listoffersq.NewHandler(offerRepo, userFinder)
 	getPublishedOfferApp := getpublishedofferq.NewHandler(offerRepo, offerFlightRepo, airlineRepo, airportRepo)
 
 	// Validation.
@@ -210,14 +223,16 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	loginH := loginhttp.NewHandler(queries, hasher, jwtSvc, validate)
 	createUserH := createuserhttp.NewHandler(createUserApp, validate)
 	getMeH := getmehttp.NewHandler(getMeApp)
-	airportsH := searchairporthttp.NewHandler(searchAirportsApp, validate)
-	searchAirlineH := searchairlinehttp.NewHandler(searchAirlinesApp, validate)
+	searchAirportsH := searchairportshttp.NewHandler(searchAirportsApp, validate)
+	searchAirlinesH := searchairlineshttp.NewHandler(searchAirlinesApp, validate)
 	getAirlineH := getairlinehttp.NewHandler(getAirlineApp)
-	currenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
+	searchHotelsH := searchhotelshttp.NewHandler(searchHotelsApp, validate)
+	getRoomCategoriesH := getroomcategorieshttp.NewHandler(getRoomCategoriesApp)
+	listCurrenciesH := listcurrencieshttp.NewHandler(listCurrenciesApp)
 	createOfferH := createofferhttp.NewHandler(createOfferApp, validate)
 	getOfferH := getofferhttp.NewHandler(getOfferApp)
-	getOffersH := listoffershttp.NewHandler(getOffersApp, validate)
-	getPublishedOfferH := getpublicofferhttp.NewHandler(getPublishedOfferApp)
+	listOffersH := listoffershttp.NewHandler(listOffersApp, validate)
+	getPublishedOfferH := getpublishedofferhttp.NewHandler(getPublishedOfferApp)
 	updateOfferH := updateofferhttp.NewHandler(updateOfferApp, validate)
 	deleteOfferH := deleteofferhttp.NewHandler(deleteOfferApp)
 
@@ -241,23 +256,27 @@ func Build(ctx context.Context, cfg *Config) (*Container, error) {
 	c.App.SearchAirlines = searchAirlinesApp
 	c.App.GetAirline = getAirlineApp
 	c.App.SyncAirlines = syncAirlinesApp
+	c.App.SearchHotels = searchHotelsApp
+	c.App.GetRoomCategories = getRoomCategoriesApp
 	c.App.CreateOffer = createOfferApp
 	c.App.UpdateOffer = updateOfferApp
 	c.App.DeleteOffer = deleteOfferApp
 	c.App.GetOffer = getOfferApp
-	c.App.GetOffers = getOffersApp
+	c.App.ListOffers = listOffersApp
 	c.App.GetPublishedOffer = getPublishedOfferApp
 
 	c.Http.Login = loginH
 	c.Http.CreateUser = createUserH
 	c.Http.GetMe = getMeH
-	c.Http.Airports = airportsH
-	c.Http.SearchAirlines = searchAirlineH
+	c.Http.SearchAirports = searchAirportsH
+	c.Http.SearchAirlines = searchAirlinesH
 	c.Http.GetAirline = getAirlineH
-	c.Http.Currencies = currenciesH
+	c.Http.SearchHotels = searchHotelsH
+	c.Http.GetRoomCategories = getRoomCategoriesH
+	c.Http.ListCurrencies = listCurrenciesH
 	c.Http.CreateOffer = createOfferH
 	c.Http.GetOffer = getOfferH
-	c.Http.GetOffers = getOffersH
+	c.Http.ListOffers = listOffersH
 	c.Http.GetPublishedOffer = getPublishedOfferH
 	c.Http.UpdateOffer = updateOfferH
 	c.Http.DeleteOffer = deleteOfferH

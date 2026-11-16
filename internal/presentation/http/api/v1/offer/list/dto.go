@@ -1,4 +1,4 @@
-// Package listoffershttp is the HTTP boundary for the GetOffers query
+// Package listoffershttp is the HTTP boundary for the ListOffers query
 // (GET /api/v1/offers — pagination + filters).
 package listoffershttp
 

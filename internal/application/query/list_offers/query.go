@@ -1,7 +1,7 @@
-// Package getoffers contains the "list offers" read-side use case
+// Package listoffers contains the "list offers" read-side use case
 // (private endpoint — pagination + filters, always scoped to the
 // caller's own agency).
-package getoffers
+package listoffers
 
 import (
 	"api/internal/domain/offer"

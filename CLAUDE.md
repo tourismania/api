@@ -30,6 +30,8 @@ internal/
     airline/          # Справочник авиакомпаний: Airline, Country, Filter, SourceRecord, UnknownID («Неизвестная» = 1), Repository; ключ — id записи, коды ICAO/IATA — атрибуты (см. docs/cli/sync_airlines.md)
     offer/            # Агрегат оффера (корень): Offer, Status, Repository, Manager
       flight/         # Дочерний агрегат Flight: Flight, Segment (с AirlineID и FlightNumber), CabinClass, Layover, New, Repository, Manager, DetailsUpdate (детали сегментов — SegmentDetails); классы обслуживания — см. docs/cabin-classes.md
+    hotel/            # Справочник отелей агентства: Hotel, RoomCategory, New/NewRoomCategory (правила полей, звёзды 0–5), Filter, Repository, ErrNotFound, ErrRoomCategoryNameTaken; создаётся только при сохранении оффера, мягкое удаление (deleted_at)
+    content/          # Общие правила содержательных полей: CheckText (управляющие символы), CheckPhotoURL (http(s) с хостом)
     money/            # Системный справочник валют (Currency, ISO 4217 + число знаков) и сумма Money; см. docs/currencies.md
     event/            # Общее ядро событий: интерфейсы DomainEvent и Bus
   application/        # Use cases (тонкий слой оркестрации)
@@ -44,7 +46,7 @@ internal/
     persistence/
       helpers/        # Общие помощники хранения для любых репозиториев (EscapeLike — буквальный поиск в LIKE)
       postgres/
-        db/           # sqlc-генерированный код (НЕ РЕДАКТИРОВАТЬ вручную)
+        db/           # Слой запросов в форме вывода sqlc, пишется вручную (см. db/db.go, STYLE.md §2 «Слой запросов db/»)
         model/        # Модели БД (≠ доменные entity)
         repository/   # Реализации доменных repository-интерфейсов
   presentation/       # Точки входа (НЕ содержит бизнес-логику)
@@ -82,9 +84,9 @@ tests/
   - В процессе создания ТЗ когда ссылаешься на какие-нибудь пункты, не используй синтаксис `#1`, используй `№1`. Чтобы при формировании задачи в Github не подставлялись ссылки на задачи
 - Если создаётся новая CLI-команда — добавь её в `README.md` в раздел **CLI**.
 - Если создаётся новый route — добавь его в `README.md` в раздел **Endpoints**.
-- Файлы в `internal/infrastructure/persistence/postgres/db/` генерируются автоматически. Не редактируй их вручную.
+- Слой `internal/infrastructure/persistence/postgres/db/` **пишется вручную** в форме вывода sqlc (`db/db.go`): `make sqlc` его сейчас не генерирует — не запускай его (с текущим `sqlc.yaml` не видит схему, с исправленной перезапишет весь слой). Новый запрос — в `queries/<ресурс>.sql` и тем же SQL с позиционными `$N` в `db/<ресурс>.sql.go`. Файл слоя ничего не обобщает: свой метод, свои `…Params`/`…Row` и явный цикл `rows.Next`/`Scan` на каждый запрос, без generic-помощников и общих сканеров — `STYLE.md` §2 «Слой запросов `db/`». Выбор подхода (вручную, sqlc, sqlx) — открытый вопрос бэклога sdd.
 - При создании новой переменной окружения, которая появляется в проекте, добавляй ее в `.env.example`
-- Правила миграций (имена, `down`, безопасная выкладка, `COMMENT ON` для каждой новой таблицы и столбца) — `STYLE.md` §12. Принцип миграций: 1 действие = 1 миграция. Каждая миграция содержит одно логическое изменение схемы: создание одной таблицы, добавление одного индекса, включение одного расширения. Не объединять несвязанные изменения в одном файле.
+- Правила миграций (имена, `down`, безопасная выкладка, `COMMENT ON` для каждой новой таблицы и столбца, **логика — не в БД**: без `CHECK`/`ENUM`/триггеров, правила значений — в домене; уникальность — уникальным индексом) — `STYLE.md` §12. Принцип миграций: 1 действие = 1 миграция. Каждая миграция содержит одно логическое изменение схемы: создание одной таблицы, добавление одного индекса, включение одного расширения. Не объединять несвязанные изменения в одном файле.
 - Репозитории описываются в рамках 1 сущности. 1 сущность = 1 репозиторий.
 - При команде "добавить в тех.долг", необходимо задачу (или проблему) добавить в `docs/tech_debt/tasks.md`
 
@@ -106,12 +108,13 @@ tests/
 - Domain-слой организован **resource-first**: один агрегат/bounded context = один пакет (`domain/user`, `domain/agency`, `domain/airport`, `domain/airline`, `domain/offer`). Внутри пакета — плоские файлы (`entity`, `repository`, `manager` и т.д. как файлы, а не подпакеты). Общее ядро (интерфейсы `DomainEvent`/`Bus`) — в `domain/event`.
 - **Дочерние агрегаты — подпакетами родителя**: сущность, не живущая вне родительского агрегата (все контракты скоупятся id родителя), лежит в подпакете: `domain/offer/flight`; будущие дети оффера — `domain/offer/hotel`, `domain/offer/transfer` и т.д. Пакет родителя остаётся только корнем агрегата. Дети могут импортировать пакет родителя; родитель детей — никогда (композиция — в application-слое).
 - Имена типов не дублируют имя пакета (без stutter): `user.Repository` (не `user.UserRepository`), `agency.Manager`, `offer.Status`, `flight.Segment` (не `flight.FlightSegment`). Имя самого агрегата совпадает с пакетом — это допустимый Go-идиоматический stutter: `user.User`, `offer.Offer`, `flight.Flight`.
-- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, airline, money}`; `agency`, `airport`, `airline` и `money` ни от кого не зависят. Циклы запрещены.
+- Направление зависимостей между доменными пакетами: `user → agency`, `offer → {agency, user}`, `offer/flight → {airport, airline, money}`, `hotel → content`; `agency`, `airport`, `airline`, `money` и `content` ни от кого не зависят. Циклы запрещены.
 - Доменная сущность ≠ ORM-модель: `domain/user.User` vs `infrastructure/persistence/postgres/model.User`.
 - Репозиторий — интерфейс в домене (в пакете своего агрегата), реализация в `infrastructure/`.
-- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights`).
+- CQRS: команды в `application/command/`, запросы в `application/query/`. В `command/` и `query/` — **только use case'ы** (один пакет = одна команда или один запрос). Общий для нескольких use case'ов код application-слоя кладётся рядом, а не внутрь `command/` или `query/`: оформившийся сервис или маппер — своим пакетом `application/<имя>` (как `apperror`, `txmanager`); помощник, который пока не дорос до сервиса или маппера, — в `application/helpers` (сейчас там сборка перелётов `helpers.BuildFlights` и нормализация строки поиска `helpers.NormalizeSearch`).
 - Доменные события публикуются через интерфейс `domain/event.Bus` (Kafka — одна из реализаций).
 - Все бизнес-эндпоинты — под `/api/v1/`.
+- **Именование use case'ов и хендлеров** — одно имя на цепочку: пакет `query/get_room_categories` → хендлер `hotel/get_room_categories` → поля `GetRoomCategories` в `Container.App`, `Container.Http` и `http.Server`. Глагол чтения: `get` — один объект или фиксированный набор, принадлежащий объекту, без пагинации и фильтров (`get_room_categories`); `list` — коллекция ресурса целиком, с необязательными фильтрами и пагинацией, в стабильном порядке (`list_currencies`, `list_offers`); `search` — по обязательной строке поиска с ранжированием по релевантности, без строки — `400` (`search_hotels`). Различие — не в пагинации, а в обязательной строке и порядке. Таблица — `STYLE.md` §1 «Use case'ы и HTTP-хендлеры»; перед добавлением поля сверяйся с ней.
 - DTO presentation: одного хендлера — в его `dto.go`; общие для хендлеров одного ресурса — в родительском пакете ресурса `presentation/http/api/v1/<ресурс>`; не про ресурс (разбор query, ошибки) — в `httpx`. Подробно — `STYLE.md` §3 «Общие формы запроса и ответа».
 - **Presentation-слою доверяется только чисто структурный reshape** — переименование полей, выбор нужных полей, JSON-теги — поверх уже плоских DTO (Command/Result) Application-слоя. Presentation не работает с доменными сущностями и не вызывает их методы напрямую (из доменных пакетов ему доступны только enum-типы вроде `offer.Status` и sentinel-ошибки для маппинга в HTTP-статусы). Как только нужно вызвать метод доменной сущности или посчитать что-то бизнес-значимое (длительность, пересадки, скидки и т. п.) — это принадлежит Application-слою (или домену, если это инвариант, а не просто вычисление): presentation конвертирует свой request-DTO в DTO Application-слоя (`Command`), а Application возвращает уже вычисленный `Result`.
 
@@ -181,7 +184,7 @@ tests/
 
 - Все публичные функции доменного слоя — минимум один тест.
 - Критические пути (auth, создание пользователя) — 90%+.
-- `internal/infrastructure/persistence/postgres/db/` — не тестируется напрямую (генерированный код).
+- `internal/infrastructure/persistence/postgres/db/` — не тестируется напрямую: логики нет, запросы проверяют интеграционные тесты репозиториев.
 
 ### Running Tests
 
@@ -267,8 +270,8 @@ golangci-lint run
 # Генерация Swagger
 make swag
 
-# Генерация sqlc
-make sqlc
+# sqlc: слой db/ пока пишется вручную — make sqlc не запускать
+# (см. STYLE.md §2 «Слой запросов db/»)
 
 # Миграции
 make migrate-up

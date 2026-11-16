@@ -14,7 +14,7 @@ import (
 	"api/internal/infrastructure/persistence/postgres"
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
-	searchairporthttp "api/internal/presentation/http/api/v1/airport/search"
+	searchairportshttp "api/internal/presentation/http/api/v1/airport/search"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -36,7 +36,7 @@ func (f *fakeUseCase) Handle(_ context.Context, _ searchairports.Query) (searcha
 // newTestRouter wires a real Handler against a stub use-case.
 func newTestRouter(uc searchairports.UseCase) http.Handler {
 	v := validator.New(validator.WithRequiredStructEnabled())
-	h := searchairporthttp.NewHandler(uc, v)
+	h := searchairportshttp.NewHandler(uc, v)
 	r := chi.NewRouter()
 	r.Get("/api/v1/airports", h.Handle)
 	return r
@@ -66,7 +66,7 @@ func TestSearchAirports_Moscow(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp searchairporthttp.SearchResponse
+	var resp searchairportshttp.SearchResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.GreaterOrEqual(t, len(resp.Data), 1)
 }
@@ -84,7 +84,7 @@ func TestSearchAirports_IATA_SVO(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp searchairporthttp.SearchResponse
+	var resp searchairportshttp.SearchResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Data)
 	require.NotNil(t, resp.Data[0].IATA)
@@ -104,7 +104,7 @@ func TestSearchAirports_ICAO_UUEE(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp searchairporthttp.SearchResponse
+	var resp searchairportshttp.SearchResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Data)
 	assert.Equal(t, "UUEE", resp.Data[0].ICAO)
@@ -154,7 +154,7 @@ func TestSearchAirports_Pagination(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp searchairporthttp.SearchResponse
+	var resp searchairportshttp.SearchResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.LessOrEqual(t, len(resp.Data), 2)
 	assert.Equal(t, int64(4), resp.Meta.Total)
@@ -227,7 +227,7 @@ func TestSearchAirports_PercentOnly_NoWildcard(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	var resp searchairporthttp.SearchResponse
+	var resp searchairportshttp.SearchResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "%%", resp.Meta.Search)
 	for _, a := range resp.Data {

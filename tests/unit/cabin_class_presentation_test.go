@@ -7,7 +7,7 @@ import (
 	"api/internal/domain/offer/flight"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
-	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	getpublishedofferhttp "api/internal/presentation/http/api/v1/offer/get_published"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ func TestCabinClassDTO_DoesNotDuplicateDomainCabinClasses(t *testing.T) {
 		"create.FlightSegmentInput":        createofferhttp.FlightSegmentInput{},
 		"update.FlightSegmentInput":        updateofferhttp.FlightSegmentInput{},
 		"get.FlightSegmentResponse":        getofferhttp.FlightSegmentResponse{},
-		"get_public.FlightSegmentResponse": getpublicofferhttp.FlightSegmentResponse{},
+		"get_public.FlightSegmentResponse": getpublishedofferhttp.FlightSegmentResponse{},
 	} {
 		field, ok := reflect.TypeOf(dto).FieldByName("CabinClass")
 		require.True(t, ok, name)

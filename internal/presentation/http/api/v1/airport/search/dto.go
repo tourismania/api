@@ -1,4 +1,4 @@
-package searchairporthttp
+package searchairportshttp
 
 // SearchParams contains the query parameters for the airport search endpoint.
 // Validation uses go-playground/validator; business rules are applied in the handler.

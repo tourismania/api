@@ -19,8 +19,8 @@ import (
 	createoffer "api/internal/application/command/create_offer"
 	updateoffer "api/internal/application/command/update_offer"
 	getoffer "api/internal/application/query/get_offer"
-	getoffers "api/internal/application/query/get_offers"
 	getpublishedoffer "api/internal/application/query/get_published_offer"
+	listoffers "api/internal/application/query/list_offers"
 	"api/internal/domain/agency"
 	"api/internal/domain/airline"
 	"api/internal/domain/airport"
@@ -30,8 +30,8 @@ import (
 	"api/internal/infrastructure/auth"
 	createofferhttp "api/internal/presentation/http/api/v1/offer/create"
 	getofferhttp "api/internal/presentation/http/api/v1/offer/get"
-	listoffershttp "api/internal/presentation/http/api/v1/offer/get_list"
-	getpublicofferhttp "api/internal/presentation/http/api/v1/offer/get_public"
+	getpublishedofferhttp "api/internal/presentation/http/api/v1/offer/get_published"
+	listoffershttp "api/internal/presentation/http/api/v1/offer/list"
 	updateofferhttp "api/internal/presentation/http/api/v1/offer/update"
 	custommw "api/internal/presentation/http/middleware"
 
@@ -86,7 +86,7 @@ func (s stubUserFinder) Store(_ context.Context, _ user.User, _ string) (*int, e
 }
 
 // stubOfferRepo is a minimal offer.Repository test double. Its
-// List method also satisfies getoffers.OfferLister (identical
+// List method also satisfies listoffers.OfferLister (identical
 // signature), so the same instance backs both the domain offer.Manager
 // (write side) and the list query in these full-stack tests.
 type stubOfferRepo struct {
@@ -321,7 +321,7 @@ func newOffersTestRouterWithDirectories(jwtSvc *auth.Service, offers *stubOfferR
 	createApp := createoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
 	createH := createofferhttp.NewHandler(createApp, validate)
 
-	listApp := getoffers.NewHandler(offers, userFinder)
+	listApp := listoffers.NewHandler(offers, userFinder)
 	listH := listoffershttp.NewHandler(listApp, validate)
 
 	updateApp := updateoffer.NewHandler(offerManager, offerFlightManager, userFinder, noopTxManager{})
@@ -330,7 +330,7 @@ func newOffersTestRouterWithDirectories(jwtSvc *auth.Service, offers *stubOfferR
 	getApp := getoffer.NewHandler(offerManager, flights, airlines, airports, userFinder)
 	getH := getofferhttp.NewHandler(getApp)
 
-	publicH := getpublicofferhttp.NewHandler(publicUC)
+	publicH := getpublishedofferhttp.NewHandler(publicUC)
 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(api chi.Router) {

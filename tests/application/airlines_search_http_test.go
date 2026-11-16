@@ -19,7 +19,7 @@ import (
 	"api/internal/infrastructure/persistence/postgres/db"
 	pgrepo "api/internal/infrastructure/persistence/postgres/repository"
 	getairlinehttp "api/internal/presentation/http/api/v1/airline/get"
-	searchairlinehttp "api/internal/presentation/http/api/v1/airline/search"
+	searchairlineshttp "api/internal/presentation/http/api/v1/airline/search"
 	custommw "api/internal/presentation/http/middleware"
 
 	"github.com/go-chi/chi/v5"
@@ -107,7 +107,7 @@ func newAirlineHTTPEnv(t *testing.T) airlineHTTPEnv {
 	tok, err := jwtSvc.Issue(uuid.New())
 	require.NoError(t, err)
 
-	searchH := searchairlinehttp.NewHandler(searchairlines.NewHandler(repo), validator.New(validator.WithRequiredStructEnabled()))
+	searchH := searchairlineshttp.NewHandler(searchairlines.NewHandler(repo), validator.New(validator.WithRequiredStructEnabled()))
 	getH := getairlinehttp.NewHandler(getairline.NewHandler(repo))
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(api chi.Router) {
